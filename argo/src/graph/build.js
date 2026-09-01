@@ -6,6 +6,9 @@
  * harder constraint on parallel work than a 4,000-line file nobody imports.
  */
 
+import { existsSync } from 'node:fs'
+import { isAbsolute, join, relative, sep } from 'node:path'
+
 /**
  * @typedef {object} Graph
  * @property {string[]}                 files
@@ -31,6 +34,111 @@ export function buildGraph(scan) {
     meta: scan.meta,
     coverage: scan.coverage,
   }
+}
+
+/**
+ * Restrict a graph to a task's write-set plus one reference hop each way.
+ *
+ * A whole-repo plan describes the repo. A task that only creates three new
+ * files has no shared surface at all, and the plan should say so instead of
+ * recommending six workers for coupling the task never goes near. One hop is
+ * kept so a hub the task touches still shows its blast radius.
+ *
+ * `specs` are repo-relative paths, directories, or globs (`*`, `?`, `**`).
+ * A plain path that matches nothing is legal — a file that does not exist yet
+ * has no inbound edges — and is kept as an isolated node so the brief can list
+ * it and say so, rather than dropping it silently.
+ */
+export function scopeGraph(graph, specs) {
+  const known = new Set(graph.files)
+  const touched = new Set()
+  const newFiles = []
+  const unindexed = []
+  const unmatched = []
+
+  for (const raw of specs) {
+    const spec = normaliseSpec(raw, graph.root)
+    if (!spec) continue
+    if (/[*?]/.test(spec)) {
+      const re = globToRegExp(spec)
+      const hits = graph.files.filter((f) => re.test(f))
+      if (hits.length === 0) unmatched.push(spec)
+      for (const f of hits) touched.add(f)
+    } else if (known.has(spec)) {
+      touched.add(spec)
+    } else {
+      const under = graph.files.filter((f) => f.startsWith(spec + '/'))
+      if (under.length > 0) {
+        for (const f of under) touched.add(f)
+      } else {
+        touched.add(spec)
+        // Two different truths: not on disk yet, or on disk but not a source
+        // file the scan indexes. Both carry zero edges, but only one is "new".
+        if (existsSync(join(graph.root, spec))) unindexed.push(spec)
+        else newFiles.push(spec)
+      }
+    }
+  }
+
+  const inScope = new Set(touched)
+  for (const f of touched) {
+    for (const d of graph.in.get(f) ?? []) inScope.add(d)
+    for (const t of graph.out.get(f) ?? []) inScope.add(t)
+  }
+
+  const files = [...inScope].sort()
+  const out = new Map()
+  const inn = new Map()
+  const meta = new Map()
+  for (const f of files) {
+    out.set(f, new Set([...(graph.out.get(f) ?? [])].filter((t) => inScope.has(t))))
+    inn.set(f, new Set([...(graph.in.get(f) ?? [])].filter((d) => inScope.has(d))))
+    meta.set(f, graph.meta.get(f) ?? { lines: 0, lang: 'unknown', external: 0, missed: 0, rawRefs: 0 })
+  }
+
+  return {
+    ...graph,
+    files,
+    out,
+    in: inn,
+    meta,
+    scope: {
+      specs: specs.map(String),
+      touched: [...touched].sort(),
+      hops: files.filter((f) => !touched.has(f)),
+      newFiles: newFiles.sort(),
+      unindexed: unindexed.sort(),
+      unmatched,
+    },
+  }
+}
+
+function normaliseSpec(raw, root) {
+  let s = String(raw).trim()
+  if (isAbsolute(s)) s = relative(root, s)
+  s = s.split(sep).join('/').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')
+  return s
+}
+
+/** `**` spans directories, `*` and `?` stay within one path segment. */
+function globToRegExp(glob) {
+  let re = ''
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        i++
+        if (glob[i + 1] === '/') { i++; re += '(?:.*/)?' } else re += '.*'
+      } else {
+        re += '[^/]*'
+      }
+    } else if (c === '?') {
+      re += '[^/]'
+    } else {
+      re += c.replace(/[.+^${}()|[\]\\]/, '\\$&')
+    }
+  }
+  return new RegExp(`^${re}$`)
 }
 
 /** fan-in / fan-out / lines per file, sorted by fan-in descending. */

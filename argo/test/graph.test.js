@@ -1,16 +1,23 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 import { buildIndex, resolveRef, scanRepo } from '../src/graph/scan.js'
-import { buildGraph, rankFiles, findCycles, blastRadius, summarise } from '../src/graph/build.js'
+import {
+  buildGraph, rankFiles, findCycles, blastRadius, summarise, scopeGraph,
+} from '../src/graph/build.js'
 import {
   toUndirected, louvain, balanceToK, sharedSurface, sweepWorkers,
   predictedSpeedup, effectiveSpeedup,
 } from '../src/graph/partition.js'
-import { buildPlan } from '../src/graph/report.js'
+import {
+  buildPlan, renderText, renderBrief, DIFFICULTY, difficultyLine,
+} from '../src/graph/report.js'
+import { analyse } from '../src/graph/index.js'
 
 /** Build a throwaway repo on disk. Returns its root; caller removes it. */
 function fixture(files) {
@@ -318,6 +325,328 @@ describe('plan', () => {
       if (plan.straddlingCycles.length > 0) {
         assert.equal(plan.verdict.level, 'serialise')
       }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * --touch: task-scoped plans
+ * ------------------------------------------------------------------ */
+
+/**
+ * Two dense clusters on a bridge, a small hub with three dependents, and two
+ * orphan scripts. Every shape the scoper and the difficulty rule care about.
+ */
+function mixedRepo() {
+  const files = {}
+  for (const side of ['x', 'y']) {
+    for (let i = 0; i < 6; i++) {
+      const peers = [0, 1, 2, 3, 4, 5]
+        .filter((j) => j !== i)
+        .map((j) => `import './${side}${j}.js'`)
+        .join('\n')
+      files[`src/${side}${i}.ts`] = `${peers}\nimport './bridge.js'\n`
+    }
+  }
+  files['src/bridge.ts'] = 'export const bridge = 1\n'
+  files['src/hub.ts'] = 'export const h = 1\n'
+  files['src/a.ts'] = "import './hub.js'\n"
+  files['src/b.ts'] = "import './hub.js'\n"
+  files['src/c.ts'] = "import './hub.js'\n"
+  files['scripts/run.sh'] = 'echo hi\n'
+  files['scripts/other.sh'] = 'echo other\n'
+  return fixture(files)
+}
+
+/** renderText of mixedRepo() before --touch and Difficulty existed. Root is machine-specific, hence the placeholder. */
+const TEXT_BEFORE = [
+  "GRAPH  <ROOT>",
+  "       19 files · 75 edges · 98 lines · density 0.219298",
+  "       fan-in  median 5 · p90 5 · p99 12 · max 12",
+  "       coverage 100.0% of intra-repo refs resolved (0 missed)",
+  "",
+  "HUBS   the files everything names — size is not the signal",
+  "         12 refs      2 lines  blast   12  src/bridge.ts",
+  "",
+  "SWEEP  effective speedup by worker count (bounded by the slowest worker)",
+  "       workers   shared   fraction   speedup   ideal   imbalance",
+  "             2        0       0.0%      1.46    2.00        0.74",
+  "             3        1       5.3%      2.71    2.71        0.16  <-- best",
+  "             4        1       5.3%      2.71    3.46        1.05",
+  "             5        1       5.3%      2.71    4.13        1.84  (degenerate — idle worker)",
+  "             6        1       5.3%      2.71    4.75        2.21  (degenerate — idle worker)",
+  "             7        1       5.3%      2.71    5.32        2.58  (degenerate — idle worker)",
+  "             8        1       5.3%      2.71    5.85        2.95  (degenerate — idle worker)",
+  "             9        1       5.3%      2.71    6.33        3.32  (degenerate — idle worker)",
+  "            10        7      36.8%      1.46    2.32        4.21  (degenerate — idle worker)",
+  "            11        7      36.8%      1.46    2.35        6.95  (degenerate — idle worker)",
+  "            12        2      10.5%      2.38    5.56        4.42  (degenerate — idle worker)",
+  "",
+  "PLAN   3 workers · 1 files in the shared surface (5.3%)",
+  "       worker-1: 7 files, 44 lines  [src (7)]",
+  "       worker-2: 6 files, 42 lines  [src (6)]",
+  "       worker-3: 6 files, 12 lines  [src (4), scripts (2)]",
+  "",
+  "FROZEN read-only for every worker; edits to these go in a serial pre-step",
+  "        1 parts    12 refs      2 lines  src/bridge.ts",
+  "",
+  "VERDICT [ok] 1/19 files (5.3%) are shared. Workable, but every worker carries that surface. Freeze it and keep edits to it serial.",
+].join('\n')
+
+/** renderBrief of mixedRepo() before --touch and Difficulty existed. */
+const BRIEF_BEFORE = [
+  "# Fan-out plan",
+  "",
+  "Repo: `<ROOT>`",
+  "19 files · 75 reference edges · shared surface 1 files (5.3%)",
+  "",
+  "**Worker count: 3.** 1/19 files (5.3%) are shared. Workable, but every worker carries that surface. Freeze it and keep edits to it serial.",
+  "",
+  "## Rules for every worker",
+  "",
+  "1. You own exactly the files listed under your worker id. Do not edit any other file.",
+  "2. Files under FROZEN are read-only for you. If your task needs one changed, stop and report it — do not edit it.",
+  "3. Do not read another worker's draft output. Report to the supervisor only.",
+  "4. If your change would add a new import from your partition into another, report it instead of writing it.",
+  "",
+  "## FROZEN — read-only for all 3 workers",
+  "",
+  "These are named from more than one partition. Any edit here happens in a serial pre-step, before a single worker starts.",
+  "",
+  "- `src/bridge.ts` — 12 refs, reached from partitions 1",
+  "",
+  "## worker-1 — 6 owned files",
+  "",
+  "Nominal home of 1 FROZEN file(s); still read-only during fan-out.",
+  "",
+  "- `src/x0.ts`",
+  "- `src/x1.ts`",
+  "- `src/x2.ts`",
+  "- `src/x3.ts`",
+  "- `src/x4.ts`",
+  "- `src/x5.ts`",
+  "",
+  "## worker-2 — 6 owned files",
+  "",
+  "- `src/y0.ts`",
+  "- `src/y1.ts`",
+  "- `src/y2.ts`",
+  "- `src/y3.ts`",
+  "- `src/y4.ts`",
+  "- `src/y5.ts`",
+  "",
+  "## worker-3 — 6 owned files",
+  "",
+  "- `scripts/other.sh`",
+  "- `scripts/run.sh`",
+  "- `src/a.ts`",
+  "- `src/b.ts`",
+  "- `src/c.ts`",
+  "- `src/hub.ts`",
+  "",
+].join('\n')
+
+describe('--touch scope', () => {
+  test('a path that does not exist yet yields zero shared surface and the brief says so', () => {
+    const root = mixedRepo()
+    try {
+      const graph = scopeGraph(buildGraph(scanRepo(root)), ['src/new-feature.ts'])
+      assert.deepEqual(graph.files, ['src/new-feature.ts'], 'a new file is kept as an isolated node')
+      assert.deepEqual(graph.scope.newFiles, ['src/new-feature.ts'])
+      assert.equal(graph.in.get('src/new-feature.ts').size, 0, 'nothing names a file that does not exist')
+
+      const plan = buildPlan(graph)
+      assert.equal(plan.sharedSurface.length, 0)
+      assert.equal(plan.sharedFraction, 0)
+      assert.equal(plan.chosenWorkers, 1, 'one new file is one worker')
+
+      const brief = renderBrief(plan)
+      assert.match(brief, /^Scope: task write-set \(`--touch`\)/m, 'header states the scope')
+      assert.match(brief, /do not exist yet[^\n]*`src\/new-feature\.ts`/, 'the new file is named, not dropped')
+      assert.match(renderText(plan), /do not exist yet[^\n]*src\/new-feature\.ts/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('three new files: zero surface, one worker each, all judgment', () => {
+    const root = mixedRepo()
+    try {
+      const { plan } = analyse(root, { touch: ['src/n1.ts', 'src/n2.ts', 'src/n3.ts'] })
+      assert.equal(plan.stats.files, 3, 'scope is the write-set, not the repo')
+      assert.equal(plan.sharedSurface.length, 0)
+      assert.equal(plan.recommendedWorkers, 3)
+      assert.equal(plan.verdict.level, 'clean')
+      for (const p of plan.partitions) {
+        assert.equal(p.difficulty.tier, 'judgment', `${p.worker}: writing a file from nothing is never mechanical`)
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('touching a real hub pulls in its dependents and yields a non-zero surface', () => {
+    const root = mixedRepo()
+    try {
+      const graph = scopeGraph(buildGraph(scanRepo(root)), ['src/bridge.ts'])
+      assert.equal(graph.files.length, 13, 'the hub plus its 12 dependents')
+      assert.deepEqual(graph.scope.touched, ['src/bridge.ts'])
+      assert.equal(graph.scope.hops.length, 12)
+      assert.equal(graph.in.get('src/bridge.ts').size, 12, 'in-scope fan-in is the real fan-in')
+
+      const plan = buildPlan(graph, { workers: 2 })
+      assert.ok(plan.sharedSurface.some((s) => s.file === 'src/bridge.ts'), 'the touched hub is frozen')
+      assert.ok(plan.sharedSurface.length > 0)
+      assert.match(renderBrief(plan), /- `src\/x0\.ts` \(hop\)/, 'one-hop files are marked')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('one hop each way: a touched leaf brings in what it imports', () => {
+    const root = mixedRepo()
+    try {
+      const graph = scopeGraph(buildGraph(scanRepo(root)), ['src/a.ts'])
+      assert.deepEqual(graph.files, ['src/a.ts', 'src/hub.ts'])
+      assert.deepEqual(graph.scope.hops, ['src/hub.ts'])
+      assert.ok(!graph.files.includes('src/b.ts'), 'siblings of the touched file are two hops away')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('globs, directories, and files not indexed by the scan', () => {
+    const root = mixedRepo()
+    writeFileSync(join(root, 'logo.png'), 'not source', 'utf8')
+    try {
+      const graph = buildGraph(scanRepo(root))
+      const byGlob = scopeGraph(graph, ['src/x*.ts'])
+      assert.equal(byGlob.scope.touched.length, 6)
+      assert.deepEqual(scopeGraph(graph, ['**/*.sh']).scope.touched, ['scripts/other.sh', 'scripts/run.sh'])
+      assert.deepEqual(scopeGraph(graph, ['scripts']).scope.touched, ['scripts/other.sh', 'scripts/run.sh'])
+      assert.deepEqual(scopeGraph(graph, ['./scripts/']).scope.touched, ['scripts/other.sh', 'scripts/run.sh'])
+
+      const nothing = scopeGraph(graph, ['src/nope/**'])
+      assert.deepEqual(nothing.scope.unmatched, ['src/nope/**'])
+      assert.deepEqual(nothing.files, [], 'a glob cannot name a new file')
+
+      const png = scopeGraph(graph, ['logo.png'])
+      assert.deepEqual(png.scope.unindexed, ['logo.png'], 'on disk but carries no edges')
+      assert.deepEqual(png.scope.newFiles, [])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('the default (no --touch) is byte-identical to before, plus the Difficulty line', () => {
+    const root = mixedRepo()
+    try {
+      const { plan } = analyse(root)
+      assert.equal(plan.scope, null)
+      const strip = (s) => s.split(plan.root).join('<ROOT>')
+
+      assert.equal(strip(renderText(plan)), TEXT_BEFORE)
+
+      const brief = strip(renderBrief(plan))
+      const withoutDifficulty = brief.replace(/^Difficulty: [^\n]*\n\n/gm, '')
+      assert.equal(withoutDifficulty, BRIEF_BEFORE)
+      assert.equal((brief.match(/^Difficulty: /gm) ?? []).length, plan.partitions.length, 'one line per worker')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Difficulty tier per worker
+ * ------------------------------------------------------------------ */
+
+/**
+ * The model-routing hook that consumes these lines lives beside argo in the
+ * same config repo. When it is there, classify against the real thing; when
+ * argo runs standalone, skip rather than pretend.
+ */
+function loadRouter() {
+  const p = fileURLToPath(new URL('../../config/hooks/pre-tool-model-route.js', import.meta.url))
+  if (!existsSync(p)) return null
+  try {
+    const mod = createRequire(import.meta.url)(p)
+    return typeof mod.decide === 'function' ? mod : null
+  } catch {
+    return null
+  }
+}
+
+describe('difficulty', () => {
+  test('existing leaves that nothing names are mechanical; hubs, shared files and coupled files are judgment', () => {
+    const root = mixedRepo()
+    try {
+      const graph = buildGraph(scanRepo(root))
+      const scripts = buildPlan(scopeGraph(graph, ['scripts/*.sh']), { workers: 2 })
+      for (const p of scripts.partitions) {
+        assert.equal(p.difficulty.tier, 'mechanical', `${p.worker}: ${p.difficulty.reason}`)
+      }
+
+      const whole = buildPlan(graph)
+      const byFile = (f) => whole.partitions.find((p) => p.ownedExclusively.includes(f) || p.ownsSharedFiles.includes(f))
+      assert.equal(byFile('src/bridge.ts').difficulty.tier, 'judgment', 'homes a FROZEN file')
+      assert.match(byFile('src/bridge.ts').difficulty.reason, /homes 1 FROZEN file/)
+      assert.equal(byFile('src/y0.ts').difficulty.tier, 'judgment', 'files name each other')
+      assert.equal(byFile('src/hub.ts').difficulty.tier, 'judgment', 'contains a hub-let with fan-in')
+      assert.match(byFile('src/hub.ts').difficulty.reason, /named by other files/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('every worker section in the brief carries one Difficulty line, right under its heading', () => {
+    const root = mixedRepo()
+    try {
+      const plan = buildPlan(buildGraph(scanRepo(root)))
+      const brief = renderBrief(plan)
+      for (const p of plan.partitions) {
+        const re = new RegExp(`^## ${p.worker} — \\d+ owned files\\n\\nDifficulty: ${p.difficulty.tier} — `, 'm')
+        assert.match(brief, re)
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('the hook classifies each tier line the way the tier says', (t) => {
+    const router = loadRouter()
+    if (!router) return t.skip('model-routing hook not co-located; nothing to classify against')
+    const decide = (prompt) => router.decide({ prompt })
+
+    assert.equal(decide(difficultyLine({ tier: 'mechanical', reason: DIFFICULTY.mechanical })), 'haiku')
+    assert.equal(decide(difficultyLine({ tier: 'judgment', reason: DIFFICULTY.judgment })), router.INHERIT)
+    assert.equal(decide(difficultyLine({ tier: 'verification', reason: DIFFICULTY.verification })), 'opus')
+  })
+
+  test('the hook reads whole worker sections the same way, and the preamble pushes nothing', (t) => {
+    const router = loadRouter()
+    if (!router) return t.skip('model-routing hook not co-located; nothing to classify against')
+    const root = mixedRepo()
+    try {
+      const graph = buildGraph(scanRepo(root))
+      const sections = (plan) => {
+        const brief = renderBrief(plan)
+        const idx = plan.partitions.map((p) => brief.indexOf(`## ${p.worker} —`))
+        return {
+          preamble: brief.slice(0, idx[0]),
+          workers: idx.map((at, i) => brief.slice(at, idx[i + 1] ?? brief.length)),
+        }
+      }
+
+      const whole = sections(buildPlan(graph))
+      assert.equal(router.decide({ prompt: whole.preamble }), router.INHERIT, 'rules + FROZEN carry no signal of their own')
+      for (const w of whole.workers) assert.equal(router.decide({ prompt: w }), router.INHERIT)
+
+      const scoped = sections(buildPlan(scopeGraph(graph, ['scripts/*.sh']), { workers: 2 }))
+      assert.equal(router.decide({ prompt: scoped.preamble }), router.INHERIT, 'the scope header carries no signal either')
+      for (const w of scoped.workers) assert.equal(router.decide({ prompt: w }), 'haiku')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

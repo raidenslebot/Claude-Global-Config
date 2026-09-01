@@ -23,8 +23,10 @@ export function buildPlan(graph, opts = {}) {
   const hubs = findHubs(ranked)
   const cycles = findCycles(graph)
 
+  // A task-scoped graph may be one worker's worth of work; the whole-repo sweep
+  // never asks that question because a repo is never one worker's job.
   const sweep = sweepWorkers(graph, {
-    min: 2,
+    min: graph.scope ? 1 : 2,
     max: opts.maxWorkers ?? 12,
     resolution: opts.resolution ?? 1.0,
   })
@@ -46,6 +48,10 @@ export function buildPlan(graph, opts = {}) {
       partitions: [...new Set(comp.map((f) => binOf.get(f)))].sort((a, b) => a - b),
     }))
 
+  const hubSet = new Set(hubs.map((h) => h.file))
+  const straddled = new Set(straddlingCycles.flatMap((c) => c.files))
+  const newFiles = new Set(graph.scope?.newFiles ?? [])
+
   const partitions = bins.map((bin, i) => {
     const owned = bin.files.filter((f) => !surfaceSet.has(f))
     const sharedHere = bin.files.filter((f) => surfaceSet.has(f))
@@ -57,6 +63,7 @@ export function buildPlan(graph, opts = {}) {
       ownsSharedFiles: sharedHere,
       lines: bin.files.reduce((n, f) => n + (graph.meta.get(f)?.lines ?? 0), 0),
       topLevelDirs: topDirs(bin.files),
+      difficulty: difficultyOf(bin.files, { graph, surfaceSet, hubSet, straddled, newFiles }),
     }
   })
 
@@ -64,6 +71,7 @@ export function buildPlan(graph, opts = {}) {
 
   return {
     root: graph.root,
+    scope: graph.scope ?? null,
     stats,
     hubs: hubs.map((h) => ({
       ...h,
@@ -79,6 +87,58 @@ export function buildPlan(graph, opts = {}) {
     partitions,
     verdict: verdict(s, surface.length, stats.files, straddlingCycles.length),
   }
+}
+
+/**
+ * The wording of each difficulty tier, fixed so the model-routing hook's
+ * classifier reads the line the same way a human does: `verification` carries
+ * a VERIFY signal, `mechanical` a MECHANICAL one, `judgment` a JUDGMENT one.
+ * The hook lets JUDGMENT veto every downgrade, so a judgment line anywhere in a
+ * worker prompt is the strongest thing this brief can say. `verification` is
+ * exported for whoever spawns a verifier; the brief itself never does, because
+ * in this protocol the supervisor is the correction step.
+ */
+export const DIFFICULTY = {
+  mechanical:
+    'every file here is an existing leaf that nothing else names; no hub, nothing FROZEN, no cycle. ' +
+    'Run the tests after editing.',
+  judgment: 'the worker must reason about how an edit propagates.',
+  verification: "review the workers' reports against this plan; verify each claim before it counts.",
+}
+
+/** One line, machine-readable: `Difficulty: <tier> — <reason>`. */
+export function difficultyLine({ tier, reason }) {
+  return `Difficulty: ${tier} — ${reason}`
+}
+
+/**
+ * The difficulty tier a partition's SHAPE supports.
+ *
+ * The graph sees shape, not the task. It can certify that nothing outside a
+ * partition depends on anything inside it; it cannot certify that the edit
+ * itself is easy. So only the one shape where a downgrade is defensible —
+ * existing leaves that nothing names, no hub, nothing shared, no cycle — is
+ * called mechanical. Every other shape is judgment, and so is a file that does
+ * not exist yet: an empty file has no edges, and writing it from nothing is
+ * the opposite of mechanical. A wrong downgrade is a correctness failure that
+ * nobody notices; a wrong upgrade costs money and is visible. Ambiguity
+ * therefore resolves upward, always.
+ */
+function difficultyOf(files, { graph, surfaceSet, hubSet, straddled, newFiles }) {
+  const reasons = []
+  const shared = files.filter((f) => surfaceSet.has(f)).length
+  if (shared > 0) reasons.push(`homes ${shared} FROZEN file(s)`)
+  const hubs = files.filter((f) => hubSet.has(f))
+  if (hubs.length > 0) reasons.push(`contains hub ${hubs.map((h) => `\`${h}\``).join(', ')}`)
+  const created = files.filter((f) => newFiles.has(f)).length
+  if (created > 0) reasons.push(`${created} file(s) do not exist yet`)
+  const named = files.filter((f) => (graph.in.get(f)?.size ?? 0) > 0 && !surfaceSet.has(f)).length
+  if (named > 0) reasons.push(`${named} file(s) are named by other files`)
+  if (files.some((f) => straddled.has(f))) reasons.push('sits on a cycle that crosses partitions')
+  if (files.length === 0) reasons.push('empty partition')
+
+  if (reasons.length === 0) return { tier: 'mechanical', reason: DIFFICULTY.mechanical }
+  return { tier: 'judgment', reason: `${reasons.join('; ')}; ${DIFFICULTY.judgment}` }
 }
 
 function topDirs(files) {
@@ -152,6 +212,22 @@ export function renderText(plan, { top = 15 } = {}) {
     `       coverage ${(cov * 100).toFixed(1)}% of intra-repo refs resolved ` +
       `(${plan.stats.missedRefs ?? 0} missed)${covWarn}`
   )
+  if (plan.scope) {
+    const sc = plan.scope
+    L.push(
+      `       scope  --touch: ${sc.touched.length} touched path(s) -> ${plan.stats.files} files in scope ` +
+        `(touched + one reference hop each way)`
+    )
+    if (sc.newFiles.length > 0) {
+      L.push(`              ${sc.newFiles.length} do not exist yet (no inbound edges, zero shared surface): ${sc.newFiles.join(', ')}`)
+    }
+    if (sc.unindexed.length > 0) {
+      L.push(`              ${sc.unindexed.length} on disk but not indexed by the scan (no edges): ${sc.unindexed.join(', ')}`)
+    }
+    if (sc.unmatched.length > 0) {
+      L.push(`              matched nothing: ${sc.unmatched.join(', ')}`)
+    }
+  }
   L.push('')
 
   L.push(`HUBS   the files everything names — size is not the signal`)
@@ -228,6 +304,31 @@ export function renderBrief(plan) {
   L.push(`# Fan-out plan`)
   L.push('')
   L.push(`Repo: \`${plan.root}\``)
+  if (plan.scope) {
+    const sc = plan.scope
+    L.push(
+      `Scope: task write-set (\`--touch\`), not the whole repo — ${sc.touched.length} touched path(s) ` +
+        `-> ${plan.stats.files} files in scope (touched + one reference hop each way). ` +
+        `The worker count and shared surface below are task-scoped.`
+    )
+    if (sc.hops.length > 0) {
+      L.push(`Files marked (hop) are outside the write-set; they are one reference away and listed so the worker knows what it reads.`)
+    }
+    if (sc.newFiles.length > 0) {
+      L.push(
+        `New files, do not exist yet (no inbound edges, zero shared-surface contribution): ` +
+          sc.newFiles.map((f) => `\`${f}\``).join(', ')
+      )
+    }
+    if (sc.unindexed.length > 0) {
+      L.push(
+        `On disk but not indexed by the scan (no edges): ` + sc.unindexed.map((f) => `\`${f}\``).join(', ')
+      )
+    }
+    if (sc.unmatched.length > 0) {
+      L.push(`Matched no files: ` + sc.unmatched.map((f) => `\`${f}\``).join(', '))
+    }
+  }
   L.push(
     `${plan.stats.files} files · ${plan.stats.edges} reference edges · ` +
       `shared surface ${plan.sharedSurface.length} files (${(plan.sharedFraction * 100).toFixed(1)}%)`
@@ -255,14 +356,19 @@ export function renderBrief(plan) {
     L.push('')
   }
 
+  const hops = new Set(plan.scope?.hops ?? [])
   for (const p of plan.partitions) {
     L.push(`## ${p.worker} — ${p.ownedExclusively.length} owned files`)
     L.push('')
+    if (p.difficulty) {
+      L.push(difficultyLine(p.difficulty))
+      L.push('')
+    }
     if (p.ownsSharedFiles.length > 0) {
       L.push(`Nominal home of ${p.ownsSharedFiles.length} FROZEN file(s); still read-only during fan-out.`)
       L.push('')
     }
-    for (const f of p.ownedExclusively) L.push(`- \`${f}\``)
+    for (const f of p.ownedExclusively) L.push(`- \`${f}\`${hops.has(f) ? ' (hop)' : ''}`)
     L.push('')
   }
 

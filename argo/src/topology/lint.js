@@ -37,7 +37,15 @@ export const AGENT_TYPES = new Set(['graph-supervisor', 'graph-worker', 'hub-spl
  */
 export const SOFT_FANOUT_LIMIT = 6
 
-const RULE_ORDER = ['SCHEMA', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9']
+/**
+ * The only model values the dispatch option can express. Anything else on an
+ * agent is a full model id, and a full id is a pin: it overrides inheritance,
+ * which is the one mechanism that reproduces a session pinned to an exact
+ * version. "inherit" and an absent field both mean "whatever the session runs".
+ */
+export const MODEL_ALIASES = new Set(['sonnet', 'opus', 'haiku', 'fable'])
+
+const RULE_ORDER = ['SCHEMA', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'MODEL']
 
 /* ------------------------------------------------------------------ *
  * Parsing
@@ -573,6 +581,20 @@ export function lint(raw, { plan = null } = {}) {
     findings.push(finding('R9', 'warn',
       `agent "${a.id}" declares agentType "${a.agentType}", which is not one of: ${[...AGENT_TYPES].join(', ')}.`,
       'point it at a shipped agent definition or drop the field. A type nothing resolves means the graph you linted is not the graph that runs.',
+      { agents: [a.id] }))
+  }
+
+  /* MODEL — a version-specific model id pinned on an agent. A warning, not an
+   * error: a user may pin on purpose, but must be told what the pin costs. */
+  for (const a of decl.agents) {
+    const model = a.model.trim().toLowerCase()
+    if (model === '' || model === 'inherit' || MODEL_ALIASES.has(model)) continue
+    findings.push(finding('MODEL', 'warn',
+      `agent "${a.id}" pins model "${a.model}".`,
+      'omit "model" or set it to "inherit". A spawned agent inherits the session model by default, ' +
+        `and the dispatch option accepts only the coarse aliases ${[...MODEL_ALIASES].join(', ')} — ` +
+        'so when the session is pinned to an exact version, inheritance is the only thing that reproduces it, ' +
+        'and this id silently runs something else. Keep the pin only if you mean it.',
       { agents: [a.id] }))
   }
 

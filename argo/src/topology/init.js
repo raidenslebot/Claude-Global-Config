@@ -84,17 +84,16 @@ export function ownedGlobs(partitions, frozen = []) {
  * serial pre-step that shrinks the shared surface, so it is not a node in the
  * graph the workers run inside.
  *
+ * No agent carries a `model`. A spawned agent inherits the session model, and
+ * inheritance is the only mechanism that reproduces a session pinned to an
+ * exact version — a model id written here would override it silently, which is
+ * what the MODEL lint rule exists to catch.
+ *
  * @param {object} plan  from analyse().plan
  * @param {object} [opts]
  * @param {string} [opts.name]
- * @param {string} [opts.supervisorModel]
- * @param {string} [opts.workerModel]
  */
-export function buildDeclaration(plan, {
-  name = 'fleet',
-  supervisorModel = 'claude-opus-5',
-  workerModel = 'claude-sonnet-5',
-} = {}) {
+export function buildDeclaration(plan, { name = 'fleet' } = {}) {
   const partitions = plan.partitions ?? []
   const frozen = [...new Set((plan.sharedSurface ?? []).map((s) => s.file))].sort()
   const globs = ownedGlobs(partitions, frozen)
@@ -105,7 +104,6 @@ export function buildDeclaration(plan, {
     // Name the shipped definition, not a generic role: the point of linting a
     // topology is that it is the topology you will actually dispatch.
     agentType: 'graph-supervisor',
-    model: supervisorModel,
     // The supervisor reads everything and writes nothing: it is the correction
     // step, and a correction step that edits files is just another worker.
     reads: ['**'],
@@ -118,7 +116,6 @@ export function buildDeclaration(plan, {
       id: p.worker ?? `worker-${i + 1}`,
       role: 'worker',
       agentType: 'graph-worker',
-      model: workerModel,
       reads: [...globs[i], ...frozen],
       writes: globs[i],
       tools: ['read', 'grep', 'edit'],

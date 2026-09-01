@@ -118,3 +118,19 @@ test('the shipped workflow does not hardcode a model for its agents', () => {
   assert.deepEqual(offenders, [],
     `hardcoded agent models defeat inheritance on a pinned session:\n  ${offenders.join('\n  ')}`)
 })
+
+test('the shipped topology declares no version-specific model for any agent', () => {
+  // Same rule one layer further out. argo/.argo/topology.json is the graph argo dispatches
+  // from, and a model id on an agent there overrides inheritance exactly as frontmatter does.
+  // The frontmatter and workflows/ checks above never looked here, which is how a pin slipped
+  // through. Checked independently of argo's own lint so a lint bug cannot bless a pin.
+  const file = join(REPO, 'argo', '.argo', 'topology.json')
+  if (!existsSync(file)) return
+  const passes = new Set(['sonnet', 'opus', 'haiku', 'fable', 'inherit'])
+  const agents = JSON.parse(readFileSync(file, 'utf8')).agents || []
+  const offenders = agents
+    .filter((a) => typeof a.model === 'string' && a.model.trim() && !passes.has(a.model.trim().toLowerCase()))
+    .map((a) => `${a.id}: model "${a.model}"`)
+  assert.deepEqual(offenders, [],
+    `a pinned model in the shipped topology defeats inheritance on a pinned session:\n  ${offenders.join('\n  ')}`)
+})

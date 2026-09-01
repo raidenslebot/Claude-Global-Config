@@ -32,6 +32,9 @@ rules:
   R7  fan-out no wider than the repo's shared surface supports
   R8  no two agents claiming overlapping writes
   R9  no agent claiming an agentType nothing ships
+  MODEL  no agent pinning a version-specific model id (warning: a pin overrides
+         inheriting the session model, which is the only way to match a pinned
+         session; aliases sonnet/opus/haiku/fable, "inherit", or no field pass)
 
   lint exits 1 when any finding is error-severity.
 
@@ -190,7 +193,7 @@ function renderLintText(result, file, planPath) {
 
   L.push('RULES    R1 supervision · R2 peer edges · R3 dispatch cycles · R4 report paths')
   L.push('         R5 shared writers · R6 orphans · R7 fan-out width · R8 write collisions')
-  L.push('         R9 unknown agentType')
+  L.push('         R9 unknown agentType · MODEL pinned model id')
   L.push('')
 
   if (result.findings.length === 0) {
@@ -205,7 +208,7 @@ function renderLintText(result, file, planPath) {
   L.push('')
 
   if (!result.rulesRan) {
-    L.push('VERDICT [malformed] the declaration does not parse into a graph; rules R1-R9 did not run.')
+    L.push('VERDICT [malformed] the declaration does not parse into a graph; rules R1-R9 and MODEL did not run.')
   } else if (result.errors > 0) {
     L.push(
       `VERDICT [fail] ${result.errors} error(s), ${result.warnings} warning(s). ` +

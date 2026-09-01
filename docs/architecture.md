@@ -118,6 +118,41 @@ Slack, Intercom and S&P Global have no local analogue that benefits Claude, and 
 What remains — `playwright`, `context7`, `strix`, `T3MP3ST` — is local or routes through a bridge
 backed by the Claude subscription.
 
+## Decision: two dispatch paths, both routed, one vocabulary
+
+Spawned agents reach a model by two different paths, and only one of them passes through the
+Agent tool:
+
+| Path | Dispatched by | Routed by |
+|---|---|---|
+| `Agent` tool call | the model, per call | `PreToolUse` on `Agent\|Task` — rewrites `model` in the tool input |
+| workflow `agent()` | the Workflow runtime | `PreToolUse` on `Workflow` — injects `args.__modelPolicy`; the script applies it |
+
+The second path was found by looking at a run: a six-worker fan-out with every worker on the
+session model, one of them editing a single YAML file. The per-call hook had never fired for
+any of them.
+
+Two constraints decided the shape. **Scripts cannot import**, so the policy — session model,
+pinned flag, and the classifier vocabulary as regex *source strings* — travels in `args`, and a
+small helper inside the script rebuilds the regexes and applies the same precedence. **Hooks
+cannot import each other** (they are copied to a machine where the repo may not exist), so the
+Workflow hook carries its own copy of the vocabulary.
+
+Two copies is a drift hazard, so it is gated twice: a test holds the two hooks' `SIGNAL_SOURCES`
+deep-equal, and the *shipped* helper text in `workflows/design-divergence.js` is evaluated as-is
+and must agree with `decide()` on every case in the labelled corpus. Change a signal in one hook
+and the drift test names the other file; change the helper's precedence and the corpus names the
+case.
+
+The pin rule survives both paths by construction: the helper returns `undefined` for every agent
+when `pinned` is true, and the per-call hook strips the option. A test asserts every corpus case
+yields no model under a pinned policy.
+
+The harness contract underneath — `updatedInput` honoured on the Workflow tool — was **observed,
+not assumed**: a workflow that spawns nothing and returns its own `args` received the policy
+through the real dispatch path. That contract belongs to the harness, not this repo, so the
+probe ships as a named workflow to be re-run after upgrades.
+
 ## What is deliberately not here
 
 - **No dependency on a package registry at runtime.** argo has zero dependencies; the tools use

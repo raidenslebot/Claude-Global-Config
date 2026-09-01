@@ -3,7 +3,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { scanRepo } from './scan.js'
-import { buildGraph } from './build.js'
+import { buildGraph, scopeGraph } from './build.js'
 import { buildPlan, renderText, renderBrief, renderMermaid } from './report.js'
 
 const HELP = `
@@ -17,6 +17,11 @@ options:
   --max-workers N    upper bound for the sweep                    [12]
   --resolution F     Louvain resolution; higher = smaller communities [1.0]
   --top N            rows to show in hub/frozen tables             [15]
+  --touch P [P...]   scope the plan to a task's write-set: these paths, dirs
+                     or globs plus one reference hop each way. A path that
+                     does not exist yet is legal (a new file shares nothing).
+                     Put the repo path BEFORE --touch; every positional after
+                     it is another touch path, and commas separate too.
   --include-docs     count markdown links as edges (off by default —
                      prose links are not coupling and drown the real graph)
   --json             full plan as JSON
@@ -27,8 +32,19 @@ options:
 examples:
   argo graph .
   argo graph . --workers 5 --brief --out .argo/fanout.md
+  argo graph . --touch src/new-feature.js "src/api/**" --brief
   argo graph ./src --json --out .argo/graph.json
 `.trim()
+
+/** `--touch a b,c` -> ['a', 'b', 'c']; the parser only binds one value to the flag. */
+function touchPaths(args) {
+  if (args.touch === undefined) return []
+  const raw = args.touch === true ? [] : [args.touch]
+  return [...raw, ...args._.slice(1)]
+    .flatMap((s) => String(s).split(','))
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 
 export async function run(args) {
   if (args.help) {
@@ -37,6 +53,12 @@ export async function run(args) {
   }
 
   const root = resolve(args._[0] ?? process.cwd())
+  const touch = touchPaths(args)
+  if (args.touch !== undefined && touch.length === 0) {
+    console.error('argo graph: --touch needs at least one path or glob')
+    return 1
+  }
+
   const scan = scanRepo(root, { includeDocs: args['include-docs'] === true })
 
   if (scan.files.length === 0) {
@@ -44,7 +66,15 @@ export async function run(args) {
     return 1
   }
 
-  const graph = buildGraph(scan)
+  let graph = buildGraph(scan)
+  if (touch.length > 0) {
+    graph = scopeGraph(graph, touch)
+    if (graph.files.length === 0) {
+      console.error(`argo graph: --touch matched no files under ${root}: ${touch.join(', ')}`)
+      return 1
+    }
+  }
+
   const plan = buildPlan(graph, {
     workers: args.workers,
     maxWorkers: args['max-workers'] ?? 12,

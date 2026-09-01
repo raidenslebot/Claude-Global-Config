@@ -166,6 +166,79 @@ export async function get(url, { timeout = 20_000, json = false, headers = {} } 
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Caveat version rot
+ *
+ * A caveats document records, per skill, the package version its content is
+ * written against and the live version seen when it was verified. Both rot.
+ * The claims live again in a JSON sidecar (an array of rows) so nothing here
+ * parses prose: a prose parser that false-alarms gets switched off, and a
+ * switched-off check is worse than none.
+ *
+ *   { skill, package, documents, recorded?, note? }
+ *
+ * `documents` is a version, a range, or a dist-tag ("next"). `recorded` is
+ * the live version the document printed on its verification date; once the
+ * registry has moved past it the row is stale and the document needs its
+ * version rows regenerated.
+ * ------------------------------------------------------------------ */
+
+/** The one registry fetch every npm-backed source goes through. */
+export function npmDoc(pkg) {
+  return get(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, { json: true })
+}
+
+/** Leading major and minor of a version or range. "^8.18.8" -> [8, 18], "7.x" -> [7, null], "next" -> null. */
+export function versionParts(v) {
+  const m = String(v ?? '').match(/(\d+)(?:\.(\d+))?/)
+  return m ? [Number(m[1]), m[2] == null ? null : Number(m[2])] : null
+}
+
+/**
+ * One sidecar row against one registry response. Pure.
+ *
+ * Status is coarse on purpose: MAJOR-BEHIND means the skill's API examples are
+ * probably wrong, minor-behind that its version text is, and patch drift is
+ * ignored. A `documents` naming a dist-tag resolves through the doc's
+ * dist-tags first, so a skill that pins `pkg@next` is compared against what
+ * that tag installs today. Offline or unparseable degrades to "unknown" with
+ * a reason — never to a false "current".
+ */
+export function compareCaveat(row, res) {
+  const out = { ...row, live: null, status: 'unknown', stale: false, reason: '' }
+  if (!res?.ok) return { ...out, reason: `could not check: ${res?.error ?? 'no response'}` }
+  const tags = res.body?.['dist-tags'] ?? {}
+  const live = tags.latest ?? null
+  if (!live) return { ...out, reason: 'could not compare: registry lists no latest version' }
+  out.live = live
+  out.stale = row.recorded != null && String(row.recorded) !== live
+  const resolved = tags[row.documents] ?? row.documents
+  const doc = versionParts(resolved)
+  const now = versionParts(live)
+  if (!doc || !now) {
+    out.reason = !doc
+      ? `could not compare: "${row.documents}" is neither a version nor a dist-tag`
+      : `could not compare: latest "${live}" is not a version`
+    return out
+  }
+  const cmp = (now[0] - doc[0]) || (doc[1] == null ? 0 : now[1] - doc[1])
+  out.status = cmp < 0 ? 'ahead' : cmp === 0 ? 'current' : now[0] > doc[0] ? 'MAJOR-BEHIND' : 'minor-behind'
+  out.resolved = resolved
+  return out
+}
+
+/** Check every row of a sidecar. One registry fetch per distinct package; never throws. */
+export async function checkCaveats(rows, fetchDoc = npmDoc) {
+  const docs = new Map()
+  for (const r of rows) {
+    if (docs.has(r.package)) continue
+    docs.set(r.package, Promise.resolve()
+      .then(() => fetchDoc(r.package))
+      .catch((err) => ({ ok: false, error: String(err?.message ?? err) })))
+  }
+  return Promise.all(rows.map(async (r) => compareCaveat(r, await docs.get(r.package))))
+}
+
 /** Fetch and parse one configured source. Never throws. */
 export async function fetchSource(src) {
   try {
@@ -182,8 +255,13 @@ export async function fetchSource(src) {
       return r.ok ? { ok: true, items: parseGithubReleases(r.body, src.repo) } : { ok: false, error: r.error, items: [] }
     }
     if (src.type === 'npm') {
-      const r = await get(`https://registry.npmjs.org/${encodeURIComponent(src.package)}`, { json: true })
+      const r = await npmDoc(src.package)
       return r.ok ? { ok: true, items: parseNpmVersions(r.body, src.package, src.limit ?? 12) } : { ok: false, error: r.error, items: [] }
+    }
+    if (src.type === 'caveats') {
+      // Rows carry their own failure ("could not check"), so the source is ok
+      // even offline; cmd.js decides the exit code from the rows.
+      return { ok: true, items: await checkCaveats(src.rows ?? []) }
     }
     if (src.type === 'feed') {
       const r = await get(src.url)

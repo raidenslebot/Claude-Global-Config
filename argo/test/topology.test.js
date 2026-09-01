@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 
 import {
-  AGENT_TYPES, EDGE_KINDS, SOFT_FANOUT_LIMIT, TopologyError,
+  AGENT_TYPES, EDGE_KINDS, MODEL_ALIASES, SOFT_FANOUT_LIMIT, TopologyError,
   globsOverlap, lint, normalise, normaliseGlob, parseDeclaration,
 } from '../src/topology/lint.js'
 import { parseYaml } from '../src/topology/yaml.js'
@@ -696,4 +696,60 @@ test('every edge kind is renderable', () => {
   })).decl
   const mermaid = renderMermaid(decl)
   for (const kind of EDGE_KINDS) assert.match(mermaid, new RegExp(`\\|${kind}\\|`))
+})
+
+/* ------------------------------------------------------------------ *
+ * MODEL — pinned model ids
+ * ------------------------------------------------------------------ */
+
+test('MODEL warns on a version-specific model id, but does not fail the build', () => {
+  const decl = cleanFleet()
+  decl.agents[1].model = 'claude-sonnet-4-6'
+  const result = lint(decl)
+  assert.equal(of(result, 'MODEL').length, 1)
+  const [f] = of(result, 'MODEL')
+  assert.equal(f.severity, 'warn')
+  assert.deepEqual(f.agents, ['w1'])
+  assert.match(f.message, /"claude-sonnet-4-6"/)
+  // The fix has to say what the pin costs: it overrides inheriting the session model.
+  assert.match(f.fix, /inherit/)
+  // A deliberate pin is allowed, so it is a warning and the graph still passes.
+  assert.equal(result.ok, true)
+})
+
+test('MODEL is silent on an alias, on "inherit", and on no model at all', () => {
+  const decl = cleanFleet()
+  decl.agents[0].model = 'opus'
+  decl.agents[1].model = 'inherit'
+  // agents[2] declares no model field
+  assert.deepEqual(of(lint(decl), 'MODEL'), [])
+  for (const alias of MODEL_ALIASES) {
+    const d = cleanFleet()
+    d.agents[1].model = alias
+    assert.deepEqual(of(lint(d), 'MODEL'), [], alias)
+  }
+})
+
+test('MODEL reports one finding per pinned agent', () => {
+  const decl = cleanFleet()
+  decl.agents[0].model = 'claude-opus-5'
+  decl.agents[1].model = 'claude-sonnet-5'
+  decl.agents[2].model = 'claude-opus-4-7'
+  assert.equal(of(lint(decl), 'MODEL').length, 3)
+})
+
+test('init emits no model field, so every generated agent inherits the session model', () => {
+  const plan = { partitions: PARTITIONS, sharedSurface: [], stats: { files: 4 }, recommendedWorkers: 2 }
+  const decl = buildDeclaration(plan)
+  for (const a of decl.agents) assert.equal('model' in a, false, `${a.id} carries a model`)
+  assert.deepEqual(of(lint(decl, { plan }), 'MODEL'), [])
+})
+
+test('the shipped topology pins no model and lints without errors', () => {
+  // Read the file argo actually dispatches from. A pin here is the exact thing
+  // the frontmatter and workflow checks miss.
+  const text = readFileSync(new URL('../.argo/topology.json', import.meta.url), 'utf8')
+  const result = lint(parseDeclaration(text, { file: 'topology.json' }))
+  assert.deepEqual(of(result, 'MODEL'), [])
+  assert.equal(result.ok, true)
 })

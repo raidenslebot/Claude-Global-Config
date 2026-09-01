@@ -11,10 +11,29 @@ permissions:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    strategy:
+      # Eight bugs fixed in this repo were platform-conditional in OPPOSITE directions
+      # (backslash paths dead on POSIX, .cmd spawn dead on Windows). One OS catches at most
+      # half of that class, so both run. fail-fast stays off because the default would
+      # cancel the second OS the moment the first failed — hiding exactly the
+      # opposite-direction result this matrix exists to surface.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Step bodies below are POSIX (`|| true`, if/then, [ -f ... ]). The Windows runner
+        # defaults to pwsh, where `true` is not a command and the if/then body does not
+        # parse. GitHub ships bash on every hosted OS, so one default keeps each step's
+        # semantics identical on both instead of annotating steps one by one.
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, not "latest": tools/run-tests.mjs exists precisely because `node --test <dir>`
+      # and glob expansion differ between Node 20 and later majors. Moving this pin silently
+      # changes which code path the test invocations below take.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -43,6 +62,15 @@ jobs:
       - name: Config drift check
         run: node tools/sync.mjs --check
         continue-on-error: true
+
+      # The root suite under tools/test/ — the gate. This is where the portability, path
+      # substitution and hook-syntax invariants are pinned, and until this step existed
+      # nothing automatic ran them. run-tests.mjs hands node explicit absolute file paths
+      # because neither `node --test <dir>` nor a glob is portable across Node 20/24 or
+      # across sh and cmd.exe. No continue-on-error: a failure here fails the build on
+      # whichever OS produced it.
+      - name: Root test suite
+        run: node tools/run-tests.mjs
 
       - name: argo test suite
         working-directory: argo
