@@ -74,22 +74,9 @@ jobs:
 
       - name: argo test suite
         working-directory: argo
-        # `npm ci` requires a committed lockfile. argo declares zero dependencies and has
-        # no lockfile yet, so fall back to install rather than breaking CI on a fresh
-        # checkout; --ignore-scripts either way, since nothing here needs postinstall.
-        #
-        # The package's test script passes a glob to node's test runner, which only expands
-        # globs itself on Node 21+. On the pinned Node 20 hand the runner the directory
-        # instead — it walks it recursively — so a real test failure still fails the build
-        # instead of being hidden behind a "pattern not found" error.
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --ignore-scripts
-          else
-            npm install --ignore-scripts --no-audit --no-fund
-          fi
-          if node -e 'process.exit(+process.versions.node.split(".")[0] >= 21 ? 0 : 1)'; then
-            npm test
-          else
-            node --test test/
-          fi
+        # argo declares zero dependencies, so there is nothing to install. `npm test` runs
+        # test/run.js, which hands node explicit file paths — the one form of test
+        # invocation that is identical on Node 20 and 24, under sh and under cmd.exe.
+        # (`node --test test/` resolves the directory as a module on some Node builds and
+        # a quoted glob only expands on 21+; both used to be in here as fallbacks.)
+        run: npm test

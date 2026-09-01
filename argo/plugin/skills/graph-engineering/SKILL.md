@@ -161,8 +161,15 @@ Say so out loud when it applies, rather than selling the frame:
 
 Before dispatching parallel `Agent` calls over a repo:
 
-1. `argo graph . --brief --out .argo/fanout.md` — get the plan.
-2. Use its worker count. Give each worker **only** its own file list.
+1. `argo graph . --brief --out .argo/fanout.md` — get the plan. When the task's
+   write-set is known, scope it: `argo graph . --touch <paths|dirs|globs> --brief`.
+   Workers then own only those files, one-hop neighbours are listed under each
+   worker as read-only context, and the worker count comes from the write-set —
+   a file that does not exist yet honestly shares nothing.
+2. Use its worker count. Give each worker **only** its own file list, and paste
+   its `Coupling:` line into the brief verbatim. `coupled` is worded as a
+   judgment signal for the model-routing hook, so a worker on a hub cannot be
+   quietly downgraded; `isolated` carries no signal, and the task text decides.
 3. Paste the FROZEN list into every worker's brief as read-only.
 4. Tell each worker: report to the supervisor, never read a peer's output.
 5. Any edit to a frozen file happens in a **serial pre-step**, before fan-out.
@@ -184,7 +191,7 @@ actually dispatch:
 
 ```bash
 argo topology init .     # agents carry an agentType naming the definition above
-argo topology lint       # R9 flags an agentType nothing ships
+argo topology lint       # R9 flags an agentType nothing ships; MODEL flags a pinned model id
 ```
 
 ## Skills that pick up where this one stops

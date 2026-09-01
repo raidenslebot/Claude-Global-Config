@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { isAbsolute, join, relative, posix } from 'node:path'
 
 /**
  * @typedef {object} Graph
@@ -51,16 +51,22 @@ export function buildGraph(scan) {
  */
 export function scopeGraph(graph, specs) {
   const known = new Set(graph.files)
+  const byLower = new Map(graph.files.map((f) => [f.toLowerCase(), f]))
+  const ignoreCase = caseInsensitiveFs(graph)
   const touched = new Set()
   const newFiles = []
   const unindexed = []
   const unmatched = []
+  const invalid = []
 
   for (const raw of specs) {
-    const spec = normaliseSpec(raw, graph.root)
-    if (!spec) continue
+    const { spec, error } = normaliseSpec(raw, graph.root)
+    if (error) {
+      invalid.push({ spec: String(raw), error })
+      continue
+    }
     if (/[*?]/.test(spec)) {
-      const re = globToRegExp(spec)
+      const re = globToRegExp(spec, { ignoreCase })
       const hits = graph.files.filter((f) => re.test(f))
       if (hits.length === 0) unmatched.push(spec)
       for (const f of hits) touched.add(f)
@@ -68,13 +74,25 @@ export function scopeGraph(graph, specs) {
       touched.add(spec)
     } else {
       const under = graph.files.filter((f) => f.startsWith(spec + '/'))
+      const onDisk = existsSync(join(graph.root, spec))
+      // On a case-insensitive filesystem `SRC/a.ts` exists and IS `src/a.ts`; only
+      // the index is strict about spelling. Ask the filesystem first, so a
+      // case-sensitive one still treats the other spelling as a genuinely new path.
+      const alias = under.length === 0 && onDisk ? byLower.get(spec.toLowerCase()) : undefined
+      const aliased = under.length === 0 && onDisk && !alias
+        ? graph.files.filter((f) => f.toLowerCase().startsWith(spec.toLowerCase() + '/'))
+        : []
       if (under.length > 0) {
         for (const f of under) touched.add(f)
+      } else if (alias) {
+        touched.add(alias)
+      } else if (aliased.length > 0) {
+        for (const f of aliased) touched.add(f)
       } else {
         touched.add(spec)
         // Two different truths: not on disk yet, or on disk but not a source
         // file the scan indexes. Both carry zero edges, but only one is "new".
-        if (existsSync(join(graph.root, spec))) unindexed.push(spec)
+        if (onDisk) unindexed.push(spec)
         else newFiles.push(spec)
       }
     }
@@ -102,6 +120,9 @@ export function scopeGraph(graph, specs) {
     out,
     in: inn,
     meta,
+    // The unscoped fan-in, so a file's real coupling stays visible after the
+    // edges outside the scope were cut.
+    fullIn: graph.fullIn ?? graph.in,
     scope: {
       specs: specs.map(String),
       touched: [...touched].sort(),
@@ -109,19 +130,45 @@ export function scopeGraph(graph, specs) {
       newFiles: newFiles.sort(),
       unindexed: unindexed.sort(),
       unmatched,
+      invalid,
     },
   }
 }
 
+/**
+ * A spec is repo-relative, forward-slashed and normalised — or it is refused
+ * with a reason. Every miss used to become "a new file", silently: `.`,
+ * `../etc/passwd`, a brace pattern, `src/./a.ts`. A new file carries zero
+ * edges, so each of those produced a confident one-worker, zero-surface plan
+ * for a task that was nothing of the kind.
+ */
 function normaliseSpec(raw, root) {
-  let s = String(raw).trim()
-  if (isAbsolute(s)) s = relative(root, s)
-  s = s.split(sep).join('/').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')
-  return s
+  let s = String(raw).trim().replace(/\\/g, '/')
+  if (isAbsolute(s) || /^[A-Za-z]:\//.test(s)) s = relative(root, s).replace(/\\/g, '/')
+  // normalize() would fold `src/*/../a.ts` into `src/a.ts` — a different pattern.
+  if (/[*?]/.test(s) && /(^|\/)\.\.(\/|$)/.test(s)) return { error: 'is a glob containing "..", which is not supported' }
+  s = posix.normalize(s).replace(/^\.\//, '').replace(/\/+$/, '')
+  if (s === '' || s === '.') return { error: 'names the whole repo — drop --touch for the whole-repo plan' }
+  if (s === '..' || s.startsWith('../') || isAbsolute(s) || /^[A-Za-z]:/.test(s)) return { error: 'is outside the repo' }
+  if (/[{}]/.test(s)) return { error: 'is a brace pattern, which is not supported — list the paths, or separate them with commas' }
+  return { spec: s }
+}
+
+/**
+ * Does the filesystem under this root ignore case? Asked of the disk, not of
+ * the platform: a case-sensitive volume on macOS or Windows exists, and so
+ * does a case-insensitive mount on Linux. Flip one letter of one indexed file
+ * and see whether the path still exists.
+ */
+function caseInsensitiveFs(graph) {
+  const probe = graph.files.find((f) => /[a-z]/i.test(f))
+  if (!probe) return false
+  const flipped = probe.replace(/[a-z]/i, (c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()))
+  return flipped !== probe && existsSync(join(graph.root, flipped))
 }
 
 /** `**` spans directories, `*` and `?` stay within one path segment. */
-function globToRegExp(glob) {
+function globToRegExp(glob, { ignoreCase = false } = {}) {
   let re = ''
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i]
@@ -138,7 +185,7 @@ function globToRegExp(glob) {
       re += c.replace(/[.+^${}()|[\]\\]/, '\\$&')
     }
   }
-  return new RegExp(`^${re}$`)
+  return new RegExp(`^${re}$`, ignoreCase ? 'i' : '')
 }
 
 /** fan-in / fan-out / lines per file, sorted by fan-in descending. */

@@ -47,6 +47,7 @@ the frozen set, and states the containment rules.
 | `argo diverge` | Do two of my agents answer the same question the same way? |
 | `argo drift` | Did the vendor change my agent between versions — including the parts that never touch disk? |
 | `argo topology` | Which agents may talk to which — declared, linted, rendered. |
+| `argo watch` | What changed in the sources that shape your fleet — and, with `--caveats`, whether a document's version rows have rotted against npm. |
 
 Run `argo <command> --help` for options.
 
@@ -72,6 +73,13 @@ Two things it does that naive versions don't:
   repo, fixing resolution took coverage from 13.5% → 98.8% and flipped the
   verdict from "fans out cleanly" to "hub-bound" — the first answer was wrong
   and looked fine.
+- **Task scope.** `--touch <paths|dirs|globs>` plans a task's write-set instead
+  of the repo: workers own only those files, one-hop neighbours are listed as
+  read-only context under each worker, a hop named from two workers' files is
+  frozen, and a file that does not exist yet contributes nothing to the shared
+  surface. Each
+  worker section carries a `Coupling:` line the model-routing hook reads —
+  `coupled` blocks a downgrade, `isolated` leaves the model to the task text.
 
 ---
 
@@ -114,10 +122,10 @@ it took closing two approaches before one worked:
 Run against a live session, door 3 returns the gate verbatim, scored, with the
 caveat that a first-person report is evidence rather than a byte capture.
 
-Install with `/plugin marketplace add "C:/Claude/AI Replication"` then
+Install with `/plugin marketplace add <path to this directory>` then
 `/plugin install argonaut@argonaut-local`. The commands shell out to
 `${CLAUDE_PLUGIN_ROOT}/../src/cli.js`, so the plugin has to stay next to this
-checkout.
+checkout. (`tools/install.mjs` in the parent repo does both steps.)
 
 ---
 

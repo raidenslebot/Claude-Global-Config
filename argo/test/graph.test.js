@@ -15,9 +15,10 @@ import {
   predictedSpeedup, effectiveSpeedup,
 } from '../src/graph/partition.js'
 import {
-  buildPlan, renderText, renderBrief, DIFFICULTY, difficultyLine,
+  buildPlan, renderText, renderBrief, COUPLING, VERIFICATION_LINE, couplingLine,
 } from '../src/graph/report.js'
 import { analyse } from '../src/graph/index.js'
+import { splitTouch } from '../src/graph/cmd.js'
 
 /** Build a throwaway repo on disk. Returns its root; caller removes it. */
 function fixture(files) {
@@ -360,7 +361,7 @@ function mixedRepo() {
   return fixture(files)
 }
 
-/** renderText of mixedRepo() before --touch and Difficulty existed. Root is machine-specific, hence the placeholder. */
+/** renderText of mixedRepo() before --touch and the Coupling line existed. Root is machine-specific, hence the placeholder. */
 const TEXT_BEFORE = [
   "GRAPH  <ROOT>",
   "       19 files · 75 edges · 98 lines · density 0.219298",
@@ -395,7 +396,7 @@ const TEXT_BEFORE = [
   "VERDICT [ok] 1/19 files (5.3%) are shared. Workable, but every worker carries that surface. Freeze it and keep edits to it serial.",
 ].join('\n')
 
-/** renderBrief of mixedRepo() before --touch and Difficulty existed. */
+/** renderBrief of mixedRepo() before --touch and the Coupling line existed. */
 const BRIEF_BEFORE = [
   "# Fan-out plan",
   "",
@@ -471,7 +472,7 @@ describe('--touch scope', () => {
     }
   })
 
-  test('three new files: zero surface, one worker each, all judgment', () => {
+  test('three new files: zero surface, one worker each, all isolated, nothing to read', () => {
     const root = mixedRepo()
     try {
       const { plan } = analyse(root, { touch: ['src/n1.ts', 'src/n2.ts', 'src/n3.ts'] })
@@ -480,14 +481,16 @@ describe('--touch scope', () => {
       assert.equal(plan.recommendedWorkers, 3)
       assert.equal(plan.verdict.level, 'clean')
       for (const p of plan.partitions) {
-        assert.equal(p.difficulty.tier, 'judgment', `${p.worker}: writing a file from nothing is never mechanical`)
+        assert.equal(p.coupling.tier, 'isolated', `${p.worker}: a file with no edges is isolated`)
+        assert.match(p.coupling.reason, /do not exist yet/)
+        assert.deepEqual(p.reads, [])
       }
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  test('touching a real hub pulls in its dependents and yields a non-zero surface', () => {
+  test('touching a real hub: one worker owns it, its dependents are the read-set, and nothing is frozen', () => {
     const root = mixedRepo()
     try {
       const graph = scopeGraph(buildGraph(scanRepo(root)), ['src/bridge.ts'])
@@ -496,10 +499,47 @@ describe('--touch scope', () => {
       assert.equal(graph.scope.hops.length, 12)
       assert.equal(graph.in.get('src/bridge.ts').size, 12, 'in-scope fan-in is the real fan-in')
 
+      // Two workers were asked for. There is one file to write, so there is one
+      // worker: a bin holding only hop files is not work, and hops are never owned.
       const plan = buildPlan(graph, { workers: 2 })
-      assert.ok(plan.sharedSurface.some((s) => s.file === 'src/bridge.ts'), 'the touched hub is frozen')
-      assert.ok(plan.sharedSurface.length > 0)
-      assert.match(renderBrief(plan), /- `src\/x0\.ts` \(hop\)/, 'one-hop files are marked')
+      assert.equal(plan.chosenWorkers, 1)
+      assert.equal(plan.partitions.length, 1)
+      const [w] = plan.partitions
+      assert.deepEqual(w.ownedExclusively, ['src/bridge.ts'])
+      assert.equal(w.reads.length, 12, 'the dependents are read-only context, not owned work')
+      assert.equal(plan.sharedSurface.length, 0, 'nothing is shared between one worker and nobody')
+      assert.ok(plan.hubs.some((h) => h.file === 'src/bridge.ts' && h.fanIn === 12), 'the hub keeps its full fan-in')
+      assert.equal(w.coupling.tier, 'coupled')
+      assert.match(w.coupling.reason, /contains hub `src\/bridge\.ts`/)
+
+      const brief = renderBrief(plan)
+      assert.match(brief, /^## worker-1 — 1 owned files/m)
+      assert.match(brief, /^Reads — one hop[^\n]*\n\n- `src\/x0\.ts`/m, 'hops are listed under Reads')
+      assert.doesNotMatch(brief, /## worker-2/)
+      assert.doesNotMatch(brief, /\(hop\)/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('two touched files that share a hop: the touched files are owned, the hop never is', () => {
+    const root = mixedRepo()
+    try {
+      const graph = scopeGraph(buildGraph(scanRepo(root)), ['src/a.ts', 'src/b.ts'])
+      assert.deepEqual(graph.files, ['src/a.ts', 'src/b.ts', 'src/hub.ts'])
+      const plan = buildPlan(graph, { workers: 2 })
+      const owned = plan.partitions.flatMap((p) => [...p.ownedExclusively, ...p.ownsSharedFiles])
+      assert.deepEqual(owned.sort(), ['src/a.ts', 'src/b.ts'], 'exactly the write-set is owned, once')
+      assert.ok(!owned.includes('src/hub.ts'))
+      // Whichever way the cut fell, the hop is accounted for exactly once: frozen
+      // when two workers name it, read-set when one does.
+      if (plan.chosenWorkers === 2) {
+        assert.ok(plan.sharedSurface.some((s) => s.file === 'src/hub.ts'), 'a hop two workers name is frozen')
+        assert.ok(plan.partitions.every((p) => !p.reads.includes('src/hub.ts')))
+      } else {
+        assert.equal(plan.sharedSurface.length, 0)
+        assert.deepEqual(plan.partitions[0].reads, ['src/hub.ts'])
+      }
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -540,7 +580,104 @@ describe('--touch scope', () => {
     }
   })
 
-  test('the default (no --touch) is byte-identical to before, plus the Difficulty line', () => {
+  test('specs are normalised, and the ones that cannot mean a write-set are refused with a reason', () => {
+    const root = mixedRepo()
+    try {
+      const graph = buildGraph(scanRepo(root))
+      assert.deepEqual(scopeGraph(graph, ['src/./a.ts', 'src/../src/b.ts']).scope.touched, ['src/a.ts', 'src/b.ts'])
+      assert.deepEqual(scopeGraph(graph, [join(root, 'src', 'c.ts')]).scope.touched, ['src/c.ts'], 'an absolute in-repo path')
+      assert.deepEqual(scopeGraph(graph, ['src/a.ts']).scope.invalid, [])
+
+      // Each of these used to become "a new file" — zero edges, one worker, no surface.
+      for (const bad of ['.', './', '', '..', '../outside.ts', 'src/{a,b}.ts', join(root, '..', 'elsewhere.ts')]) {
+        const g = scopeGraph(graph, [bad])
+        assert.equal(g.scope.invalid.length, 1, `${JSON.stringify(bad)} must be refused`)
+        assert.deepEqual(g.scope.touched, [], `${JSON.stringify(bad)} must not become a new file`)
+        assert.ok(g.scope.invalid[0].error, 'with a reason')
+      }
+
+      // A different-case spelling of a real path IS that path wherever the filesystem says so.
+      const cased = scopeGraph(graph, ['SRC/a.ts'])
+      if (existsSync(join(root, 'SRC', 'a.ts'))) assert.deepEqual(cased.scope.touched, ['src/a.ts'])
+      else assert.deepEqual(cased.scope.newFiles, ['SRC/a.ts'], 'on a case-sensitive filesystem it is honestly a new path')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('positionals before --touch name the repo; everything after is a path, taken from argv uncoerced', () => {
+    // The parsed shape alone cannot tell these two apart; the second used to take `src` as the root.
+    assert.deepEqual(
+      splitTouch({ _: ['src'], touch: 'src/graph/build.js' }, ['--touch', 'src/graph/build.js', 'src']),
+      { root: undefined, touch: ['src/graph/build.js', 'src'], flagged: true })
+    assert.deepEqual(
+      splitTouch({ _: ['.'], touch: 'a.ts' }, ['.', '--touch', 'a.ts', 'b.ts,c.ts', '--workers', '2', '--brief']),
+      { root: '.', touch: ['a.ts', 'b.ts', 'c.ts'], flagged: true })
+    assert.deepEqual(splitTouch({ _: [], touch: true }, ['--touch', 'true']).touch, ['true'], 'a file named true is a path')
+    assert.deepEqual(splitTouch({ _: [], touch: 123 }, ['--touch', '123']).touch, ['123'], 'a file named 123 is a path')
+    assert.deepEqual(splitTouch({ _: ['.'] }, ['.']), { root: '.', touch: [], flagged: false })
+    // Without argv (programmatic call) the parsed shape is all there is.
+    assert.deepEqual(splitTouch({ _: ['.', 'b.ts'], touch: 'a.ts' }), { root: '.', touch: ['a.ts', 'b.ts'], flagged: true })
+  })
+
+  test('a path after a switch, a second --touch, and the --touch=value form all stay in the write-set', () => {
+    // Each of these silently narrowed the write-set: the generic parser lets any flag
+    // swallow the next token, so `--brief b.ts` ate b.ts and `--touch b.ts` ate it as a value.
+    assert.deepEqual(
+      splitTouch({ _: ['.'], touch: 'a.ts', brief: 'b.ts' }, ['.', '--touch', 'a.ts', '--brief', 'b.ts']).touch,
+      ['a.ts', 'b.ts'], 'a switch does not swallow a path')
+    assert.deepEqual(
+      splitTouch({ _: ['.'], touch: 'b.ts' }, ['.', '--touch', 'a.ts', '--touch', 'b.ts', '--json']).touch,
+      ['a.ts', 'b.ts'], '--touch may repeat')
+    assert.deepEqual(
+      splitTouch({ _: ['src'], touch: 'a.ts' }, ['--touch=a.ts', 'src']),
+      { root: undefined, touch: ['a.ts', 'src'], flagged: true }, 'the = form is still a marker; src after it is a path')
+    assert.deepEqual(splitTouch({ _: [], touch: 1000 }, ['--touch=1e3']).touch, ['1e3'], 'uncoerced in the = form too')
+    assert.deepEqual(
+      splitTouch({ _: ['.'], touch: 'a.ts', workers: 2, out: 'x.md' }, ['.', '--touch', 'a.ts', '--workers', '2', '--out', 'x.md', 'b.ts']).touch,
+      ['a.ts', 'b.ts'], 'value flags still swallow their value')
+  })
+
+  test('two touched files where one depends on the other are one worker, never a worker that owns nothing', () => {
+    // b imports a, each imports two private hops. A 2-way cut puts a and b apart, which
+    // freezes a (named from b's worker) and leaves a's worker owning nothing outright.
+    const root = fixture({
+      'src/a.ts': "import './h1.js'\nimport './h2.js'\n",
+      'src/b.ts': "import './a.js'\nimport './h3.js'\nimport './h4.js'\n",
+      'src/h1.ts': 'export const x = 1\n',
+      'src/h2.ts': 'export const x = 1\n',
+      'src/h3.ts': 'export const x = 1\n',
+      'src/h4.ts': 'export const x = 1\n',
+    })
+    try {
+      const plan = buildPlan(scopeGraph(buildGraph(scanRepo(root)), ['src/a.ts', 'src/b.ts']), { workers: 2 })
+      assert.equal(plan.chosenWorkers, 1)
+      assert.deepEqual(plan.partitions[0].ownedExclusively, ['src/a.ts', 'src/b.ts'])
+      assert.deepEqual(plan.partitions[0].ownsSharedFiles, [])
+      assert.deepEqual(plan.sharedSurface, [])
+      assert.deepEqual(plan.partitions[0].reads, ['src/h1.ts', 'src/h2.ts', 'src/h3.ts', 'src/h4.ts'])
+      assert.doesNotMatch(renderBrief(plan), /0 owned files/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('a glob is matched the way the filesystem matches, and a glob may not contain ".."', () => {
+    const root = mixedRepo()
+    try {
+      const graph = buildGraph(scanRepo(root))
+      const cased = scopeGraph(graph, ['SRC/x*.ts'])
+      if (existsSync(join(root, 'SRC'))) assert.equal(cased.scope.touched.length, 6, 'case-insensitive disk, case-insensitive glob')
+      else assert.deepEqual(cased.scope.unmatched, ['SRC/x*.ts'], 'case-sensitive disk, case-sensitive glob')
+      const folded = scopeGraph(graph, ['src/*/../a.ts'])
+      assert.equal(folded.scope.invalid.length, 1, 'normalising would turn it into a different pattern')
+      assert.match(folded.scope.invalid[0].error, /".."/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('the default (no --touch) is byte-identical to before, plus the Coupling line', () => {
     const root = mixedRepo()
     try {
       const { plan } = analyse(root)
@@ -550,9 +687,9 @@ describe('--touch scope', () => {
       assert.equal(strip(renderText(plan)), TEXT_BEFORE)
 
       const brief = strip(renderBrief(plan))
-      const withoutDifficulty = brief.replace(/^Difficulty: [^\n]*\n\n/gm, '')
-      assert.equal(withoutDifficulty, BRIEF_BEFORE)
-      assert.equal((brief.match(/^Difficulty: /gm) ?? []).length, plan.partitions.length, 'one line per worker')
+      const withoutCoupling = brief.replace(/^Coupling: [^\n]*\n\n/gm, '')
+      assert.equal(withoutCoupling, BRIEF_BEFORE)
+      assert.equal((brief.match(/^Coupling: /gm) ?? []).length, plan.partitions.length, 'one line per worker')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -560,7 +697,7 @@ describe('--touch scope', () => {
 })
 
 /* ------------------------------------------------------------------ *
- * Difficulty tier per worker
+ * Coupling tier per worker
  * ------------------------------------------------------------------ */
 
 /**
@@ -579,35 +716,48 @@ function loadRouter() {
   }
 }
 
-describe('difficulty', () => {
-  test('existing leaves that nothing names are mechanical; hubs, shared files and coupled files are judgment', () => {
+describe('coupling', () => {
+  test('partitions nothing else names are isolated; hubs, shared files and coupled files are coupled', () => {
     const root = mixedRepo()
     try {
       const graph = buildGraph(scanRepo(root))
       const scripts = buildPlan(scopeGraph(graph, ['scripts/*.sh']), { workers: 2 })
+      assert.equal(scripts.partitions.length, 2)
       for (const p of scripts.partitions) {
-        assert.equal(p.difficulty.tier, 'mechanical', `${p.worker}: ${p.difficulty.reason}`)
+        assert.equal(p.coupling.tier, 'isolated', `${p.worker}: ${p.coupling.reason}`)
       }
 
       const whole = buildPlan(graph)
       const byFile = (f) => whole.partitions.find((p) => p.ownedExclusively.includes(f) || p.ownsSharedFiles.includes(f))
-      assert.equal(byFile('src/bridge.ts').difficulty.tier, 'judgment', 'homes a FROZEN file')
-      assert.match(byFile('src/bridge.ts').difficulty.reason, /homes 1 FROZEN file/)
-      assert.equal(byFile('src/y0.ts').difficulty.tier, 'judgment', 'files name each other')
-      assert.equal(byFile('src/hub.ts').difficulty.tier, 'judgment', 'contains a hub-let with fan-in')
-      assert.match(byFile('src/hub.ts').difficulty.reason, /named by other files/)
+      assert.equal(byFile('src/bridge.ts').coupling.tier, 'coupled', 'homes a FROZEN file')
+      assert.match(byFile('src/bridge.ts').coupling.reason, /homes 1 FROZEN file/)
+      assert.equal(byFile('src/y0.ts').coupling.tier, 'coupled', 'files name each other')
+      assert.equal(byFile('src/hub.ts').coupling.tier, 'coupled', 'contains a hub-let with fan-in')
+      assert.match(byFile('src/hub.ts').coupling.reason, /named by other files/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
   })
 
-  test('every worker section in the brief carries one Difficulty line, right under its heading', () => {
+  test('a scoped graph keeps the unscoped fan-in, so coupling is never judged on cut edges', () => {
+    const root = mixedRepo()
+    try {
+      const scoped = scopeGraph(buildGraph(scanRepo(root)), ['src/a.ts'])
+      // hub.ts is a hop here; b.ts and c.ts name it too, from outside the scope.
+      assert.equal(scoped.in.get('src/hub.ts').size, 1, 'in-scope fan-in is cut to the scope')
+      assert.equal(scoped.fullIn.get('src/hub.ts').size, 3, 'the real fan-in travels with the graph')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('every worker section in the brief carries one Coupling line, right under its heading', () => {
     const root = mixedRepo()
     try {
       const plan = buildPlan(buildGraph(scanRepo(root)))
       const brief = renderBrief(plan)
       for (const p of plan.partitions) {
-        const re = new RegExp(`^## ${p.worker} — \\d+ owned files\\n\\nDifficulty: ${p.difficulty.tier} — `, 'm')
+        const re = new RegExp(`^## ${p.worker} — \\d+ owned files\\n\\nCoupling: ${p.coupling.tier} — `, 'm')
         assert.match(brief, re)
       }
     } finally {
@@ -615,19 +765,21 @@ describe('difficulty', () => {
     }
   })
 
-  test('the hook classifies each tier line the way the tier says', (t) => {
+  test('the hook reads the lines the way the tiers intend: coupled vetoes, isolated pushes nothing, verification is review', (t) => {
     const router = loadRouter()
     if (!router) return t.skip('model-routing hook not co-located; nothing to classify against')
     const decide = (prompt) => router.decide({ prompt })
 
-    assert.equal(decide(difficultyLine({ tier: 'mechanical', reason: DIFFICULTY.mechanical })), 'haiku')
-    assert.equal(decide(difficultyLine({ tier: 'judgment', reason: DIFFICULTY.judgment })), router.INHERIT)
-    assert.equal(decide(difficultyLine({ tier: 'verification', reason: DIFFICULTY.verification })), 'opus')
+    assert.equal(decide(couplingLine({ tier: 'isolated', reason: COUPLING.isolated })), router.INHERIT,
+      'isolated carries no signal of its own — the task text decides')
+    assert.equal(decide(couplingLine({ tier: 'coupled', reason: COUPLING.coupled })), router.INHERIT)
+    assert.equal(decide(VERIFICATION_LINE), 'opus')
   })
 
-  test('the hook reads whole worker sections the same way, and the preamble pushes nothing', (t) => {
+  test('the task text decides on an isolated partition; a coupled one vetoes any downgrade', (t) => {
     const router = loadRouter()
     if (!router) return t.skip('model-routing hook not co-located; nothing to classify against')
+    const decide = (prompt) => router.decide({ prompt })
     const root = mixedRepo()
     try {
       const graph = buildGraph(scanRepo(root))
@@ -641,12 +793,26 @@ describe('difficulty', () => {
       }
 
       const whole = sections(buildPlan(graph))
-      assert.equal(router.decide({ prompt: whole.preamble }), router.INHERIT, 'rules + FROZEN carry no signal of their own')
-      for (const w of whole.workers) assert.equal(router.decide({ prompt: w }), router.INHERIT)
+      assert.equal(decide(whole.preamble), router.INHERIT, 'rules + FROZEN carry no signal of their own')
+      for (const w of whole.workers) assert.equal(decide(w), router.INHERIT)
 
       const scoped = sections(buildPlan(scopeGraph(graph, ['scripts/*.sh']), { workers: 2 }))
-      assert.equal(router.decide({ prompt: scoped.preamble }), router.INHERIT, 'the scope header carries no signal either')
-      for (const w of scoped.workers) assert.equal(router.decide({ prompt: w }), 'haiku')
+      assert.equal(decide(scoped.preamble), router.INHERIT, 'the scope header carries no signal either')
+
+      // The repro that showed an earlier MECHANICAL wording was a live downgrade vector:
+      // a hard task on a leaf file plus the worker section routed to the smallest model.
+      const HARD = 'Task: implement an OAuth2 token refresh with retry and backoff in scripts/run.sh, handling expired refresh tokens and clock skew.'
+      const ROTE = 'Task: run the tests in scripts/ and report the output.'
+      assert.equal(decide(HARD), router.INHERIT, 'the hard task alone carries no signal')
+      assert.equal(decide(ROTE), 'haiku', 'the rote task alone is mechanical')
+      for (const w of scoped.workers) {
+        assert.equal(decide(w), router.INHERIT, 'an isolated section pushes nothing on its own')
+        assert.equal(decide(`${HARD}\n\n${w}`), router.INHERIT, 'isolated + hard task: the section must not downgrade it')
+        assert.equal(decide(`${ROTE}\n\n${w}`), 'haiku', 'isolated + rote task: the task decides')
+      }
+      for (const w of whole.workers) {
+        assert.equal(decide(`${ROTE}\n\n${w}`), router.INHERIT, 'coupled + rote task: the veto wins')
+      }
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

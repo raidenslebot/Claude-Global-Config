@@ -1,5 +1,5 @@
 {
-  "root": "C:\\Claude\\AI Replication",
+  "root": "<repo>",
   "mode": "live",
   "model": "(cli default)",
   "threshold": 0.35,

@@ -116,7 +116,12 @@ if (existsSync(settingsPath)) {
   if (prev !== out) {
     changed++
     if (CHECK) console.log('  DRIFT  config/hooks.json')
-    else { writeFileSync(dest, out, 'utf8'); console.log('  synced config/hooks.json') }
+    else {
+      // A bare checkout with no config/ yet is a legal starting point.
+      mkdirSync(dirname(dest), { recursive: true })
+      writeFileSync(dest, out, 'utf8')
+      console.log('  synced config/hooks.json')
+    }
   }
 }
 

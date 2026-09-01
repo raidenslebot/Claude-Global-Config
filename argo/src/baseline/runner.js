@@ -26,7 +26,7 @@ import { simulateOutcome } from './simulate.js'
  * Where the Claude CLI usually lives, derived from the CURRENT user rather than baked in.
  *
  * This previously hardcoded one machine's profile — including a hostname-suffixed directory
- * (`Administrator.DESKTOP-…`) that stopped existing the moment that machine was reinstalled.
+ * (`<user>.<HOSTNAME>`) that stopped existing the moment that machine was reinstalled.
  * A default naming somebody else's home directory is wrong everywhere, silently: the file is
  * simply absent, and the only symptom is the CLI "not being found".
  *

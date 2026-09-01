@@ -9,7 +9,7 @@ export {
   predictedSpeedup,
 } from './partition.js'
 export {
-  buildPlan, renderText, renderBrief, renderMermaid, DIFFICULTY, difficultyLine,
+  buildPlan, renderText, renderBrief, renderMermaid, COUPLING, VERIFICATION_LINE, couplingLine,
 } from './report.js'
 
 import { scanRepo } from './scan.js'

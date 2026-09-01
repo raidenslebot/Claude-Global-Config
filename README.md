@@ -56,7 +56,8 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
 | **Hooks** | 16 hooks merged into `settings.json`, each pinned to an absolute Node path |
-| **Skills** | `visual-design-mastery`, the argo skill set, and 13 Tier-2 animation/3D and technical-writing skills |
+| **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
+| **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -127,11 +128,13 @@ climbing, delegation quietly stopping — those are graph problems. argo measure
 you fan out.
 
 ```bash
-argo graph . --brief    # worker count from the shared surface, not a round number
-argo diverge            # disagreement per PAIR — a fleet average hides it
-argo baseline           # was the crew ever beating a single agent?
-argo drift diff         # did the vendor change a shipped system prompt under you?
-argo doctor             # topology lint
+argo graph . --brief                               # worker count from the shared surface, not a round number
+argo graph . --touch src/x.js "src/api/**" --brief # task-scoped: workers own the write-set only
+argo diverge                                       # disagreement per PAIR — a fleet average hides it
+argo baseline                                      # was the crew ever beating a single agent?
+argo drift diff                                    # did the vendor change a shipped system prompt under you?
+argo topology lint                                 # R1–R9, plus MODEL: a pinned model id in a declaration
+argo watch --caveats library/caveats-versions.json # have CAVEATS.md's version rows rotted?
 ```
 
 The core rule: **worker count is set by the shared surface** — files reachable from more than one
@@ -140,6 +143,26 @@ output. A crew that does not beat a single agent on the same task is subtracting
 
 Ships as a CLI, 3 agents (`graph-worker`, `graph-supervisor`, `hub-splitter`), 9 slash commands,
 2 hooks, and a `graph-engineering` skill. Source and tests in [`argo/`](argo/).
+
+---
+
+## Model routing — automatic, on both dispatch paths
+
+Every spawned agent gets its model from a hook, never from a guess. A `PreToolUse` hook on the
+Agent tool classifies the prompt by the hardest decision the agent must make on its own —
+verification and review go to `opus`, work that is already specified to `sonnet`, pure retrieval
+to `haiku`, anything ambiguous inherits the session model — and rewrites the call. A second hook
+on the Workflow tool injects the same policy into workflow scripts, which dispatch their agents
+without ever touching the Agent tool.
+
+If the session model was pinned to a specific version, both hooks strip every model option. An
+alias cannot name a version, so inheritance is the only thing that reproduces the one you chose.
+
+Under-assignment is treated as a correctness failure and is gated at zero against a labelled
+corpus of prompts; over-assignment is a cost, measured and ratcheted down. `argo graph --brief`
+cooperates: each worker section carries a `Coupling:` line the hook reads, so a worker on a hub
+cannot be quietly downgraded. A shipped workflow, `probe-model-policy`, proves the Workflow-side
+contract still holds after any Claude Code upgrade — zero agents, milliseconds.
 
 ---
 
@@ -198,12 +221,15 @@ it. An unresolved token after install is a bug — `doctor.mjs` reports it.
 ## Layout
 
 ```
-config/       mandates + hooks, templatized       tools/paths.mjs    path vocabulary
-  hooks.json  hook registrations to merge         tools/install.mjs  repo -> machine
-skills/       skills this repo authors            tools/sync.mjs     machine -> repo
-argo/         graph-engineering toolkit           tools/doctor.mjs   verify
-library/      index, caveats, sources             tools/scan-secrets.mjs  pre-push gate
-  repos/      cloned at install (gitignored)
+config/       mandates + hooks, templatized       tools/paths.mjs        path vocabulary
+  hooks.json  hook registrations to merge         tools/install.mjs      repo -> machine
+skills/       skills this repo authors            tools/sync.mjs         machine -> repo
+workflows/    named workflows                     tools/doctor.mjs       verify
+argo/         graph-engineering toolkit           tools/uninstall.mjs    clean removal
+library/      index, caveats, sources             tools/scan-secrets.mjs pre-push gate
+  repos/      cloned at install (gitignored)      tools/run-tests.mjs    explicit-path test runner
+docs/         architecture, troubleshooting,      tools/test/            the gates
+              the audits and their closures       .githooks/             pre-commit secret gate
 ```
 
 ## License

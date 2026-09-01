@@ -59,7 +59,7 @@ process.stdout.write(JSON.stringify({
 ```
 
 ```json
-{ "type": "command", "command": "node \"C:\\Users\\Administrator.DESKTOP-F9F60B0\\.claude\\hooks\\restore-dispatch.js\"", "timeout": 10 }
+{ "type": "command", "command": "node \"C:\\Users\\<user>.<HOSTNAME>\\.claude\\hooks\\restore-dispatch.js\"", "timeout": 10 }
 ```
 
 **Caveats.** `--safe-mode` / `CLAUDE_CODE_SAFE_MODE=1` strips every hook,
@@ -123,9 +123,10 @@ difference is the gate, not the task.
 ## 2. Your existing hooks are dead. Fix the paths first.
 
 `~/.claude/settings.json` points all six hooks at
-`C:\Users\Administrator\.claude\hooks\`. Your real home is
-`C:\Users\Administrator.DESKTOP-F9F60B0\`. The directory at the configured path
-does not contain them.
+`C:\Users\<user>\.claude\hooks\`. Your real home is
+`C:\Users\<user>.<HOSTNAME>\` — Windows suffixes the profile directory with the
+hostname when an account of that name already existed. The directory at the
+configured path does not contain them.
 
 **Your UI-stack, React-stack, and Security-stack hooks have never fired.** The
 "MANDATORY" enforcement in your `CLAUDE.md` has been advisory this whole time.
@@ -297,11 +298,13 @@ site, then check what the others can now reach.
 ```bash
 argo graph .                          # can this repo fan out, and how wide
 argo graph . --brief --out .argo/fanout.md
+argo graph . --touch src/feature.js "src/api/**" --brief   # plan a task's write-set, not the repo
 argo baseline --tasks tasks.json      # is the crew earning its calls
 argo diverge --threshold 0.35         # do my agents agree with each other
 argo drift snapshot                   # before every upgrade
 argo drift diff                       # after every upgrade
 argo topology init && argo topology lint
+argo watch --caveats caveats.json     # do a document's version rows still match npm
 ```
 
 In Claude Code: `/argo:fanout <task>` does the analysis and briefs the workers.

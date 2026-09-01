@@ -11,7 +11,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve, join, dirname } from 'node:path'
-import { fetchSource, selectNew, defaultConfig } from './sources.js'
+import { fetchSource, selectNew, defaultConfig, validateCaveatRows } from './sources.js'
 
 const HELP = `
 argo watch — report what changed in the sources that affect your fleet
@@ -31,9 +31,12 @@ options:
   --json             machine-readable output
   --init             write the default config and exit
   --caveats FILE     check a caveats sidecar's version claims against npm and
-                     exit: 0 nothing moved, 1 a recorded version is stale,
-                     2 nothing could be checked. Rows look like
+                     exit: 0 nothing moved, 1 a recorded version is stale or
+                     a package is not on the registry, 2 nothing could be
+                     checked. Rows look like
                      { skill, package, documents, recorded?, note? }
+                     A caveats source in the radar config prints the same
+                     rows but never affects the radar's exit code.
 
 examples:
   argo watch --init
@@ -59,8 +62,8 @@ function saveJson(path, value) {
 function loadCaveatRows(path) {
   const rows = loadJson(path, null)
   if (!Array.isArray(rows)) return { error: `${path} is missing, unreadable, or not a JSON array` }
-  const bad = rows.findIndex((r) => !r || ['skill', 'package', 'documents'].some((k) => typeof r[k] !== 'string'))
-  if (bad !== -1) return { error: `${path} row ${bad} needs string skill, package and documents` }
+  const reason = validateCaveatRows(rows)
+  if (reason) return { error: `${path} ${reason}` }
   return { rows }
 }
 
@@ -68,31 +71,43 @@ function printCaveats(rows) {
   const counts = {}
   for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1
   const stale = rows.filter((r) => r.stale)
+  const missing = rows.filter((r) => r.status === 'not-found')
   const summary = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(' · ')
   console.log(`CAVEATS  ${rows.length} rows · ${summary} · ${stale.length} stale`)
   console.log('')
-  const w = (k) => Math.max(0, ...rows.map((r) => String(r[k]).length))
+  const s = (v) => String(v ?? '')
+  const w = (k) => Math.max(0, ...rows.map((r) => s(r[k]).length))
   for (const r of rows) {
-    const doc = r.resolved && r.resolved !== r.documents ? `${r.documents} (${r.resolved})` : r.documents
-    const tail = r.live
-      ? `${r.live}${r.stale ? `  ! recorded ${r.recorded}` : ''}`
-      : r.reason
-    console.log(`  ${r.status.padEnd(12)} ${r.package.padEnd(w('package'))}  ${r.skill.padEnd(w('skill'))}  ${doc} -> ${tail}`)
+    const doc = r.resolved && r.resolved !== r.documents ? `${s(r.documents)} (${r.resolved})` : s(r.documents)
+    // A reason is never dropped: a row with a live version and no status still
+    // has to say why it could not be compared, or the text output hides what
+    // only --json carried.
+    const live = r.live ? `${r.live}${r.stale ? `  ! recorded ${r.recorded}` : ''}` : ''
+    const tail = r.reason ? (live ? `${live} — ${r.reason}` : r.reason) : live
+    console.log(`  ${s(r.status).padEnd(12)} ${s(r.package).padEnd(w('package'))}  ${s(r.skill).padEnd(w('skill'))}  ${doc} -> ${tail}`)
   }
   if (stale.length > 0) {
     console.log(`\n       ! ${stale.length} recorded version${stale.length === 1 ? ' has' : 's have'} moved.`)
     console.log('         regenerate the version rows with `npm view <pkg> version`.')
   }
+  if (missing.length > 0) {
+    console.log(`\n       ! ${missing.length} package${missing.length === 1 ? ' is' : 's are'} not on the registry — fix the sidecar: ${missing.map((r) => r.package).join(', ')}`)
+  }
 }
 
 /**
- * 2 when nothing could be checked — a green run on zero data is the bug —
- * 1 when a recorded version has moved, else 0. A row that is MAJOR-BEHIND
- * alone is not news: that is the state the document already records.
+ * 1 when a recorded version has moved or a package is not on the registry
+ * (a sidecar that can never be checked is a finding, not a pass); otherwise
+ * 2 when nothing could be measured — a green run on zero data is the bug —
+ * else 0. A finding outranks "nothing measured": a row can only be stale once
+ * the registry answered, so a stale row IS a measurement even when its status
+ * could not be computed. A row that is MAJOR-BEHIND alone is not news: that
+ * is the state the document already records.
  */
 function caveatsExit(rows) {
+  if (rows.some((r) => r.stale || r.status === 'not-found')) return 1
   if (rows.every((r) => r.status === 'unknown')) return 2
-  return rows.some((r) => r.stale) ? 1 : 0
+  return 0
 }
 
 export async function run(args) {
@@ -120,6 +135,7 @@ export async function run(args) {
         sidecar: path,
         stale: items.filter((r) => r.stale).length,
         unknown: items.filter((r) => r.status === 'unknown').length,
+        notFound: items.filter((r) => r.status === 'not-found').length,
         rows: items,
       }, null, 2))
     } else {
@@ -162,7 +178,9 @@ export async function run(args) {
   const caveatRows = results.filter((r) => r.src.type === 'caveats').flatMap((r) => r.items ?? [])
   const radar = results.filter((r) => r.src.type !== 'caveats')
 
-  const failures = radar.filter((r) => !r.ok)
+  // Every source that failed is reported, caveats included: a malformed caveats
+  // entry that vanished from the output would look exactly like a clean run.
+  const failures = results.filter((r) => !r.ok)
   const allItems = radar.flatMap((r) => r.items ?? [])
   const fresh = selectNew(allItems, seen, keywords, { minScore: args['min-score'] ?? 1 })
   const limit = args.limit ?? 25

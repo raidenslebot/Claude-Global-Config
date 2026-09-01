@@ -12,6 +12,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import os from 'node:os'
 import { REPO } from '../paths.mjs'
 
 /** Every text file this package SHIPS to a user's machine. */
@@ -116,6 +118,41 @@ test('every shipped skill declares a name matching its directory', () => {
       `${dir}/SKILL.md declares name "${name.trim()}" — it must equal the directory name`)
     assert.ok(/^description:/m.test(fm[1]), `${dir}/SKILL.md declares no description`)
   }
+})
+
+test('no tracked file names the machine that authored this repo, or the one running the tests', (t) => {
+  // Seven tracked files carried the authoring machine's username, hostname-suffixed profile
+  // directory, or working-directory name into a public repo — in an install line, a playbook
+  // narrative, a source comment, two teaching examples, and argo's own run artifacts. None of
+  // those was a path code relies on, so the machine-path gates above did not see them; a
+  // reader still learns who authored the repo and where. This gate names the identifiers
+  // outright. The second set is derived from whichever machine runs the tests, so a new
+  // author leaks nothing of their own either.
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const ORIGIN = [/Users[\\/]{1,2}Administrator\b/, /Administrator\.DESKTOP/, /DESKTOP-F9F60B0/, /\bAI Replication\b/]
+  const user = os.userInfo().username
+  const host = os.hostname()
+  const LOCAL = [new RegExp(`Users[\\\\/]{1,2}${escape(user)}\\b`)]
+  if (host.length >= 8) LOCAL.push(new RegExp(`\\b${escape(host)}\\b`, 'i'))
+
+  const ls = spawnSync('git', ['-C', REPO, 'ls-files', '-z'], { encoding: 'utf8' })
+  if (ls.status !== 0) return t.skip('git not available or not a checkout')
+  const self = relative(REPO, new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')).split(sep).join('/')
+  const offenders = []
+  for (const f of ls.stdout.split('\0').filter(Boolean)) {
+    if (f.startsWith('library/repos/') || f === self || f === 'tools/test/universality.test.mjs') continue
+    const p = join(REPO, f)
+    if (!existsSync(p) || statSync(p).size > 400_000) continue
+    const text = readFileSync(p, 'latin1')
+    if (text.includes('\0')) continue
+    text.split(/\r?\n/).forEach((line, i) => {
+      if ([...ORIGIN, ...LOCAL].some((re) => re.test(line))) {
+        offenders.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`)
+      }
+    })
+  }
+  assert.deepEqual(offenders, [],
+    `a machine's identity is in the tree — replace it with <user>, <HOSTNAME> or <repo>:\n  ${offenders.join('\n  ')}`)
 })
 
 test('no shipped file assumes a single operating system in its paths', () => {

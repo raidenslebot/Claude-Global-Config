@@ -56,6 +56,20 @@
     "note": "the skill imports @babylonjs/core subpaths; CAVEATS.md names only the skill"
   },
   {
+    "skill": "motion-framer",
+    "package": "motion",
+    "documents": "latest",
+    "recorded": "13.1.1",
+    "note": "the skill makes no version claim; the row exists so the live figure CAVEATS.md prints for motion is checked"
+  },
+  {
+    "skill": "motion-framer",
+    "package": "framer-motion",
+    "documents": "latest",
+    "recorded": "13.1.1",
+    "note": "same codebase and version as motion; the row keeps CAVEATS.md's 'both' honest"
+  },
+  {
     "skill": "scroll-reveal-libraries",
     "package": "aos",
     "documents": "next",

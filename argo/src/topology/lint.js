@@ -219,6 +219,9 @@ export function normalise(raw) {
       role,
       agentType: typeof a.agentType === 'string' ? a.agentType.trim() : '',
       model: typeof a.model === 'string' ? a.model : '',
+      // Kept raw for the MODEL rule: a list or an object is not "no model", and
+      // collapsing it to '' let `"model": ["claude-opus-5"]` pass both checks.
+      modelRaw: a.model,
       reads: asList(a.reads).map(String),
       writes: asList(a.writes).map(String),
       tools: asList(a.tools).map(String),
@@ -586,16 +589,29 @@ export function lint(raw, { plan = null } = {}) {
 
   /* MODEL — a version-specific model id pinned on an agent. A warning, not an
    * error: a user may pin on purpose, but must be told what the pin costs. */
+  const MODEL_FIX =
+    'omit "model" or set it to "inherit". A spawned agent inherits the session model by default, ' +
+    `and the dispatch option accepts only the coarse aliases ${[...MODEL_ALIASES].join(', ')} — ` +
+    'so when the session is pinned to an exact version, inheritance is the only thing that reproduces it, ' +
+    'and this id silently runs something else. Keep the pin only if you mean it.'
   for (const a of decl.agents) {
-    const model = a.model.trim().toLowerCase()
+    if (a.modelRaw !== undefined && a.modelRaw !== null && typeof a.modelRaw !== 'string') {
+      findings.push(finding('MODEL', 'warn',
+        `agent "${a.id}" declares model ${JSON.stringify(a.modelRaw)}, which is not a string.`,
+        MODEL_FIX, { agents: [a.id] }))
+      continue
+    }
+    // Exact, case-sensitive: the dispatch option's aliases are lowercase, and
+    // "Opus" is a value the dispatcher rejects, not a spelling of "opus".
+    const model = a.model.trim()
     if (model === '' || model === 'inherit' || MODEL_ALIASES.has(model)) continue
+    const lower = model.toLowerCase()
+    const casing = lower === 'inherit' || MODEL_ALIASES.has(lower)
+      ? ` The accepted values are lowercase: write "${lower}".`
+      : ''
     findings.push(finding('MODEL', 'warn',
-      `agent "${a.id}" pins model "${a.model}".`,
-      'omit "model" or set it to "inherit". A spawned agent inherits the session model by default, ' +
-        `and the dispatch option accepts only the coarse aliases ${[...MODEL_ALIASES].join(', ')} — ` +
-        'so when the session is pinned to an exact version, inheritance is the only thing that reproduces it, ' +
-        'and this id silently runs something else. Keep the pin only if you mean it.',
-      { agents: [a.id] }))
+      `agent "${a.id}" pins model "${a.model}".${casing}`,
+      MODEL_FIX, { agents: [a.id] }))
   }
 
   return finish(decl, findings, stats, { rulesRan: true, plan })

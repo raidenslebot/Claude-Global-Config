@@ -42,7 +42,7 @@ reason.
 ## A hook emits a mangled path
 
 **Symptom.** Hook output contains a path with the separators gone and line breaks inserted into
-it, for example `C:UsersAdministratorAppDataRoaming` with a stray newline before `pm`, or a hook
+it, for example `C:Users<user>AppDataRoaming` with a stray newline before `pm`, or a hook
 that throws `Cannot find module 'C:Users...'`.
 
 **Cause.** A Windows path was substituted into a JavaScript string literal in a source file. The
@@ -65,7 +65,7 @@ error, or writes a `settings.json` that Claude Code then refuses to load.
 
 **Cause.** Token substitution was applied to the raw text of a JSON file before parsing it. A
 Windows path contains backslashes, which are escape characters in JSON; injecting
-`C:\Users\Administrator\.claude` into JSON *text* produces `\U` and `\A`, neither of which is a
+`C:\Users\<user>\.claude` into JSON *text* produces `\U` and `\<`, neither of which is a
 legal JSON escape.
 
 **Fix.** Parse first, substitute into the parsed values. `install.mjs` reads `config/hooks.json`

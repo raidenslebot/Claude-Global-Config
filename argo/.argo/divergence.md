@@ -1,6 +1,6 @@
 # Divergence report
 
-Repo: `C:\Claude\AI Replication`
+Repo: `<repo>`
 2 agents · 4 probes · 1 repeat(s) · model `(cli default)` · gate `0.35`
 
 ## Pairwise divergence

@@ -37,6 +37,11 @@ ranking follows from it: the missing artifacts are gates, not prose.
 
 ## G1. The repo's gates do not run the repo's checks
 
+**Status: closed 2026-09-01.** `.github/workflows/ci.yml` runs an ubuntu + windows matrix with
+`fail-fast: false`, a gating `node tools/run-tests.mjs` step, and argo's suite through an
+explicit-path runner (`argo/test/run.js`); both suites also pass under Node 20 locally. The
+evidence below is kept as the record of why.
+
 **Gap.** CI runs neither the root test suite nor any non-Linux job, so the two verification
 mechanisms that would have caught the platform-conditional bugs are manual.
 
@@ -172,6 +177,10 @@ the ones that failed it — one commit after they were correct.
 
 ## G4. Process environment and filesystem-link semantics
 
+**Status: closed 2026-09-01.** `skills/cross-platform` — every row of its table cites the failure
+this repo actually had, and its delete-through claim was measured rather than assumed.
+`.gitattributes` and `tools/test/line-endings.test.mjs` close the CRLF case it names.
+
 **Gap.** Nothing in the installed set covers the Windows and subprocess hazards that are not
 parser-boundary problems: PATH inheritance, junctions, `MAX_PATH`, and exec bits.
 
@@ -218,6 +227,11 @@ first would repeat that.
 ---
 
 ## G5. `CAVEATS.md` version rows rot with nothing to notice
+
+**Status: closed 2026-09-01.** `argo watch --caveats library/caveats-versions.json` exits 1 when a
+recorded version has moved or a package is not on the registry, 2 when nothing could be measured;
+`tools/test/caveats.test.mjs` holds the sidecar and `CAVEATS.md` to the same numbers in both
+directions.
 
 **Gap.** The file states its own decay and offers no mechanism against it.
 

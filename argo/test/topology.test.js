@@ -738,6 +738,34 @@ test('MODEL reports one finding per pinned agent', () => {
   assert.equal(of(lint(decl), 'MODEL').length, 3)
 })
 
+test('MODEL warns on a model that is not a string — a list or an object cannot be an alias', () => {
+  // These used to collapse to '' in normalisation and pass silently, so
+  // `"model": ["claude-opus-4-7"]` linted clean while pinning a version.
+  for (const bad of [['claude-opus-4-7'], { id: 'claude-opus-4-7' }, 47, true]) {
+    const decl = cleanFleet()
+    decl.agents[0].model = bad
+    const found = of(lint(decl), 'MODEL')
+    assert.equal(found.length, 1, JSON.stringify(bad))
+    assert.match(found[0].message, /not a string/)
+    assert.deepEqual(found[0].agents, [decl.agents[0].id])
+  }
+  // null is JSON's "nothing", not a pin.
+  const decl = cleanFleet()
+  decl.agents[0].model = null
+  assert.deepEqual(of(lint(decl), 'MODEL'), [])
+})
+
+test('MODEL is case-sensitive: "Opus" is a value the dispatcher rejects, and the finding says so', () => {
+  for (const spelt of ['Opus', 'SONNET', 'Inherit']) {
+    const decl = cleanFleet()
+    decl.agents[1].model = spelt
+    const found = of(lint(decl), 'MODEL')
+    assert.equal(found.length, 1, spelt)
+    assert.match(found[0].message, /lowercase/)
+    assert.match(found[0].message, new RegExp(`"${spelt.toLowerCase()}"`))
+  }
+})
+
 test('init emits no model field, so every generated agent inherits the session model', () => {
   const plan = { partitions: PARTITIONS, sharedSurface: [], stats: { files: 4 }, recommendedWorkers: 2 }
   const decl = buildDeclaration(plan)

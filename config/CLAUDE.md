@@ -130,8 +130,13 @@ climbing, delegation quietly stopping. Those are graph symptoms and a better
 model will not fix them.
 
 ```bash
-argo graph . --brief   # worker count, shared surface, frozen files
+argo graph . --brief                          # worker count, shared surface, frozen files
+argo graph . --touch <paths|globs> --brief    # task-scoped: workers own the write-set only
 ```
+
+Paste each worker's `Coupling:` line from the brief into its prompt verbatim: `coupled` is
+worded so the model-routing hook cannot downgrade a worker on a hub; `isolated` says nothing,
+and your task text decides.
 
 **Take its worker count.** It is derived from the **shared surface** — files
 reachable from more than one partition — not from a round number you picked.

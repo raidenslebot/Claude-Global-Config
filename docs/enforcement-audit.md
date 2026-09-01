@@ -41,8 +41,8 @@ does not exist:
 ### Fails the build, the install, or the commit
 
 **E1 — No credential reaches the tree.**
-`.githooks/pre-commit:8` execs `tools/scan-secrets.mjs`; `.github/workflows/ci.yml:26-27` runs the
-same scan as the first step, ungated, before any later step can cache or log.
+`.githooks/pre-commit:8` execs `tools/scan-secrets.mjs`; the `Secret scan` step in
+`.github/workflows/ci.yml` runs the same scan first, ungated, before any later step can cache or log.
 Failure looks like: `git commit` aborts with the scanner's finding list (redacted — `cli.test.mjs:323-331`
 asserts neither report echoes the secret); in CI the job stops at step 1.
 Pinned by `cli.test.mjs:295-373` (planted key fails, entropy sweep has teeth, `.gitignore` covers
@@ -138,8 +138,9 @@ Frontmatter `model:` overrides inheritance for every session including a pinned 
 "helpful" pin silently defeats the routing rule.
 
 **E17 — argo's test suite runs in CI.**
-`.github/workflows/ci.yml:47-67`, and it can fail the build. The Node-20 glob fallback at `:63-67`
-exists so a real failure cannot hide behind "pattern not found".
+The `argo test suite` step in `.github/workflows/ci.yml` runs `npm test`, and it can fail the build.
+That script is `argo/test/run.js`, which hands node explicit file paths, so on the Node 20 the job
+pins a real failure cannot hide behind a "pattern not found" error from an unexpanded glob.
 
 ### Detects and reports, but never fails
 
@@ -335,6 +336,12 @@ live (G2) has been fixed at `sync.mjs:99`.
 
 ### A8 — `sync.mjs` and `uninstall.mjs` have no executing test
 
+**Status: closed 2026-09-01.** `tools/test/uninstall.test.mjs` (dry-run writes nothing, a link is
+removed without following it, a real directory is refused, protected files stay byte-identical, a
+second run is a no-op, and `npm`/`claude` are provably never invoked) and `tools/test/sync.test.mjs`
+(templatize round-trip, drift report, the mtime guard). The trailing-separator delete-through
+spelling is not exercised: `uninstall.mjs` builds every path with `join()` and cannot produce it.
+
 **Evidence of absence:** `grep -rn "uninstall\|sync\.mjs" tools/test/` returns two hits, both
 comments (`config.test.mjs:88` and `:122`). `cli.test.mjs` — the file that actually spawns tools —
 names neither. `uninstall.mjs` is 391 lines and is the only tool in the repo that deletes files.
@@ -416,6 +423,10 @@ corpus or delete the paragraph — leaving it is a false evidence claim under
 `standard-of-work/SKILL.md:42-53`.
 
 ### A12 — `library/CAVEATS.md` version rows rot with nothing to notice
+
+**Status: closed 2026-09-01.** `argo watch --caveats library/caveats-versions.json`, with
+`tools/test/caveats.test.mjs` holding the sidecar and the prose to the same numbers. Run by hand,
+not in CI, for exactly the reason given below: it depends on npm's uptime.
 
 `library/CAVEATS.md:8` says the version rows rot and to regenerate them with `npm view`.
 `grep -rn "npm view\|npm outdated\|registry.npmjs" tools/ .github/ library/*.mjs` → **zero hits**.
@@ -541,15 +552,15 @@ misfire, because a gate that misfires gets switched off and that is worse than n
 
 | # | Item | Harm | Safe-gate feasibility | Verdict |
 |---|---|---|---|---|
-| 1 | A7 — CI runs no root tests, one OS | High | Trivial, no false positives | **Build** |
-| 2 | A10 — orphan hooks invisible | High | Trivial, no false positives | **Build** |
-| 3 | A6 — pre-commit not installed | High | Trivial, no false positives | **Build** |
-| 4 | A2 — wire `react-doctor.mjs` | Medium-high | High; the hook is already written | Build after 2 |
-| 5 | A8 — no test for sync/uninstall | Medium-high | High; harness exists | Next |
+| 1 | A7 — CI runs no root tests, one OS | High | Trivial, no false positives | **Done** — two-OS matrix + root suite gate |
+| 2 | A10 — orphan hooks invisible | High | Trivial, no false positives | **Done** — `hook-registration.test.mjs` |
+| 3 | A6 — pre-commit not installed | High | Trivial, no false positives | **Done** — `install.mjs` sets `core.hooksPath` |
+| 4 | A2 — wire `react-doctor.mjs` | Medium-high | High; the hook is already written | **Done** — registered on PostToolUse |
+| 5 | A8 — no test for sync/uninstall | Medium-high | High; harness exists | **Done** — see A8 |
 | 6 | A9 — install does not verify itself | Medium | Moderate; promote five warns to fails | Next |
 | 7 | A11 — missing model corpus | Medium | Moderate; needs a labelled corpus | Next |
 | 8 | A1/A3 negative claims, D5 doc scope | Low-medium | Trivial | Fold into the next visit |
-| 9 | A12 — CAVEATS version drift | Low | Moderate; depends on npm uptime | Non-blocking CI step |
+| 9 | A12 — CAVEATS version drift | Low | Moderate; depends on npm uptime | **Done** — `argo watch --caveats`, run by hand |
 | — | A1/A3/A4 behavioural mandates | High | **Unsafe** | Do not build |
 
 ### Build these three first

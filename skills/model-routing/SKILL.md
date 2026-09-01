@@ -168,3 +168,9 @@ silently inheriting.
 `graph-engineering` decides **how many** agents and what they may read; this skill decides **what
 each one runs on**. Do them in that order — worker count and scope come first, because a badly
 shaped fan-out is expensive at any model tier.
+
+`argo graph --brief` cooperates with the hook directly: every worker section carries a
+`Coupling:` line. `coupled` is worded as a judgment signal, so pasting it into a worker's prompt
+makes a downgrade impossible whatever the task text says. `isolated` is worded to carry no signal
+at all — the graph can certify containment, not that the edit is easy, so there the task text
+alone decides. Paste the line verbatim; the hook only sees what is in the prompt.

@@ -169,19 +169,29 @@ phase('settings.json — hook registrations')
     catch (e) { fail(`settings.json is not valid JSON (${e.message}) — refusing to touch it; remove the hook entries by hand`) }
     if (settings && !settings.hooks) skip('no hooks block in settings.json')
     else if (settings) {
-      backup(settingsPath)
+      // The identity rule install.mjs writes with, read back: a hook IS the script
+      // basename in its command. Anything whose basename we do not own is someone
+      // else's hook and is copied through untouched.
+      const ownedBasename = (h) => {
+        const b = (String(h.command || '').match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
+        return b && ownedHooks.has(b) ? b : null
+      }
+      // Count before touching anything: a backup taken on a run that changes nothing
+      // is a fresh .bak on every --yes, which is noise that trains people to ignore
+      // the backup directory.
+      const registered = Object.values(settings.hooks)
+        .filter(Array.isArray)
+        .flatMap((groups) => groups.flatMap((g) => (g.hooks || []).filter(ownedBasename))).length
+      if (registered) backup(settingsPath)
       let hit = 0, kept = 0
       for (const [event, groups] of Object.entries(settings.hooks)) {
         if (!Array.isArray(groups)) continue
         const emptied = new Set()
         for (const g of groups) {
           const before = (g.hooks || []).length
-          // The identity rule install.mjs writes with, read back: a hook IS the script
-          // basename in its command. Anything whose basename we do not own is someone
-          // else's hook and is copied through untouched.
           g.hooks = (g.hooks || []).filter((h) => {
-            const b = (String(h.command || '').match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
-            if (b && ownedHooks.has(b)) { gone(`settings.json  ${event} · ${b}`); hit++; return false }
+            const b = ownedBasename(h)
+            if (b) { gone(`settings.json  ${event} · ${b}`); hit++; return false }
             return true
           })
           kept += g.hooks.length

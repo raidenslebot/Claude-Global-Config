@@ -44,6 +44,15 @@ describe('versionParts', () => {
     assert.equal(versionParts(''), null)
     assert.equal(versionParts(undefined), null)
   })
+
+  test('prose that merely contains digits is not a version', () => {
+    // "React 18 / R3F 8" used to read as [18, null] and produce a confident "ahead".
+    assert.equal(versionParts('React 18 / R3F 8'), null)
+    assert.equal(versionParts('v4 API'), null)
+    assert.equal(versionParts('since 2018'), null)
+    assert.deepEqual(versionParts('>=1.2.0'), [1, 2], 'a range operator is still a version')
+    assert.deepEqual(versionParts('1.x.x'), [1, null])
+  })
 })
 
 /* ------------------------------------------------------------------ *
@@ -129,6 +138,17 @@ describe('compareCaveat', () => {
     const r = compareCaveat(row('banana', { recorded: '9.7.0' }), doc('9.8.0'))
     assert.equal(r.status, 'unknown')
     assert.equal(r.stale, true)
+    const prose = compareCaveat(row('React 18 / R3F 8'), doc('9.7.0'))
+    assert.equal(prose.status, 'unknown', 'digits inside prose are not a claim')
+    assert.match(prose.reason, /neither a version nor a dist-tag/)
+  })
+
+  test('a 404 is not "could not check": the package is not on the registry, and the row says so', () => {
+    const r = compareCaveat(row('^1.0.0', { recorded: '1.2.3' }), { ok: false, status: 404, error: 'HTTP 404' })
+    assert.equal(r.status, 'not-found')
+    assert.equal(r.live, null)
+    assert.equal(r.stale, false)
+    assert.match(r.reason, /not on the registry/)
   })
 
   test('the row\'s own fields come through, so the report needs no join', () => {
@@ -197,13 +217,16 @@ describe('checkCaveats', () => {
  * Replace global fetch with a fixture registry. Returns the URLs asked for,
  * so a test can prove two source types went through the same door.
  */
-function stubFetch(bodies, { fail = false } = {}) {
+function stubFetch(bodies, { fail = false, down = [] } = {}) {
   const real = globalThis.fetch
   const urls = []
   globalThis.fetch = async (url) => {
     urls.push(String(url))
     if (fail) throw new TypeError('fetch failed')
     const pkg = decodeURIComponent(String(url).replace('https://registry.npmjs.org/', ''))
+    // `down` is a package whose fetch fails at the network; a package absent from
+    // `bodies` is one the registry answers 404 for. The two are different findings.
+    if (down.includes(pkg)) throw new TypeError('fetch failed')
     const body = bodies[pkg]
     return body
       ? { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) }
@@ -236,11 +259,20 @@ describe('fetchSource caveats', () => {
     }
   })
 
-  test('with no rows it is ok and empty', async () => {
+  test('a caveats source without usable rows is a config error, not a silent pass', async () => {
     const stub = stubFetch({})
     try {
-      assert.deepEqual(await fetchSource({ type: 'caveats' }), { ok: true, items: [] })
-      assert.equal(stub.urls.length, 0)
+      for (const src of [{ type: 'caveats' }, { type: 'caveats', rows: [] }, { type: 'caveats', rows: { oops: 1 } }]) {
+        const r = await fetchSource(src)
+        assert.equal(r.ok, false, JSON.stringify(src))
+        assert.match(r.error, /needs a non-empty "rows" array/)
+        assert.deepEqual(r.items, [])
+      }
+      // A row that would crash the printer is refused at this door with the same words as --caveats.
+      const bad = await fetchSource({ type: 'caveats', rows: [{ documents: '1.0.0' }] })
+      assert.equal(bad.ok, false)
+      assert.match(bad.error, /row 0 needs string skill, package and documents/)
+      assert.equal(stub.urls.length, 0, 'nothing was fetched for any of them')
     } finally {
       stub.restore()
     }
@@ -385,14 +417,82 @@ describe('argo watch --caveats', () => {
   })
 
   test('one unreachable package does not sink the run', async () => {
+    const stub = stubFetch(REGISTRY, { down: ['gsap'] })
+    try {
+      const dir = sandbox({ 'c.json': FRESH })
+      const { code, out } = await capture(() => watch({ caveats: join(dir, 'c.json') }))
+      assert.equal(code, 0)
+      assert.match(out, /unknown\s+gsap.*could not check: fetch failed/)
+      assert.match(out, /1 unknown/)
+    } finally {
+      stub.restore()
+    }
+  })
+
+  test('a package the registry does not have is not-found and exits 1 — a typo must not pass forever', async () => {
+    // This used to be "unknown", exit 0, as long as one other row parsed: a CI gate
+    // on the exit code would have stayed green for a sidecar that checks nothing.
     const { gsap: _omit, ...withoutGsap } = REGISTRY
     const stub = stubFetch(withoutGsap)
     try {
       const dir = sandbox({ 'c.json': FRESH })
       const { code, out } = await capture(() => watch({ caveats: join(dir, 'c.json') }))
-      assert.equal(code, 0)
-      assert.match(out, /unknown\s+gsap.*could not check: HTTP 404/)
-      assert.match(out, /1 unknown/)
+      assert.equal(code, 1)
+      assert.match(out, /not-found\s+gsap.*not on the registry/)
+      assert.match(out, /1 package is not on the registry — fix the sidecar: gsap/)
+      const json = await capture(() => watch({ caveats: join(dir, 'c.json'), json: true }))
+      assert.equal(json.code, 1)
+      assert.equal(JSON.parse(json.out).notFound, 1)
+    } finally {
+      stub.restore()
+    }
+  })
+
+  test('a row with a live version but no status still prints its reason', async () => {
+    const stub = stubFetch(REGISTRY)
+    try {
+      const dir = sandbox({ 'c.json': [{ skill: 'x', package: 'aos', documents: 'nope-tag', recorded: '2.3.4' }] })
+      const { code, out } = await capture(() => watch({ caveats: join(dir, 'c.json') }))
+      assert.equal(code, 2, 'the only row could not be compared')
+      assert.match(out, /unknown\s+aos.*2\.3\.4 — could not compare: "nope-tag"/)
+    } finally {
+      stub.restore()
+    }
+  })
+
+  test('a recorded value that is not a string exits 2 — a number can never equal the registry string', async () => {
+    const dir = sandbox({ 'c.json': [{ skill: 'x', package: 'gsap', documents: '3.12', recorded: 3.15 }] })
+    const { code, out } = await capture(() => watch({ caveats: join(dir, 'c.json') }))
+    assert.equal(code, 2)
+    assert.match(out, /row 0: recorded must be/)
+  })
+
+  test('radar mode reports a malformed caveats source instead of dropping it or crashing', async () => {
+    const dir = sandbox({
+      'w.json': { keywords: [], sources: [{ type: 'caveats', rows: { oops: 1 } }] },
+      'r.json': { keywords: [], sources: [{ type: 'caveats', rows: [{ documents: '1.0.0' }] }] },
+    })
+    const shape = await capture(() =>
+      watch({ config: join(dir, 'w.json'), state: join(dir, 's.json'), 'no-save': true }))
+    assert.equal(shape.code, 0, 'radar mode is informational')
+    assert.match(shape.out, /! caveats: a caveats source needs a non-empty "rows" array/)
+    // This row used to reach the printer and throw on `undefined.padEnd`.
+    const row = await capture(() =>
+      watch({ config: join(dir, 'r.json'), state: join(dir, 's.json'), 'no-save': true }))
+    assert.equal(row.code, 0)
+    assert.match(row.out, /! caveats: a caveats source row 0 needs string skill, package and documents/)
+  })
+
+  test('a stale row outranks "nothing measured": unparseable documents plus a moved recorded version exits 1', async () => {
+    // A row can only be stale once the registry answered, so this IS a measurement —
+    // and a CI gate reading exit 2 as "could not check" would miss the rot.
+    const stub = stubFetch({ ...REGISTRY, gsap: { 'dist-tags': { latest: '4.0.0' } } })
+    try {
+      const dir = sandbox({ 'c.json': [{ skill: 'x', package: 'gsap', documents: 'React 18 / R3F 8', recorded: '3.15.0' }] })
+      const { code, out } = await capture(() => watch({ caveats: join(dir, 'c.json') }))
+      assert.equal(code, 1)
+      assert.match(out, /1 unknown · 1 stale/)
+      assert.match(out, /recorded 3\.15\.0 — could not compare/)
     } finally {
       stub.restore()
     }

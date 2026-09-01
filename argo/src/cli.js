@@ -115,7 +115,9 @@ async function main() {
 
   const mod = await import(entry.module)
   const rest = { ...args, _: args._.slice(1) }
-  const code = await mod.run(rest)
+  // The raw argv after the command, for the few commands where token ORDER
+  // carries meaning that the parsed shape loses (graph --touch).
+  const code = await mod.run(rest, argv.slice(argv.indexOf(command) + 1))
   if (typeof code === 'number') process.exitCode = code
 }
 

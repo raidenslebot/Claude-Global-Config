@@ -22,6 +22,7 @@
       "role": "worker",
       "agentType": "graph-worker",
       "reads": [
+        "plugin/hooks/session-start-graph.js",
         "src/drift/cmd.js",
         "src/drift/extract.js",
         "src/drift/probe-cmd.js",
@@ -29,11 +30,16 @@
         "src/drift/selfreport-cmd.js",
         "src/drift/selfreport.js",
         "test/drift.test.js",
+        "test/plugin-hooks.test.js",
         "test/selfreport.test.js",
+        "test/spawn.test.js",
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "writes": [
+        "plugin/hooks/session-start-graph.js",
         "src/drift/cmd.js",
         "src/drift/extract.js",
         "src/drift/probe-cmd.js",
@@ -41,7 +47,9 @@
         "src/drift/selfreport-cmd.js",
         "src/drift/selfreport.js",
         "test/drift.test.js",
-        "test/selfreport.test.js"
+        "test/plugin-hooks.test.js",
+        "test/selfreport.test.js",
+        "test/spawn.test.js"
       ],
       "tools": [
         "read",
@@ -54,15 +62,21 @@
       "role": "worker",
       "agentType": "graph-worker",
       "reads": [
+        "plugin/hooks/user-prompt-graph.js",
         "src/doctor/**",
         "src/topology/**",
+        "test/doctor.test.js",
         "test/topology.test.js",
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "writes": [
+        "plugin/hooks/user-prompt-graph.js",
         "src/doctor/**",
         "src/topology/**",
+        "test/doctor.test.js",
         "test/topology.test.js"
       ],
       "tools": [
@@ -76,14 +90,24 @@
       "role": "worker",
       "agentType": "graph-worker",
       "reads": [
-        "src/baseline/**",
-        "test/baseline.test.js",
+        "src/cli.js",
+        "src/divergence/**",
+        "test/divergence-gate.test.js",
+        "test/divergence.test.js",
+        "test/exit-codes.test.js",
+        "test/run.js",
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "writes": [
-        "src/baseline/**",
-        "test/baseline.test.js"
+        "src/cli.js",
+        "src/divergence/**",
+        "test/divergence-gate.test.js",
+        "test/divergence.test.js",
+        "test/exit-codes.test.js",
+        "test/run.js"
       ],
       "tools": [
         "read",
@@ -96,16 +120,28 @@
       "role": "worker",
       "agentType": "graph-worker",
       "reads": [
-        "src/divergence/**",
-        "test/divergence-gate.test.js",
-        "test/divergence.test.js",
+        "src/baseline/report.js",
+        "src/baseline/runner.js",
+        "src/baseline/simulate.js",
+        "src/baseline/tasks.js",
+        "src/baseline/verdict.js",
+        "src/watch/**",
+        "test/baseline.test.js",
+        "test/watch.test.js",
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "writes": [
-        "src/divergence/**",
-        "test/divergence-gate.test.js",
-        "test/divergence.test.js"
+        "src/baseline/report.js",
+        "src/baseline/runner.js",
+        "src/baseline/simulate.js",
+        "src/baseline/tasks.js",
+        "src/baseline/verdict.js",
+        "src/watch/**",
+        "test/baseline.test.js",
+        "test/watch.test.js"
       ],
       "tools": [
         "read",
@@ -124,8 +160,10 @@
         "src/graph/report.js",
         "src/graph/scan.js",
         "test/graph.test.js",
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "writes": [
         "src/graph/build.js",
@@ -134,30 +172,6 @@
         "src/graph/report.js",
         "src/graph/scan.js",
         "test/graph.test.js"
-      ],
-      "tools": [
-        "read",
-        "grep",
-        "edit"
-      ]
-    },
-    {
-      "id": "worker-6",
-      "role": "worker",
-      "agentType": "graph-worker",
-      "reads": [
-        "plugin/**",
-        "src/cli.js",
-        "src/watch/**",
-        "test/plugin-hooks.test.js",
-        "src/drift/snapshot.js",
-        "src/graph/index.js"
-      ],
-      "writes": [
-        "plugin/**",
-        "src/cli.js",
-        "src/watch/**",
-        "test/plugin-hooks.test.js"
       ],
       "tools": [
         "read",
@@ -193,11 +207,6 @@
       "kind": "dispatch"
     },
     {
-      "from": "supervisor",
-      "to": "worker-6",
-      "kind": "dispatch"
-    },
-    {
       "from": "worker-1",
       "to": "supervisor",
       "kind": "report"
@@ -221,11 +230,6 @@
       "from": "worker-5",
       "to": "supervisor",
       "kind": "report"
-    },
-    {
-      "from": "worker-6",
-      "to": "supervisor",
-      "kind": "report"
     }
   ],
   "sharedState": [
@@ -233,8 +237,10 @@
       "id": "frozen-surface",
       "description": "files named from more than one partition. Read-only during fan-out; edits happen in a serial pre-step before a single worker starts.",
       "files": [
+        "src/baseline/cmd.js",
         "src/drift/snapshot.js",
-        "src/graph/index.js"
+        "src/graph/index.js",
+        "src/spawn.js"
       ],
       "readers": [
         "worker-1",
@@ -242,7 +248,6 @@
         "worker-3",
         "worker-4",
         "worker-5",
-        "worker-6",
         "supervisor"
       ],
       "writers": []

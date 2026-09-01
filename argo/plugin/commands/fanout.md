@@ -28,10 +28,13 @@ mapping the *task* onto it.
 2. **Check the coverage line.** Below ~90%, the graph is incomplete and the plan
    is optimistic. Say so explicitly rather than presenting the plan as settled.
 
-3. **Scope down to the task.** The plan partitions the whole repo. Most tasks
-   touch a subset. Intersect the partitions with the files the task actually
-   needs, and drop any worker whose slice is empty — do not spawn an agent with
-   nothing to do.
+3. **Scope to the task.** When the write-set is known, re-run with it:
+   `argo graph . --touch <paths|dirs|globs> --brief`. The plan then partitions
+   only those files, lists one-hop neighbours under each worker as read-only
+   context, and takes its worker count from the write-set — a file that does
+   not exist yet shares nothing. When the write-set is not known, intersect the
+   whole-repo partitions with the files the task needs by hand, and drop any
+   worker whose slice is empty — never spawn an agent with nothing to do.
 
 4. **If the task needs a frozen file changed**, do that edit yourself, first, in
    a serial pre-step. Then fan out. Never hand a frozen file to a worker.
@@ -39,6 +42,9 @@ mapping the *task* onto it.
 5. **Dispatch.** One `Agent` call per non-empty partition, all in a single
    message so they run concurrently. Each worker brief must contain:
    - its own file list, and the instruction that it owns exactly those files
+   - its `Coupling:` line, verbatim — `coupled` tells the model-routing hook this
+     is judgment work and no downgrade may apply; `isolated` says nothing, and
+     your task text decides
    - the FROZEN list, marked read-only, with "stop and report if you need one changed"
    - "Report only to me. Do not read another worker's output."
    - "If your change would add an import from your partition into another, report it instead of writing it."

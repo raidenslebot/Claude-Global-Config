@@ -3,7 +3,7 @@
     "label": "0002",
     "workers": 3,
     "meta": {
-      "tasksFile": "C:\\Claude\\AI Replication\\examples\\tasks.json",
+      "tasksFile": "<repo>/examples/tasks.json",
       "repeats": 1,
       "model": null,
       "dryRun": true,

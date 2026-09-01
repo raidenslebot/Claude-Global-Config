@@ -5,7 +5,11 @@ Everything below was **verified directly** — against the live npm registry, or
 file on disk — not taken on an agent's word. Correct these on sight; do not paste the noted
 snippets as-is.
 
-Regenerate the version rows with `npm view <pkg> version` — they rot.
+Regenerate the version rows with `npm view <pkg> version` — they rot. To find out whether they
+have: `argo watch --caveats library/caveats-versions.json` checks every recorded version against
+the registry and exits 1 the moment one has moved (or a package name is wrong), and
+`tools/test/caveats.test.mjs` holds that sidecar and this file to the same numbers in both
+directions.
 
 ## Blocking — will fail if pasted
 
@@ -79,7 +83,7 @@ Verified against live npm on 2026-08-31:
 |---|---|---|---|
 | `animejs` | v3 default import | **4.5.0** | v4 is named-exports-only; `import anime from 'animejs'` fails |
 | `locomotive-scroll` | v4 API | **5.0.1** | v5 is a Lenis-based rewrite; the whole skill's API is gone |
-| `babylonjs-engine` | 7.x | **9.23.0** | two majors stale |
+| `babylonjs-engine` | 7.x | **9.23.0** | two majors stale; the skill imports `@babylonjs/core` |
 | `scroll-reveal-libraries` | `npm i aos@next` | **2.3.4** | `next` is a 2018 beta; no release in 7 years |
 | `motion-framer` | "Motion is the smaller successor to Framer Motion" | both **13.1.1** | inverted — `motion` *wraps* `framer-motion`, same codebase and version |
 | `modern-web-design` | lists FID as a Core Web Vital | — | FID was retired March 2024, replaced by INP |

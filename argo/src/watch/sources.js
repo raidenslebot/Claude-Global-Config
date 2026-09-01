@@ -183,15 +183,42 @@ export async function get(url, { timeout = 20_000, json = false, headers = {} } 
  * version rows regenerated.
  * ------------------------------------------------------------------ */
 
+/**
+ * The shape a sidecar row must have before anything downstream trusts it. One
+ * validator for both doors — the `--caveats FILE` path and a caveats source in
+ * the radar config — so a row that would crash the printer is refused at
+ * either, with the same words. Returns a reason, or null when the rows are fine.
+ */
+export function validateCaveatRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return 'needs a non-empty "rows" array'
+  const bad = rows.findIndex((r) =>
+    !r || typeof r !== 'object' || ['skill', 'package', 'documents'].some((k) => typeof r[k] !== 'string'))
+  if (bad !== -1) return `row ${bad} needs string skill, package and documents`
+  // `recorded` is compared to the registry by string equality; a JSON number
+  // (9.7 for "9.7.0") would read as stale on every run.
+  const num = rows.findIndex((r) => r.recorded !== undefined && typeof r.recorded !== 'string')
+  if (num !== -1) return `row ${num}: recorded must be the exact version as a string`
+  return null
+}
+
 /** The one registry fetch every npm-backed source goes through. */
 export function npmDoc(pkg) {
   return get(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, { json: true })
 }
 
-/** Leading major and minor of a version or range. "^8.18.8" -> [8, 18], "7.x" -> [7, null], "next" -> null. */
+/**
+ * Leading major and minor of a version or range. "^8.18.8" -> [8, 18],
+ * "7.x" -> [7, null], "next" -> null.
+ *
+ * The WHOLE string must be a version. "React 18 / R3F 8" is prose that
+ * happens to contain digits; reading 18 out of it produced a confident status
+ * for a claim nobody made.
+ */
 export function versionParts(v) {
-  const m = String(v ?? '').match(/(\d+)(?:\.(\d+))?/)
-  return m ? [Number(m[1]), m[2] == null ? null : Number(m[2])] : null
+  const m = String(v ?? '').trim()
+    .match(/^(?:[\^~]|[<>]=?|=)?\s*v?(\d+)(?:\.(\d+|x|\*))?(?:\.(?:\d+|x|\*))?(?:[-+][0-9A-Za-z.-]+)?$/)
+  if (!m) return null
+  return [Number(m[1]), m[2] == null || /^[x*]$/.test(m[2]) ? null : Number(m[2])]
 }
 
 /**
@@ -206,7 +233,12 @@ export function versionParts(v) {
  */
 export function compareCaveat(row, res) {
   const out = { ...row, live: null, status: 'unknown', stale: false, reason: '' }
-  if (!res?.ok) return { ...out, reason: `could not check: ${res?.error ?? 'no response'}` }
+  if (!res?.ok) {
+    // The registry answered and has no such package. That is a wrong name in the
+    // sidecar, and "could not check" would let it pass on every run forever.
+    if (res?.status === 404) return { ...out, status: 'not-found', reason: 'not on the registry — the package name in the sidecar is wrong' }
+    return { ...out, reason: `could not check: ${res?.error ?? 'no response'}` }
+  }
   const tags = res.body?.['dist-tags'] ?? {}
   const live = tags.latest ?? null
   if (!live) return { ...out, reason: 'could not compare: registry lists no latest version' }
@@ -260,8 +292,11 @@ export async function fetchSource(src) {
     }
     if (src.type === 'caveats') {
       // Rows carry their own failure ("could not check"), so the source is ok
-      // even offline; cmd.js decides the exit code from the rows.
-      return { ok: true, items: await checkCaveats(src.rows ?? []) }
+      // even offline; cmd.js decides the exit code from the rows. A source with
+      // no usable rows at all is a config error and is reported as one.
+      const reason = validateCaveatRows(src.rows)
+      if (reason) return { ok: false, error: `a caveats source ${reason}`, items: [] }
+      return { ok: true, items: await checkCaveats(src.rows) }
     }
     if (src.type === 'feed') {
       const r = await get(src.url)

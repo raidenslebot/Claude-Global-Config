@@ -27,7 +27,7 @@
     "items": []
   },
   "config": {
-    "root": "C:\\Users\\Administrator\\.claude",
+    "root": "<home>/.claude",
     "entries": [
       {
         "path": "CLAUDE.md",

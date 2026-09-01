@@ -1,0 +1,13 @@
+# Line endings are part of correctness here, not style. A CRLF shebang names an interpreter
+# called "bash\r" on Linux, and .githooks/pre-commit is a shell script. Pin them regardless of
+# the cloning machine's core.autocrlf, so a Windows checkout cannot commit a CRLF hook and a
+# POSIX checkout cannot receive one.
+* text=auto
+*.sh        text eol=lf
+.githooks/* text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
