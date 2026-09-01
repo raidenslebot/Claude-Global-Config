@@ -91,7 +91,12 @@ if (existsSync(settingsPath)) {
   // backslash is a literal filename character on POSIX, so the native Windows form
   // produced dead hooks on every macOS and Linux install. Windows accepts forward
   // slashes in file arguments, so one form serves both.
-  const ABS_SCRIPT = /"[A-Za-z]:[^"]*[\\/]([\w.-]+\.(?:js|mjs|cjs))"/g
+  // Matches an absolute script path on ANY platform: a Windows drive letter (C:\ or C:/)
+  // OR a POSIX root (/home/..., /Users/...). The earlier version required a drive letter,
+  // so on macOS and Linux this normalisation was a SILENT NO-OP and sync recorded a
+  // machine-specific hook path as though it were portable — the same Windows-only
+  // assumption as the bug this very function was written to fix.
+  const ABS_SCRIPT = /"(?:[A-Za-z]:|)[\\/][^"]*[\\/]([\w.-]+\.(?:js|mjs|cjs))"/g
   const normalise = (cmd) =>
     templatize(String(cmd), vars)
       .replace(ABS_SCRIPT, (_m, base) => `"{{CONFIG_ROOT:url}}/hooks/${base}"`)

@@ -56,11 +56,11 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
 | **Hooks** | 10 hooks merged into `settings.json`, each pinned to an absolute Node path |
-| **Skills** | `visual-design-mastery`, the argo skill set, and 12 Tier-2 animation/3D skills |
+| **Skills** | `visual-design-mastery`, the argo skill set, and 13 Tier-2 animation/3D and technical-writing skills |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
-| **Library** | 11 skill repos cloned and indexed; 2 rejected on the record |
+| **Library** | 12 skill repos cloned and indexed; 2 rejected on the record |
 
 ---
 
@@ -81,14 +81,14 @@ COMPONENT   21st.dev, Magic UI,        Has someone already built it?
 
 ### The tiering, and why it exists
 
-The skill library holds **814 skills**. Installing them all would load **~30,600 tokens of skill
+The skill library holds **815 skills**. Installing them all would load **~57,674 tokens of skill
 descriptions into every session** and make every animation request match a hundred competing
 triggers. More skills would make Claude measurably worse.
 
 | Tier | Cost | Rule |
 |---|---|---|
 | **1** — taste | already paid | `visual-design-mastery`. One skill. Unconditional. |
-| **2** — resident | ~2,100 tokens | 12 skills that earn a place in *every* session |
+| **2** — resident | ~1,508 tokens | 13 skills that earn a place in *every* session |
 | **3** — library | **0 tokens** | 800+ skills on disk, `grep` the index, read by path |
 | **4** — rejected | — | not cloned; `library/sources.json` records why |
 

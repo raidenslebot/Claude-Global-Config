@@ -48,10 +48,10 @@ Per-library animation craft. These are installed skills; just use them.
   One stack, deliberately: Babylon, PlayCanvas, A-Frame, Spline and PixiJS are indexed in the
   Tier-3 library, not installed. Don't run five engines.
 
-## Tier-3 library — 814 skills on disk, none in context
+## Tier-3 library — 815 skills on disk, none in context
 
-`{{LIBRARY_ROOT}}\` holds 13 cloned repos. Only the 12 skills above are resident (~1,350 tokens);
-installing all 814 would cost **~30,600 tokens every session** and thrash skill dispatch, so the
+`{{LIBRARY_ROOT}}\` holds 12 cloned repos. Only the 13 skills above are resident (~1,508 tokens);
+installing all 815 would cost **~57,674 tokens every session** and thrash skill dispatch, so the
 rest is kept as a **searchable library**:
 
 ```

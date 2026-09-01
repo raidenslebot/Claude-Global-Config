@@ -4,18 +4,18 @@ Where Claude is weak *and* this repo does not already cover it. Every claim belo
 file:line, a commit, or a command that was run. Candidates that could not be grounded were
 dropped rather than padded; they are listed at the end so they are not raised again.
 
-Measurements were taken at `9ed737d` with `config/ui-design-stack.md` modified and
-`skills/string-boundaries/` untracked (both another agent's in-flight work).
+Measurements were taken during `9ed737d`..`f84a794` — other agents were committing to this repo
+throughout — and every line citation below was re-verified against `f84a794`.
 
 ## What is already covered
 
 Read before proposing anything: `skills/string-boundaries/SKILL.md` (parser-boundary bugs —
 JSON escaping, Windows paths in source literals, POSIX separators, `.cmd`/PATHEXT/EINVAL,
 validators sharing the generator's assumption), `skills/visual-design-mastery`,
-`skills/design-tokens`, `skills/project-memory`, the 13 argo plugin skills
-(`graph-engineering`, `plow-ahead`, `read-the-damn-docs`, `stay-within-limits`,
+`skills/creative-divergence`, `skills/design-tokens`, `skills/project-memory`, the 13 argo
+plugin skills (`graph-engineering`, `plow-ahead`, `read-the-damn-docs`, `stay-within-limits`,
 `agent-watchdog`, `plan-arbiter`, `quick-recap`, `rewind`, `visual-*`, `efficient-*`), and the
-63 entries under `~/.claude/skills` (superpowers, ponytail, the Anthropic document set, the
+65 entries under `~/.claude/skills` (superpowers, ponytail, the Anthropic document set, the
 12 animation/3D skills, `asd-ste100`).
 
 The repo's own machinery: `tools/doctor.mjs` (context cost, name collisions, trigger
@@ -26,8 +26,8 @@ in installed skills).
 ## The shape of the problem
 
 Seven bugs shipped and were found afterwards. They are enumerated in
-`skills/string-boundaries/SKILL.md` and visible as four of the seven commits in `git log`
-being pure post-hoc fixes: `9e617d0`, `23afa56`, `c806e5a`, `9ed737d`.
+`skills/string-boundaries/SKILL.md`, and four of the nine commits in `git log` are pure
+post-hoc fixes for them: `9e617d0`, `23afa56`, `c806e5a`, `9ed737d`.
 
 The knowledge to prevent all seven now exists in this repo, written well. What does not exist
 is anything that applies it without being asked. Every gap below is downstream of that, and the
@@ -81,7 +81,7 @@ macOS and Linux.
 
 **Evidence.**
 
-- `tools/sync.mjs:84`:
+- `tools/sync.mjs:94`:
 
   ```js
   const ABS_SCRIPT = /"[A-Za-z]:[^"]*[\\/]([\w.-]+\.(?:js|mjs|cjs))"/g
@@ -95,15 +95,16 @@ macOS and Linux.
   | `"/usr/bin/node" "/home/a/.claude/hooks/x.js"` | **no** |
   | `"/opt/homebrew/bin/node" "/Users/a/.claude/hooks/x.js"` | **no** |
 
-  The comment three lines above it (`sync.mjs:75-78`) states what the miss costs: "otherwise
+  The comment above it (`sync.mjs:85-88`) states what the miss costs: "otherwise
   the repo records a path that exists only on the machine that wrote it, and the hook is a
   silent no-op everywhere else." That is precisely the failure `23afa56` was written to fix,
   surviving inside the function `23afa56` edited.
 
-- Test coverage, counted across `tools/test/*.test.mjs`: `install.mjs` 51 references,
-  `doctor.mjs` 18, `scan-secrets.mjs` 8, `paths.mjs` 11, `sync.mjs` **1** (a comment at
-  `config.test.mjs:88`, never executed), `uninstall.mjs` **0**. `uninstall.mjs` is 391 lines
-  and is the only tool in the repo that deletes files.
+- Filename references across `tools/test/*.test.mjs`: `install.mjs` 24, `paths.mjs` 8,
+  `doctor.mjs` 6, `scan-secrets.mjs` 6, `sync.mjs` **2**, `uninstall.mjs` **0**. Both
+  `sync.mjs` references are comments (`config.test.mjs:88` and `:122`), and `cli.test.mjs` —
+  the file that actually spawns the tools — mentions neither. Neither tool is executed by any
+  test. `uninstall.mjs` is 391 lines and is the only tool in the repo that deletes files.
 
 **Why existing coverage does not close it.** `string-boundaries` already names this exact
 pattern — "a character class that omits something *silently never matches* instead of erroring
@@ -174,7 +175,7 @@ the ones that failed it — one commit after they were correct.
 **Gap.** Nothing in the installed set covers the Windows and subprocess hazards that are not
 parser-boundary problems: PATH inheritance, junctions, `MAX_PATH`, and exec bits.
 
-**Evidence of absence.** Across the 63 skills in `~/.claude/skills`, the string "windows"
+**Evidence of absence.** Across the 65 skills in `~/.claude/skills`, the string "windows"
 appears in exactly one `SKILL.md` — `ponytail-help`, naming a config-file location — and in
 zero `description` fields. `PATHEXT`, `MAX_PATH`, `longpaths`, `junction` and `CRLF` return
 nothing across `~/.claude/skills` and `argo/plugin/skills`.
@@ -220,7 +221,7 @@ first would repeat that.
 
 **Gap.** The file states its own decay and offers no mechanism against it.
 
-**Evidence.** `library/CAVEATS.md` line 6: "Regenerate the version rows with
+**Evidence.** `library/CAVEATS.md:8`: "Regenerate the version rows with
 `npm view <pkg> version` — they rot." Its Tier-3 table is stamped "Verified against live npm on
 2026-08-31" and carries nine recorded/live version pairs, several two majors apart
 (`babylonjs-engine` 7.x vs 9.23.0, `locomotive-scroll` v4 vs 5.0.1). A grep for
@@ -300,6 +301,6 @@ overlap: `ponytail` for gold-plating, `argonaut:plow-ahead` "Stop Conditions" fo
 early. No evidence of either failure mode in the record.
 
 **Regex correctness as its own gap.** The two regex defects in the history — `paths.mjs`'s
-`[A-Z_]` blind spot fixed in `9ed737d`, and `sync.mjs:84`'s drive letter, still live — are both
+`[A-Z_]` blind spot fixed in `9ed737d`, and `sync.mjs:94`'s drive letter, still live — are both
 platform/format-assumption defects rather than regex-craft defects, and `string-boundaries`
 already names the pattern. Folded into G2 as a concrete instance instead of listed separately.

@@ -17,8 +17,8 @@ pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animati
 `web3d-integration-patterns`. One 3D stack deliberately — Babylon/PlayCanvas/A-Frame/Spline/PixiJS
 are indexed, not installed.
 
-**Tier-3 library — `{{LIBRARY_ROOT}}\` (814 skills on disk, none in context).** Only 12 skills are
-resident (~1,350 tokens); installing all 814 would cost ~30,600 tokens *every session* and thrash
+**Tier-3 library — `{{LIBRARY_ROOT}}\` (815 skills on disk, none in context).** Only 13 skills are
+resident (~1,508 tokens); installing all 815 would cost ~57,674 tokens *every session* and thrash
 dispatch. Search it instead: `grep -i "<topic>" {{LIBRARY_ROOT}}\_index\INDEX.md`, then read the
 SKILL.md at the path it gives. Regenerate after a `git pull` with
 `node {{LIBRARY_ROOT}}\_index\build-index.mjs`.

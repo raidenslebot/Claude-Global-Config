@@ -84,11 +84,11 @@ for skills this repo authors that have no plugin wrapper.
 | Tier | Cost | Contents |
 |---|---|---|
 | 1 | already paid | `visual-design-mastery` — the taste layer, unconditional |
-| 2 | ~2.1k tokens | 12 skills worth loading in *every* session |
+| 2 | ~1.5k tokens | 13 skills worth loading in *every* session |
 | 3 | **0** | 800+ skills on disk, indexed, read by path |
 | 4 | — | not cloned; `library/sources.json` records why |
 
-The library holds 814 skills. Installing all of them costs ~30,600 tokens per session — but the
+The library holds 815 skills. Installing all of them costs ~57,674 tokens per session — but the
 token number is not the real argument. **Trigger contention** is: 144 skills that all fire on
 "animation" make dispatch a coin flip, and a skill triggering on bare `create` or `draw` fires on
 prompts that have nothing to do with it.
