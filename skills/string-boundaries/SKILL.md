@@ -24,7 +24,7 @@ config file, generated source, a command line, a template, a test fixture, a fil
 | source string literal ↔ path | `\U` `\A` `\n` inside `"..."` are escapes, not characters | forward slashes in emitted source; Node accepts them on Windows |
 | Windows ↔ POSIX separator | `\` is an ordinary filename character on POSIX, so `a\b\c` is ONE filename | forward slashes on both; no platform branch |
 | shell line ↔ argv | the shell re-splits, globs, and re-reads quoting you already applied | argv array, `shell: false` — no command string to escape |
-| `.cmd`/`.bat` ↔ CreateProcess | a batch shim is not executable, and cmd.exe re-parses node's quoting | `argo/src/spawn.js` |
+| `.cmd`/`.bat` ↔ CreateProcess | a batch shim is not executable, and cmd.exe re-parses node's quoting | resolve the shim via PATH+PATHEXT; refuse, never escape |
 | regex ↔ the data it scans | a character class that omits something *silently never matches* instead of erroring | test with input the pattern was not designed for |
 | YAML frontmatter ↔ prose | `:` `#` `"` and a leading `-` in an unquoted scalar change the parse | quote the whole value, escape inner quotes, parse it back |
 | URL ↔ filesystem path | `file:///C:/x` is only valid forward-slashed and percent-encoded | choose per occurrence, not per file — `{{TOK:url}}` vs `{{TOK}}` in `tools/paths.mjs` |
@@ -67,7 +67,8 @@ Each was written by someone who had read the surrounding code.
 6. **`.cmd` cannot be spawned directly on Windows.** `spawnSync('npm', …, {shell:false})` gives
    ENOENT (a bare name resolves only `.com`/`.exe`); `spawnSync('npm.cmd', …)` gives EINVAL
    (Node refuses `.cmd` since the 2024 argument-injection CVE); `shell: true` reintroduces that
-   CVE. `argo/src/spawn.js` is the worked solution — resolve the real shim through
+   CVE. The worked solution — shipped with this package as the argo component's `src/spawn.js`,
+   if installed — is to resolve the real shim through
    PATH+PATHEXT, route `.cmd`/`.bat` through cmd.exe with the shim as its own argv entry, and
    **refuse** any argument matching `["<>%^&|()!\r\n]` instead of escaping it. Its reasoning is
    the point: you cannot escape correctly for cmd.exe and the CRT simultaneously, and code

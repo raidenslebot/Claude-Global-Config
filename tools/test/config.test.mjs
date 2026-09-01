@@ -129,6 +129,11 @@ test('no file under config/ contains an absolute machine path', () => {
       let text
       try { text = readFileSync(abs, 'utf8') } catch { continue }
       text.split(/\r?\n/).forEach((line, i) => {
+        // A comment is inert: never parsed as a string literal, never resolved at runtime.
+        // Hooks in this tree legitimately DOCUMENT the escape bug using a real-looking path
+        // as the example, and flagging that is a false positive. A gate that cries wolf is
+        // switched off, so it must only fire on a path the code would actually rely on.
+        if (/^\s*(\/\/|\*|#)/.test(line)) return
         if (ABS.test(line)) {
           offenders.push(`${relative(REPO, abs).replace(/\\/g, '/')}:${i + 1}: ${line.trim().slice(0, 120)}`)
         }

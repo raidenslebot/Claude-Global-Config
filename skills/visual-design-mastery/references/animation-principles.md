@@ -119,10 +119,17 @@ lenses (by domain, by UI element, by emotional outcome, by industry, by tool, by
 by problem type) — lives on disk as a **Tier-3 reference library**, not as installed skills:
 
 ```
-C:\Claude\dskills\animation-principles\skills\<group>\<topic>\SKILL.md
+<your skill library>/animation-principles/skills/<group>/<topic>/SKILL.md
 ```
 
-Grep `C:\Claude\dskills\_index\INDEX.md` for a topic and read the specific file. It is kept out
+Find it by searching the library index rather than by a fixed path — the library lives wherever
+this config was installed, which differs per machine:
+
+```bash
+grep -i "<topic>" <your library index>      # e.g. library/INDEX.md
+```
+
+Then read the specific file it names. The set is kept out
 of session context deliberately: 144 skills that all trigger on the word "animation" would
 thrash skill dispatch and cost ~6k tokens every session for content you need occasionally.
 Especially worth pulling: `09-by-tool-framework/` (per-library specifics for GSAP, Framer

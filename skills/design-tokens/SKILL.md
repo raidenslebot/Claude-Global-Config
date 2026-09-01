@@ -113,9 +113,17 @@ Two honest notes:
 
 24 real design systems, measured — not described — live under the Tier-3 library:
 
+Find them by searching the library index rather than by a fixed path — the library lives
+wherever this config was installed, which differs per machine:
+
+```bash
+grep -i "designlang" <your library index>       # e.g. library/INDEX.md
 ```
-C:\Claude\dskills\design-extract\website\public\gallery\<site>\.claude\skills\designlang\SKILL.md
-```
+
+Each hit's sibling `<site>-design-tokens.json` holds the real numbers; the `SKILL.md` beside it
+is only a short summary. Read the JSON for structure, **not** for palette values — several of
+those files use literal `#000000` / `#ffffff` neutral ramps, which is exactly the hueless
+default this skill exists to avoid.
 
 `<site>` is hyphenated: `cal-com  clerk-com  coinbase-com  discord-com  duolingo-com  framer-com
 loom-com  mintlify-com  netflix-com  perplexity-ai  planetscale-com  posthog-com  postman-com

@@ -64,6 +64,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-verify.js\"",
+            "timeout": 10,
+            "statusMessage": "Verifying written file"
+          }
+        ]
+      }
     ]
   }
 }

@@ -150,6 +150,11 @@ test('no installed hook carries a lone backslash or an unresolved token', (t) =>
     const text = readFileSync(join(hooksDir, name), 'utf8')
     assert.equal(/\{\{[A-Z_]+(?::url)?\}\}/.test(text), false, `${name} has an unresolved token`)
     for (const line of text.split(/\r?\n/)) {
+      // A comment is inert — never parsed as a string literal, so a drive path inside one
+      // cannot be mangled. Hooks legitimately DOCUMENT this bug class using a real-looking
+      // path as the example. Flagging that is a false positive, and a check with false
+      // positives gets switched off, which costs more than it saves.
+      if (/^\s*(\/\/|\*|#)/.test(line)) continue
       assert.equal(/[A-Za-z]:\\/.test(line), false,
         `${name} holds a backslashed drive path inside source, which JS reads as escapes: ${line.trim().slice(0, 120)}`)
     }

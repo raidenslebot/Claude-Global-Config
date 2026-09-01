@@ -179,15 +179,37 @@ if (wants('hooks')) {
       settings.hooks ??= {}
       let added = 0, kept = 0
       for (const [event, groups] of Object.entries(incoming)) {
-        settings.hooks[event] ??= [{ hooks: [] }]
-        const bucket = settings.hooks[event][0]
-        bucket.hooks ??= []
-        for (const g of groups) for (const h of g.hooks || []) {
-          // Identify a hook by its script basename, so re-installs update rather than duplicate.
-          const base = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
-          const idx = bucket.hooks.findIndex((x) => base && String(x.command).includes(base))
-          if (idx >= 0) { bucket.hooks[idx] = h; kept++ } else { bucket.hooks.push(h); added++ }
+        settings.hooks[event] ??= []
+        for (const g of groups) {
+          // A group's `matcher` scopes the hook to specific tools. Always writing into
+          // group[0] silently DROPPED it, so a PostToolUse hook meant for Write|Edit fired
+          // on every Read and every Bash call instead. Match the destination group by its
+          // matcher so the scope survives, and create the group when it does not exist.
+          const wanted = g.matcher ?? null
+          let bucket = settings.hooks[event].find((x) => (x.matcher ?? null) === wanted)
+          if (!bucket) {
+            bucket = wanted ? { matcher: wanted, hooks: [] } : { hooks: [] }
+            settings.hooks[event].push(bucket)
+          }
+          bucket.hooks ??= []
+          for (const h of g.hooks || []) {
+            // Identify a hook by its script basename, so re-installs update rather than duplicate.
+            const base = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
+            // A hook can only live in one group; if it was previously registered under a
+            // different matcher, remove it there before adding it here, or it fires twice.
+            for (const other of settings.hooks[event]) {
+              if (other === bucket || !base) continue
+              const stale = (other.hooks || []).findIndex((x) => String(x.command).includes(base))
+              if (stale >= 0) other.hooks.splice(stale, 1)
+            }
+            const idx = bucket.hooks.findIndex((x) => base && String(x.command).includes(base))
+            if (idx >= 0) { bucket.hooks[idx] = h; kept++ } else { bucket.hooks.push(h); added++ }
+          }
         }
+      }
+      // Drop any group this merge emptied, so settings.json does not accrete husks.
+      for (const event of Object.keys(settings.hooks)) {
+        settings.hooks[event] = settings.hooks[event].filter((g) => (g.hooks || []).length > 0)
       }
       if (!DRY) writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8')
       ok(`settings.json merged — ${added} added, ${kept} updated, other settings untouched`)
