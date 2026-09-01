@@ -96,6 +96,14 @@ phase('Prerequisites')
     run('git', ['config', '--global', 'core.longpaths', 'true'])
     ok('git core.longpaths enabled (Windows MAX_PATH guard)')
   }
+  // Wire the repo pre-commit gate. .githooks/pre-commit runs the secret scanner, but git
+  // ignores it unless core.hooksPath points there — so without this the gate existed only
+  // where someone had configured it by hand, while the docs claimed it always ran.
+  if (!DRY && existsSync(join(REPO, '.githooks', 'pre-commit'))) {
+    const r = run('git', ['config', 'core.hooksPath', '.githooks'], { cwd: REPO })
+    r.status === 0 ? ok('pre-commit secret-scan gate wired (core.hooksPath)')
+      : warn('could not set core.hooksPath — run: git config core.hooksPath .githooks')
+  }
   // --dry-run must change nothing, including creating the target directory.
   if (!DRY) mkdirSync(CONFIG_ROOT, { recursive: true })
 }

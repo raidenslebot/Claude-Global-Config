@@ -56,19 +56,43 @@ const JUDGMENT = new RegExp([
   '\\b(design|architect|architecture|decide|decision|choose|recommend|evaluate|assess)\\b',
   '\\b(trade-?offs?|approach|strategy|should we|best way|best approach|which is better)\\b',
   '\\b(ambigu\\w+|unclear|figure out|work out|reason about|think through)\\b',
-  '\\b(refactor|redesign|rewrite|restructure|migrate|plan)\\b',
-  '\\b(root cause|diagnose|debug|why (is|does|did|are)|investigate)\\b',
+  '\\b(refactor|redesign|rewrite|restructure|migrate)\\b',
+  '\\b(root cause|diagnose|debug|investigate)\\b',
   '\\b(synthesi[sz]e|reconcile|resolve the|weigh|prioriti[sz]e)\\b',
+  // BARE `why`. The narrow form `why (is|does|did|are)` missed "and why each one fails" and
+  // "why the doctor command takes 8 seconds", both of which are diagnosis. Asking why is
+  // always reasoning, whatever verb follows.
+  '\\bwhy\\b',
+  // Asking what something MEANS is interpretation, not retrieval.
+  '\\b(explain|interpret|implication|what (does|do) (this|that|these|it) mean|means? for)\\b',
+  // A trailing "and pick/choose one" turns an enumeration into a decision. The veto scans the
+  // whole text, so naming these verbs is enough — no clause splitting required.
+  '\\b(pick|select) (one|the|which)\\b',
+  // "which X should ..." is a decision even when a verification NOUN sits in the subject:
+  // "which model should a scan-verifier agent run on" is choosing, not verifying. Without
+  // this, VERIFY matched the topic word and answered one tier below the session model.
+  '\\b(which|what)\\b[^.?!]{0,24}\\bshould\\b',
+  // Defect and quality nouns. "Where is the bug" reads like a lookup and is a hunt; the noun,
+  // not the question frame, carries the difficulty.
+  '\\b(bug|bugs|defect|defects|flaw|flaws|broken|failing|regression)\\b',
+  '\\b(unsafe|unsafely|insecure|vulnerab\\w+|injection|exploit|security hole)\\b',
+  // Performance work is diagnosis even when phrased as a search.
+  '\\b(slow|slowness|bottleneck|takes \\d+ ?(s|ms|sec|second|minute))\\b',
+  // "actually safe / actually correct" is a claim under test, never a count.
+  '\\bactually (safe|correct|right|fixed|works?|working)\\b',
 ].join('|'), 'i')
 
 /** Checking someone else's work. High reasoning, but the context is handed to it. */
 const VERIFY = new RegExp([
   '\\b(review|reviewing|verify|verif\\w+|validate|audit|auditing)\\b',
   '\\b(adversarial|critique|scrutin\\w+|double-?check|sanity-?check)\\b',
-  '\\b(is (this|that|it) (correct|right|real|valid|sound|accurate))\\b',
-  '\\b(find (bugs|flaws|defects|vulnerabilities|problems|issues))\\b',
+  // A noun may sit between the subject and the adjective: "is this FINDING real",
+  // "is the fix correct". The tight form missed every one of those.
+  '\\bis\\b[^.?!]{0,30}\\b(correct|right|real|valid|sound|accurate|true)\\b',
+  '\\bdoes\\b[^.?!]{0,30}\\b(actually|really|correctly)\\b',
+  '\\b(find|check for|look for)\\b[^.?!]{0,30}\\b(bugs|flaws|defects|vulnerabilit\\w+|problems|issues|holes)\\b',
   '\\b(security (review|audit)|threat model|check whether|confirm whether)\\b',
-  '\\b(does (this|it) (actually|really)|prove|disprove|refute)\\b',
+  '\\b(prove|disprove|refute|corroborate)\\b',
 ].join('|'), 'i')
 
 /** Carrying out a decision that is already stated. */
