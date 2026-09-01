@@ -102,10 +102,13 @@ function targetFile(payload) {
   return path.isAbsolute(found) ? found : path.resolve(cwd, found)
 }
 
-// Vendored, cloned, or VCS-internal trees: not authored here, so not ours to judge.
+// Vendored, cloned, generated, or VCS-internal trees: not authored here, so not ours to judge.
+// `repos` covers the usual name for a directory of third-party checkouts; a project that uses
+// it for its own source loses a little recall, which is the safe direction to lose it in.
 function inSkippedTree(file) {
   const norm = file.replace(/\\/g, '/').toLowerCase()
-  return /(^|\/)(node_modules|\.git|vendor)\//.test(norm) || norm.includes('/library/repos/')
+  return /(^|\/)(node_modules|\.git|vendor|third_party|bower_components|repos|site-packages)\//
+    .test(norm)
 }
 
 // Files under a dot-directory in the user's home (or loose in it) are per-machine config by
@@ -122,6 +125,22 @@ function isMachineLocalConfig(file) {
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return false
   const first = rel.split(/[\\/]/)[0]
   return rel === first || first.startsWith('.')
+}
+
+// A scratch file under the OS temp directory is never shipped and never installed, so a
+// hardcoded path in one is not a defect — it is a throwaway. Reporting it is pure noise,
+// and noise is what gets a gate switched off. Applies to EVERY check, so the skip rules
+// stay consistent: previously some checks skipped temp files and others did not, which
+// made the hook look arbitrary.
+function isScratch(file) {
+  try {
+    const tmp = os.tmpdir()
+    if (!tmp) return false
+    const rel = path.relative(tmp, file)
+    return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel)
+  } catch {
+    return false
+  }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -330,15 +349,26 @@ const TEST_FILE = /(^|[\\/])(tests?|__tests__|spec|fixtures?|__fixtures__|e2e)[\
 const ABS_WINDOWS = /(?:^|[\s'"`(,=:/[])([A-Za-z]:(?:\\{1,2}|\/)[A-Za-z0-9_$][^\s'"`)<>|*?]*)/
 const ABS_POSIX = /(?:^|[\s'"`(,=:[])(\/(?:home|Users)\/[A-Za-z0-9_.$-]+\/[^\s'"`)<>|*?]*)/
 
+// JSON inside a dot-directory (.cache/, .vscode/, .terraform/, .idea/ …) is tool state or
+// per-machine settings — a recorded path there is data, not a defect. Authored config in the
+// same directories (.github/*.yml, and any other format) is still checked.
+function isToolState(file) {
+  if (path.extname(file).toLowerCase() !== '.json') return false
+  return file.split(/[\\/]/).slice(0, -1).some((seg) => seg.length > 1 && seg.startsWith('.'))
+}
+
 function checkAbsolutePaths(file, src, out) {
   if (!EXT_PATH_SCAN.has(path.extname(file).toLowerCase())) return
   if (TEST_FILE.test(file)) return
-  if (isMachineLocalConfig(file)) return
+  if (isMachineLocalConfig(file) || isToolState(file)) return
 
   const lines = src.split(/\r?\n/)
   for (let i = 0; i < lines.length && out.length < MAX_FINDINGS; i++) {
     const text = lines[i]
     if (!text || text.length > 500 || COMMENT_LINE.test(text)) continue
+    // Escape hatch, because a deliberate literal path does exist (a detection fallback list,
+    // a platform default). Without one, the first wrong flag gets the whole hook deleted.
+    if (/path-ok/.test(text)) continue
     const hit = ABS_WINDOWS.exec(text) || ABS_POSIX.exec(text)
     if (!hit) continue
     out.push({
@@ -370,12 +400,19 @@ function checkAbsolutePaths(file, src, out) {
 const WIN_PATH_IN_STRING =
   /(['"`])(?:[^'"`\n]{0,200}?[^A-Za-z0-9_])?[A-Za-z]:\\(?![ntrbfv0xu])[A-Za-z0-9_$]/
 
+// String.raw`...` is the CORRECT way to write a Windows path in JS: inside a raw template a
+// backslash is a literal character and no escape processing happens at all. Flagging it told
+// the author their fix was the bug — the fastest way to get a check switched off. Blank those
+// spans before testing, so a plain literal on the same line is still caught.
+const RAW_TEMPLATE = /String\.raw`[^`]*`/g
+
 function checkWindowsPathEscape(file, src, out) {
   if (!EXT_JS_STRINGS.has(path.extname(file).toLowerCase())) return
   const lines = src.split(/\r?\n/)
   for (let i = 0; i < lines.length && out.length < MAX_FINDINGS; i++) {
-    const text = lines[i]
-    if (!text || text.length > 500 || COMMENT_LINE.test(text)) continue
+    const raw = lines[i]
+    if (!raw || raw.length > 500 || COMMENT_LINE.test(raw)) continue
+    const text = raw.replace(RAW_TEMPLATE, '``')
     if (!WIN_PATH_IN_STRING.test(text)) continue
     out.push({
       line: i + 1,
@@ -438,11 +475,17 @@ function main() {
   const ext = path.extname(file).toLowerCase()
 
   const findings = []
+  // Syntax and JSON validity still matter in a scratch file — a broken script is broken
+  // wherever it lives. Style and portability findings do not: nothing under the OS temp
+  // directory is shipped, so reporting a hardcoded path there is noise.
+  const scratch = isScratch(file)
   if (EXT_JS_SYNTAX.has(ext)) checkJsSyntax(file, src, findings)
   if (ext === '.json') checkJson(file, src, findings)
-  if (ext === '.md') checkSkillFrontmatter(file, src, findings)
-  checkAbsolutePaths(file, src, findings)
-  checkWindowsPathEscape(file, src, findings)
+  if (!scratch) {
+    if (ext === '.md') checkSkillFrontmatter(file, src, findings)
+    checkAbsolutePaths(file, src, findings)
+    checkWindowsPathEscape(file, src, findings)
+  }
 
   if (!findings.length) return // silence is the default; output has to mean something
 

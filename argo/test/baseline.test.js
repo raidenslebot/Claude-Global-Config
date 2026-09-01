@@ -271,7 +271,12 @@ test('claudeCandidates puts the env override first and PATH last', () => {
   const list = claudeCandidates({ ARGO_CLAUDE_BIN: 'D:\\bin\\claude.cmd' })
   assert.equal(list[0], 'D:\\bin\\claude.cmd')
   assert.equal(list.at(-1), 'claude')
-  assert.equal(claudeCandidates({})[0].endsWith('claude.cmd'), true)
+  // Install-method agnostic: the native installer ships `claude`/`claude.exe`, the older
+  // npm global ships `claude.cmd`. Asserting one of them encoded the same assumption that
+  // made the default hardcode a single machine's layout.
+  assert.match(claudeCandidates({})[0], /claude(\.cmd|\.exe)?$/)
+  assert.ok(claudeCandidates({}).some((c) => c.endsWith('claude.cmd')),
+    'the npm-global shim must stay a candidate for machines that installed that way')
 })
 
 test('resolveClaudeBin honours the env override, then falls back to PATH', () => {

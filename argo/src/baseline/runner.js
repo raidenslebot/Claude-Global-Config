@@ -16,12 +16,30 @@
 
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { spawnPlan, unsafeShimMessage } from '../spawn.js'
 import { runCheck } from './tasks.js'
 import { simulateOutcome } from './simulate.js'
 
-/** Documented install path of the Claude Code CLI on windows. */
-const WINDOWS_DEFAULT = 'C:\\Users\\Administrator.DESKTOP-F9F60B0\\AppData\\Roaming\\npm\\claude.cmd'
+/**
+ * Where the Claude CLI usually lives, derived from the CURRENT user rather than baked in.
+ *
+ * This previously hardcoded one machine's profile — including a hostname-suffixed directory
+ * (`Administrator.DESKTOP-…`) that stopped existing the moment that machine was reinstalled.
+ * A default naming somebody else's home directory is wrong everywhere, silently: the file is
+ * simply absent, and the only symptom is the CLI "not being found".
+ *
+ * Ordered by how current each install method is: the native installer first, then the older
+ * npm-global shim. PATH lookup still runs before any of these.
+ */
+const CLI_DEFAULTS = [
+  join(homedir(), '.local', 'bin', process.platform === 'win32' ? 'claude.exe' : 'claude'),
+  join(homedir(), 'AppData', 'Roaming', 'npm', 'claude.cmd'),
+  join(homedir(), '.npm-global', 'bin', 'claude'),
+  '/usr/local/bin/claude',
+]
+const WINDOWS_DEFAULT = CLI_DEFAULTS.find(existsSync) ?? CLI_DEFAULTS[0]
 
 export const MISSING_BIN_HELP =
   'argo baseline: could not run the Claude CLI. Set ARGO_CLAUDE_BIN to the full path of your ' +
@@ -114,7 +132,10 @@ export function buildPrompt(task, arm, workers) {
  * different install never has to edit this file.
  */
 export function claudeCandidates(env = process.env) {
-  return [env.ARGO_CLAUDE_BIN, WINDOWS_DEFAULT, 'claude'].filter(Boolean)
+  // ALL known install locations, not just the first that happens to exist here. Collapsing
+  // this to one resolved value removed every other candidate from the search, so a machine
+  // using a different install method fell straight through to bare PATH.
+  return [env.ARGO_CLAUDE_BIN, ...CLI_DEFAULTS, 'claude'].filter(Boolean)
 }
 
 /**

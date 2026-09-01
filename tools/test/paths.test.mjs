@@ -179,10 +179,18 @@ test('overrides passed to buildVars win over detection', () => {
 // it validates cannot catch that assumption being wrong.
 
 test('a token whose name contains a digit is substituted, not silently ignored', () => {
-  const vars = { T3MP3ST_ROOT: 'C:\Claude\T3MP3ST', NODE: 'C:\Program Files\nodejs\node.exe' }
+  // String.raw, not a plain quoted literal. Written as 'C:\Claude\T3MP3ST' the value is
+  // actually "C:ClaudeT3MP3ST" — and asserting against the SAME mangled literal makes the
+  // test pass while pinning a destroyed string. This test guards the escape bug class and
+  // was itself an instance of it, which is the sharpest possible demonstration that a guard
+  // written from the same assumption as the code cannot catch that assumption being wrong.
+  const vars = { T3MP3ST_ROOT: String.raw`C:\Claude\T3MP3ST`, NODE: String.raw`C:\Program Files\nodejs\node.exe` }
   const out = realize('run inside `{{T3MP3ST_ROOT}}` with {{NODE}}', vars)
   assert.ok(!out.includes('{{'), `a digit-bearing token survived substitution: ${out}`)
-  assert.ok(out.includes('C:\Claude\T3MP3ST'))
+  assert.ok(out.includes(String.raw`C:\Claude\T3MP3ST`), `expected the raw path, got: ${out}`)
+  // Prove the value was never mangled: a real backslash must survive into the output.
+  assert.ok(out.includes('\\'), 'the substituted path lost its separators')
+  assert.ok(!out.includes('\n'), 'a \\n escape was produced from a path separator')
 })
 
 test('unresolved() reports a digit-bearing token rather than passing it as clean', () => {
@@ -192,9 +200,12 @@ test('unresolved() reports a digit-bearing token rather than passing it as clean
 })
 
 test('a digit-bearing path round-trips templatize -> realize byte-identical', () => {
-  const vars = { T3MP3ST_ROOT: 'C:\Claude\T3MP3ST' }
-  const original = 'cd C:\Claude\T3MP3ST && npm run server'
+  const vars = { T3MP3ST_ROOT: String.raw`C:\Claude\T3MP3ST` }
+  const original = String.raw`cd C:\Claude\T3MP3ST && npm run server`
   assert.equal(realize(templatize(original, vars), vars), original)
+  // Without String.raw both literals mangle IDENTICALLY, so the round trip still passes
+  // while proving nothing. Assert the separators are really present.
+  assert.ok(original.includes('\\'), 'the fixture lost its backslashes before the test ran')
 })
 
 test('no mandate in config/ ships an unresolved token of any shape', () => {

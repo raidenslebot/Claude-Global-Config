@@ -115,7 +115,8 @@ function run(exe, args, cwd, timeout) {
   if (!r) return null
   const timedOut = (r.error && r.error.code === 'ETIMEDOUT') || (!!r.signal && r.status === null)
   if (r.error && !timedOut) return null // never launched — that is no evidence either way
-  return { timedOut, status: r.status, out: String(r.stdout || '') + '\n' + String(r.stderr || '') }
+  const stdout = String(r.stdout || '')
+  return { timedOut, status: r.status, stdout, out: stdout + '\n' + String(r.stderr || '') }
 }
 
 const git = (args, cwd, ms) => {
@@ -215,7 +216,14 @@ const TEST_DETECTORS = [nodeTest, pythonTest, goTest, rustTest, elixirTest, dotn
 // being made. Both are config-gated: no config, no lint. Both exit non-zero only on
 // errors, so a style warning never produces output here.
 function lintCheck(dir, files) {
-  const rel = (f) => path.relative(dir, f) || f
+  // Relative only where it is genuinely shorter. The payload's directory and git's root
+  // can spell the same place differently (a Windows 8.3 short name against the long one),
+  // and path.relative then walks all the way up and back down — an argument that works but
+  // is unreadable in a reproduce line.
+  const rel = (f) => {
+    const r = path.relative(dir, f)
+    return (!r || r.startsWith('..')) ? f : r
+  }
   const js = files.filter((f) => /\.(m?[jt]sx?|cjs|cts|mts|vue|svelte)$/i.test(f))
   if (js.length) {
     const cfg = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts',
@@ -273,8 +281,11 @@ function main() {
   const status = git(['-c', 'core.quotePath=false', 'status', '--porcelain'], cwd)
   if (!status || status.timedOut || status.status !== 0) return
 
-  const porcelain = status.out.trim()
-  if (!porcelain) return // nothing changed, so there is no claim to verify
+  // Trailing whitespace only. Porcelain lines are `XY<space>path`, and X is a space for
+  // a modified-but-unstaged file — a plain .trim() would eat the first line's leading
+  // space and silently shift every path in it by one character.
+  const porcelain = status.stdout.replace(/\s+$/, '')
+  if (!porcelain.trim()) return // nothing changed, so there is no claim to verify
 
   const top = git(['rev-parse', '--show-toplevel'], cwd)
   const root = (top && top.status === 0 && top.out.trim().split(/\r?\n/)[0]) || cwd
