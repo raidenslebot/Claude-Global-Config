@@ -1,0 +1,29 @@
+{
+  "name": "argonaut",
+  "version": "0.1.0",
+  "description": "Graph Engineering toolkit — measure and shape the topology of an agent fleet before you pay for it.",
+  "type": "module",
+  "bin": {
+    "argo": "./src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./graph": "./src/graph/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "argo": "node ./src/cli.js"
+  },
+  "keywords": [
+    "graph-engineering",
+    "multi-agent",
+    "claude-code",
+    "agent-topology",
+    "dependency-graph"
+  ],
+  "license": "MIT",
+  "dependencies": {}
+}

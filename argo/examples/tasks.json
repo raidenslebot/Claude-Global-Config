@@ -1,0 +1,42 @@
+[
+  {
+    "id": "hub-identification",
+    "prompt": "In this repository, which single file is named (imported/required) by the most other files? Answer with the repo-relative path only, nothing else.",
+    "check": { "type": "contains", "value": "src/graph", "ignoreCase": true }
+  },
+  {
+    "id": "entrypoint",
+    "prompt": "What is the CLI entrypoint file for the `argo` binary in this repo? Answer with the repo-relative path only.",
+    "check": { "type": "contains", "value": "src/cli.js" }
+  },
+  {
+    "id": "dependency-count",
+    "prompt": "How many runtime npm dependencies does this project declare in package.json? Answer with a single number.",
+    "check": { "type": "regex", "pattern": "\\b(0|zero|none)\\b", "flags": "i" }
+  },
+  {
+    "id": "shared-surface-definition",
+    "prompt": "In this codebase, a file is defined as being in the 'shared surface'. State the precise condition, in one sentence.",
+    "check": { "type": "regex", "pattern": "different partition|another partition|more than one partition", "flags": "i" }
+  },
+  {
+    "id": "speedup-model",
+    "prompt": "This repo computes an 'effective speedup' that differs from idealised Amdahl's law. What bounds the parallel phase in the effective model?",
+    "check": { "type": "regex", "pattern": "slowest|largest partition|max.*partition", "flags": "i" }
+  },
+  {
+    "id": "coverage-metric",
+    "prompt": "The graph scanner reports a coverage percentage. What exactly is it the ratio of? One sentence.",
+    "check": { "type": "regex", "pattern": "resolved|intra-repo|references", "flags": "i" }
+  },
+  {
+    "id": "tests-pass",
+    "prompt": "Run the project's test suite and report whether it passes.",
+    "check": { "type": "command", "run": "node --test \"test/**/*.test.js\"", "expectExit": 0 }
+  },
+  {
+    "id": "docs-exist",
+    "prompt": "Confirm the claim ledger document exists in this repository.",
+    "check": { "type": "file_exists", "path": "docs/claim-ledger.md" }
+  }
+]

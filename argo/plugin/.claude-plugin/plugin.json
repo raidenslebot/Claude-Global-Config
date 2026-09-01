@@ -1,0 +1,14 @@
+{
+  "name": "argonaut",
+  "description": "Graph Engineering for Claude Code — decide which agents may talk to which, measure the shared surface before you fan out, and catch it when the agent changes under you.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "keywords": [
+    "graph-engineering",
+    "multi-agent",
+    "subagents",
+    "orchestration",
+    "fan-out",
+    "agent-topology"
+  ]
+}

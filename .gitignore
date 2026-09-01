@@ -1,0 +1,36 @@
+# ── HARD DENYLIST: credentials. Never commit. ───────────────────────────────
+.credentials.json
+**/.credentials.json
+*.credentials.json
+.env
+**/.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# Claude runtime state that is machine-specific or sensitive
+.claude.json
+settings.local.json
+history.jsonl
+file-history/
+projects/
+todos/
+shell-snapshots/
+statsig/
+cache/
+logs/
+*.log
+
+# Third-party libraries are fetched, never vendored
+library/repos/
+
+# Build noise
+node_modules/
+dist/
+coverage/
+.DS_Store
+Thumbs.db

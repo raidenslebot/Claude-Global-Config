@@ -1,0 +1,105 @@
+{
+  "$comment": [
+    "Tier-3 skill library. These repos are CLONED at install time, never vendored — some are huge.",
+    "Only the `tier2` skills below are linked into ~/.claude/skills and cost session context.",
+    "Everything else is indexed by build-index.mjs and pulled by path on demand.",
+    "Rejected repos are not cloned at all; each states why, so the decision is not re-litigated."
+  ],
+  "repos": [
+    {
+      "name": "web-animation-skills",
+      "url": "https://github.com/iart-ai/web-animation-skills.git",
+      "tier": 2,
+      "note": "9 skills, all promoted to Tier 2. Best-authored set in the collection: quoted-phrase triggers instead of bare topic keywords, so dispatch stays clean."
+    },
+    {
+      "name": "claudedesignskills",
+      "url": "https://github.com/freshtechbro/claudedesignskills.git",
+      "tier": 2,
+      "note": "22 individual plugins + 5 bundles. Only the 3D trio is promoted. Install NO bundles — they double-load skills that also exist as individuals, and drag in competing engines.",
+      "caveat": "Its advertised '27+ agents' are inert: agents/*.md start with '# Title', not YAML frontmatter, so Claude Code never registers them."
+    },
+    {
+      "name": "animation-principles",
+      "url": "https://github.com/dylantarre/animation-principles.git",
+      "tier": 3,
+      "note": "144 skills = a strict 12x12 cross product (12 lenses x 12 principles). Content is genuinely good — 13,921 lines, zero duplicate bodies — but installing it costs ~5,900 tokens/session and every skill triggers on 'animation'. Consolidated into skills/visual-design-mastery/references/animation-principles.md instead. Pull 09-by-tool-framework/ and 12-by-problem-type/ by hand."
+    },
+    {
+      "name": "design-extract",
+      "url": "https://github.com/Manavarya09/design-extract.git",
+      "tier": 3,
+      "note": "1 real skill plus a gallery of 24 MEASURED design systems (cal.com, clerk, coinbase, discord, duolingo...) as actual token files. The gallery is the value — real numbers, not prose."
+    },
+    {
+      "name": "scroll-craft",
+      "url": "https://github.com/nateherkai/scroll-craft.git",
+      "tier": 3,
+      "note": "1 skill, 7 tokens. Pull only when the deliverable is an entire scroll-driven site; gsap-web covers the technique."
+    },
+    {
+      "name": "animate-skill",
+      "url": "https://github.com/delphi-ai/animate-skill.git",
+      "tier": 3,
+      "note": "Built on Emil Kowalski's 'Animations on the Web'. Sound easing model.",
+      "caveat": "Written against the pre-rename framer-motion API; current is `npm i motion` + `motion/react`. Its examples do not run as given (styles declared as unused template literals)."
+    },
+    {
+      "name": "css-animation-skill",
+      "url": "https://github.com/neonwatty/css-animation-skill.git",
+      "tier": 3,
+      "caveat": "Its server-start steps assume POSIX (`lsof`, `python3`, trailing `&`) and fail on Windows."
+    },
+    {
+      "name": "claude-design-skill",
+      "url": "https://github.com/jiji262/claude-design-skill.git",
+      "tier": 3,
+      "note": "Single skill; its references/design-styles.md and brand-context.md are the parts worth pulling."
+    },
+    {
+      "name": "awesome-claude-design",
+      "url": "https://github.com/VoltAgent/awesome-claude-design.git",
+      "tier": 3,
+      "note": "Not installable — a catalogue of 68 external DESIGN.md links (getdesign.md) describing real product design systems, indexed by industry. Reference material."
+    },
+    {
+      "name": "pixel-plugin",
+      "url": "https://github.com/willibrandon/pixel-plugin.git",
+      "tier": 3,
+      "note": "Keep for two engine-agnostic reference files: Bayer threshold matrices and Floyd-Steinberg error weights, which transfer directly to MonoGame and shader work.",
+      "caveat": "Do NOT install as a plugin. Its skills are a front-end for a paid Aseprite install; its launcher is an extensionless bash script with CRLF endings that cannot exec on Windows; and its triggers include bare 'create', 'make', 'draw', 'export', 'save', 'render'."
+    },
+    {
+      "name": "claude-canvas",
+      "url": "https://github.com/AgriciDaniel/claude-canvas.git",
+      "tier": 3,
+      "note": "Obsidian Advanced Canvas tooling — builds .canvas decks with 1200x675 group nodes. Useful only if you use Obsidian; not design/animation."
+    },
+    {
+      "name": "open-design",
+      "url": "https://github.com/nexu-io/open-design.git",
+      "rejected": true,
+      "reason": "Three independent grounds. (1) It vendors stale copies of 11 official Anthropic skills — brainstorming, canvas-design, frontend-design, pdf, pptx, theme-factory, web-artifacts-builder and more — which would SHADOW the real, current versions. (2) It is an Electron desktop app, not a skill pack: 232 of its 536 SKILL.md files are its own app's plugins and some are test fixtures. (3) Its README promotes DeepSeek, which is not an acceptable backbone here."
+    },
+    {
+      "name": "browser-canvas",
+      "url": "https://github.com/parkerhancock/browser-canvas.git",
+      "rejected": true,
+      "reason": "Requires local servers on ports 9847/3210/9224 to render anything. Its capability — previewing a live UI — is already native to Claude Code via the Browser pane and preview_start, so nothing is lost by excluding it."
+    }
+  ],
+  "tier2": [
+    { "name": "gsap-web", "path": "web-animation-skills/skills/gsap-web" },
+    { "name": "svg-animation", "path": "web-animation-skills/skills/svg-animation" },
+    { "name": "lottie-animation", "path": "web-animation-skills/skills/lottie-animation" },
+    { "name": "60fps-animation", "path": "web-animation-skills/skills/60fps-animation" },
+    { "name": "accessible-animation", "path": "web-animation-skills/skills/accessible-animation" },
+    { "name": "micro-interaction", "path": "web-animation-skills/skills/micro-interaction" },
+    { "name": "page-transition-animation", "path": "web-animation-skills/skills/page-transition-animation" },
+    { "name": "glassmorphism", "path": "web-animation-skills/skills/glassmorphism" },
+    { "name": "ascii-animation", "path": "web-animation-skills/skills/ascii-animation" },
+    { "name": "threejs-webgl", "path": "claudedesignskills/plugins/individual/threejs-webgl/skills/threejs-webgl" },
+    { "name": "react-three-fiber", "path": "claudedesignskills/plugins/individual/react-three-fiber/skills/react-three-fiber" },
+    { "name": "web3d-integration-patterns", "path": "claudedesignskills/plugins/individual/web3d-integration-patterns/skills/web3d-integration-patterns" }
+  ]
+}

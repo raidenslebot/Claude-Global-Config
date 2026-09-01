@@ -1,0 +1,69 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-ui-stack.js\"",
+            "timeout": 15,
+            "statusMessage": "Loading UI/design resource stack"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-react-stack.js\"",
+            "timeout": 15,
+            "statusMessage": "Loading React tooling stack"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-security-stack.js\"",
+            "timeout": 15,
+            "statusMessage": "Loading Security tooling stack"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-graph.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-ui-stack.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-react-stack.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-security-stack.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\restore-dispatch.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-graph.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-visual.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
