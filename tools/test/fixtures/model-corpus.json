@@ -1,523 +1,742 @@
 [
   {
     "id": "mech-list-importers",
-    "input": { "description": "list importers", "prompt": "List all files that import the paths helper and report the path of each one." },
+    "input": {
+      "description": "list importers",
+      "prompt": "List all files that import the paths helper and report the path of each one."
+    },
     "expect": "haiku",
     "why": "Pure retrieval: the answer is whatever grep returns, and a wrong answer is immediately visible to anyone who repeats the search."
   },
   {
     "id": "mech-count-env-reads",
-    "input": { "prompt": "Count every occurrence of process.env in the tools directory and give me the total." },
+    "input": {
+      "prompt": "Count every occurrence of process.env in the tools directory and give me the total."
+    },
     "expect": "haiku",
     "why": "Counting matches has one correct answer that needs no interpretation."
   },
   {
     "id": "mech-where-timeout",
-    "input": { "prompt": "Where is the default timeout value defined?" },
+    "input": {
+      "prompt": "Where is the default timeout value defined?"
+    },
     "expect": "haiku",
     "why": "A single-location lookup; there is nothing to weigh once the definition is found."
   },
   {
     "id": "mech-run-suite",
-    "input": { "description": "run tests", "prompt": "Run the test suite and paste the failing output verbatim." },
+    "input": {
+      "description": "run tests",
+      "prompt": "Run the test suite and paste the failing output verbatim."
+    },
     "expect": "haiku",
     "why": "Executing a command and copying its output back requires no judgment about what the output means."
   },
   {
     "id": "mech-grep-symbol",
-    "input": { "prompt": "Grep for the symbol INHERIT across the repo and report each hit with its line number." },
+    "input": {
+      "prompt": "Grep for the symbol INHERIT across the repo and report each hit with its line number."
+    },
     "expect": "haiku",
     "why": "Mechanical search with a mechanical report format."
   },
   {
     "id": "mech-enumerate-exports",
-    "input": { "prompt": "Enumerate every exported function in tools/paths.mjs." },
+    "input": {
+      "prompt": "Enumerate every exported function in tools/paths.mjs."
+    },
     "expect": "haiku",
     "why": "The export list is stated in the file; reading it off is transcription."
   },
   {
     "id": "mech-which-files-cjs",
-    "input": { "prompt": "Which files in config/hooks are CommonJS?" },
+    "input": {
+      "prompt": "Which files in config/hooks are CommonJS?"
+    },
     "expect": "haiku",
     "why": "A syntactic property that can be read directly from each file."
   },
   {
     "id": "mech-run-linter",
-    "input": { "prompt": "Run the linter and report the output." },
+    "input": {
+      "prompt": "Run the linter and report the output."
+    },
     "expect": "haiku",
     "why": "Run and relay; no decision about which findings matter."
   },
   {
     "id": "mech-find-refs",
-    "input": { "prompt": "Find all references to the AGENT_TOOLS constant." },
+    "input": {
+      "prompt": "Find all references to the AGENT_TOOLS constant."
+    },
     "expect": "haiku",
     "why": "Reference enumeration is exactly what a search tool does."
   },
   {
     "id": "mech-tally-todos",
-    "input": { "prompt": "Tally the TODO comments per directory." },
+    "input": {
+      "prompt": "Tally the TODO comments per directory."
+    },
     "expect": "haiku",
     "why": "Counting by directory is arithmetic over search results."
   },
   {
     "id": "mech-sort-imports",
-    "input": { "prompt": "Sort the import lines alphabetically in every file under tools/." },
+    "input": {
+      "prompt": "Sort the import lines alphabetically in every file under tools/."
+    },
     "expect": "haiku",
     "why": "A deterministic text transformation with an objective correct output."
   },
   {
     "id": "mech-what-files-installer-writes",
-    "input": { "prompt": "What files does the installer write to?" },
+    "input": {
+      "prompt": "What files does the installer write to?"
+    },
     "expect": "haiku",
     "why": "The write targets are enumerated in the installer source; this is reading, not reasoning."
   },
   {
     "id": "mech-locate-definition",
-    "input": { "prompt": "Locate the definition of currentModel." },
+    "input": {
+      "prompt": "Locate the definition of currentModel."
+    },
     "expect": "haiku",
     "why": "One symbol, one definition site, no interpretation."
   },
   {
     "id": "mech-rename-flag",
-    "input": { "prompt": "Rename the option from --dry to --dry-run in all four files; nothing else changes." },
+    "input": {
+      "prompt": "Rename the option from --dry to --dry-run in all four files; nothing else changes."
+    },
     "expect": "haiku",
     "why": "A blanket rename with the sites already bounded and no behaviour change to reason about."
   },
   {
     "id": "mech-show-stdout-writes",
-    "input": { "prompt": "Show me every place the hook writes to stdout." },
+    "input": {
+      "prompt": "Show me every place the hook writes to stdout."
+    },
     "expect": "haiku",
     "why": "Retrieval phrased with 'show me' instead of 'list', but the work is identical to a grep."
   },
   {
     "id": "mech-count-test-files",
-    "input": { "prompt": "How many test files are in tools/test?" },
+    "input": {
+      "prompt": "How many test files are in tools/test?"
+    },
     "expect": "haiku",
     "why": "A directory listing and a count."
   },
-
   {
     "id": "spec-implement-json-flag",
-    "input": { "prompt": "Implement the change described above: add a --json flag to doctor.mjs that prints the report as JSON." },
+    "input": {
+      "prompt": "Implement the change described above: add a --json flag to doctor.mjs that prints the report as JSON."
+    },
     "expect": "sonnet",
     "why": "The decision is already made and stated; what remains is competent typing against a fixed target."
   },
   {
     "id": "spec-write-tests-cover-classify",
-    "input": { "prompt": "Write tests that cover the classify function for each documented input." },
+    "input": {
+      "prompt": "Write tests that cover the classify function for each documented input."
+    },
     "expect": "sonnet",
     "why": "The function and its documented cases are given, so the test set follows from the spec."
   },
   {
     "id": "spec-apply-patch-call-sites",
-    "input": { "prompt": "Apply this patch to the other three call sites; the diff is below and needs no changes beyond the variable name." },
+    "input": {
+      "prompt": "Apply this patch to the other three call sites; the diff is below and needs no changes beyond the variable name."
+    },
     "expect": "sonnet",
     "why": "A stated edit repeated at stated locations."
   },
   {
     "id": "spec-port-helper-ts",
-    "input": { "prompt": "Port this helper to TypeScript exactly as specified in the interface below." },
+    "input": {
+      "prompt": "Port this helper to TypeScript exactly as specified in the interface below."
+    },
     "expect": "sonnet",
     "why": "The target interface is supplied, so the translation has a defined correct output."
   },
   {
     "id": "spec-retry-as-described",
-    "input": { "prompt": "Add the retry wrapper as described above, with the same backoff values." },
+    "input": {
+      "prompt": "Add the retry wrapper as described above, with the same backoff values."
+    },
     "expect": "sonnet",
     "why": "The design is upstream of this prompt; the agent only carries it out."
   },
   {
     "id": "spec-csv-per-spec",
-    "input": { "prompt": "Build the CSV exporter according to the spec in docs/export.md - the columns and ordering are fixed there." },
+    "input": {
+      "prompt": "Build the CSV exporter according to the spec in docs/export.md - the columns and ordering are fixed there."
+    },
     "expect": "sonnet",
     "why": "Columns and ordering are pinned by a document, leaving implementation only."
   },
   {
     "id": "spec-implement-agreed-fix",
-    "input": { "prompt": "Implement the fix we agreed on: guard the null transcript path before statSync." },
+    "input": {
+      "prompt": "Implement the fix we agreed on: guard the null transcript path before statSync."
+    },
     "expect": "sonnet",
     "why": "Root cause and remedy are both already settled."
   },
   {
     "id": "spec-write-function-from-plan",
-    "input": { "prompt": "Write the function signature and body exactly as given in the plan comment at the top of the file." },
+    "input": {
+      "prompt": "Write the function signature and body exactly as given in the plan comment at the top of the file."
+    },
     "expect": "sonnet",
     "why": "Transcribing a stated signature and body is specified work even though the word plan appears."
   },
   {
     "id": "spec-add-listed-tests",
-    "input": { "prompt": "Add the tests listed in the issue to cli.test.mjs, reusing the existing helpers." },
+    "input": {
+      "prompt": "Add the tests listed in the issue to cli.test.mjs, reusing the existing helpers."
+    },
     "expect": "sonnet",
     "why": "The cases are enumerated in the issue; the only work is fitting them to the existing harness."
   },
   {
     "id": "spec-convert-module-esm",
-    "input": { "prompt": "Convert this module to ESM as specified in the migration note - same exports, same order." },
+    "input": {
+      "prompt": "Convert this module to ESM as specified in the migration note - same exports, same order."
+    },
     "expect": "sonnet",
     "why": "A mechanical-but-nontrivial conversion whose target shape is written down."
   },
   {
     "id": "spec-implement-plan-step",
-    "input": { "prompt": "Implement the plan in PLAN.md step 3 only - the schema is already decided." },
+    "input": {
+      "prompt": "Implement the plan in PLAN.md step 3 only - the schema is already decided."
+    },
     "expect": "sonnet",
     "why": "The prompt explicitly removes the design decision and scopes the work to one written step."
   },
   {
     "id": "spec-translate-validator",
-    "input": { "prompt": "Translate this validator to Python, keeping the same error messages." },
+    "input": {
+      "prompt": "Translate this validator to Python, keeping the same error messages."
+    },
     "expect": "sonnet",
     "why": "Language translation with the semantics and strings held fixed."
   },
   {
     "id": "spec-create-fixture-rows",
-    "input": { "prompt": "Create the fixture file with the rows given below." },
+    "input": {
+      "prompt": "Create the fixture file with the rows given below."
+    },
     "expect": "sonnet",
     "why": "Content is supplied verbatim; only formatting and file placement remain."
   },
-
   {
     "id": "ver-review-diff",
-    "input": { "prompt": "Review this diff for bugs before I merge it." },
+    "input": {
+      "prompt": "Review this diff for bugs before I merge it."
+    },
     "expect": "opus",
     "why": "Catching a bug someone else missed is exactly the case where a weak reviewer produces a confident all-clear."
   },
   {
     "id": "ver-fix-closes-issue",
-    "input": { "prompt": "Verify the fix actually closes the issue reported in #412." },
+    "input": {
+      "prompt": "Verify the fix actually closes the issue reported in #412."
+    },
     "expect": "opus",
     "why": "Deciding whether a fix truly closes a report requires reasoning past the surface of the diff."
   },
   {
     "id": "ver-is-finding-real",
-    "input": { "prompt": "Is this finding real, or is it a false positive?" },
+    "input": {
+      "prompt": "Is this finding real, or is it a false positive?"
+    },
     "expect": "opus",
     "why": "Separating a real finding from a false positive is the whole task and a wrong answer is invisible."
   },
   {
     "id": "ver-adversarial-thread-safety",
-    "input": { "prompt": "Adversarially check whether this cache is thread-safe." },
+    "input": {
+      "prompt": "Adversarially check whether this cache is thread-safe."
+    },
     "expect": "opus",
     "why": "Adversarial checking means actively constructing counterexamples, not agreeing with the claim."
   },
   {
     "id": "ver-audit-injection",
-    "input": { "prompt": "Audit this input handling for injection flaws." },
+    "input": {
+      "prompt": "Audit this input handling for injection flaws."
+    },
     "expect": "opus",
     "why": "A missed injection flaw is a silent security failure."
   },
   {
     "id": "ver-security-review-upload",
-    "input": { "prompt": "Security review of the new upload endpoint." },
+    "input": {
+      "prompt": "Security review of the new upload endpoint."
+    },
     "expect": "opus",
     "why": "Security review is verification of someone else's work under an adversarial threat model."
   },
   {
     "id": "ver-validate-benchmark-claim",
-    "input": { "prompt": "Validate the benchmark claim in the README against the actual numbers." },
+    "input": {
+      "prompt": "Validate the benchmark claim in the README against the actual numbers."
+    },
     "expect": "opus",
     "why": "Checking a published claim against evidence is verification, and a rubber stamp is worse than nothing."
   },
   {
     "id": "ver-double-check-migration",
-    "input": { "prompt": "Double-check the migration script before it runs against prod." },
+    "input": {
+      "prompt": "Double-check the migration script before it runs against prod."
+    },
     "expect": "opus",
     "why": "The cost of a missed defect here is production data, so the checker must be stronger than the writer."
   },
   {
     "id": "ver-find-bugs-parser",
-    "input": { "prompt": "Find bugs in this parser." },
+    "input": {
+      "prompt": "Find bugs in this parser."
+    },
     "expect": "opus",
     "why": "Open-ended bug hunting over supplied code is verification, not search."
   },
   {
     "id": "ver-does-it-really-handle",
-    "input": { "prompt": "Does this actually handle the empty-file case, or does it just look like it does?" },
+    "input": {
+      "prompt": "Does this actually handle the empty-file case, or does it just look like it does?"
+    },
     "expect": "opus",
     "why": "The prompt asks specifically about the gap between appearance and behaviour."
   },
   {
     "id": "ver-critique-error-handling",
-    "input": { "prompt": "Critique the error handling in this patch for correctness." },
+    "input": {
+      "prompt": "Critique the error handling in this patch for correctness."
+    },
     "expect": "opus",
     "why": "Critique of supplied work against a correctness standard is verification."
   },
   {
     "id": "ver-confirm-race",
-    "input": { "prompt": "Confirm whether the reported race condition can actually occur." },
+    "input": {
+      "prompt": "Confirm whether the reported race condition can actually occur."
+    },
     "expect": "opus",
     "why": "Reasoning about interleavings to confirm or refute a report is high-stakes checking."
   },
   {
     "id": "ver-threat-model-webhook",
-    "input": { "prompt": "Threat model this webhook handler." },
+    "input": {
+      "prompt": "Threat model this webhook handler."
+    },
     "expect": "opus",
     "why": "Enumerating attacks against supplied code is adversarial verification."
   },
   {
     "id": "ver-prove-invariant",
-    "input": { "prompt": "Prove the zero-under-assignment invariant holds for the current rules, or show a counterexample." },
+    "input": {
+      "prompt": "Prove the zero-under-assignment invariant holds for the current rules, or show a counterexample."
+    },
     "expect": "opus",
     "why": "A proof-or-counterexample task fails silently if the checker is not strong enough to find the counterexample."
   },
-
   {
     "id": "type-verifier-mechanical-prompt",
-    "input": { "subagent_type": "patch-verifier", "description": "check patch", "prompt": "List the files touched by the patch and report each one." },
+    "input": {
+      "subagent_type": "patch-verifier",
+      "description": "check patch",
+      "prompt": "List the files touched by the patch and report each one."
+    },
     "expect": "opus",
     "why": "The agent type fixes the job as verification; the mechanical-sounding prompt is only its first step."
   },
   {
     "id": "type-security-scan-verifier",
-    "input": { "subagent_type": "claude-security:scan-verifier", "prompt": "Read the finding and the file, then say yes or no." },
+    "input": {
+      "subagent_type": "claude-security:scan-verifier",
+      "prompt": "Read the finding and the file, then say yes or no."
+    },
     "expect": "opus",
     "why": "A yes/no vote on a security finding is the highest-stakes possible output for its length."
   },
   {
     "id": "type-code-reviewer-trivial-prompt",
-    "input": { "subagent_type": "code-reviewer", "prompt": "Two-line change, just glance at it." },
+    "input": {
+      "subagent_type": "code-reviewer",
+      "prompt": "Two-line change, just glance at it."
+    },
     "expect": "opus",
     "why": "The reviewer type decides the tier regardless of how casually the request is phrased.",
     "adversarial": true
   },
   {
     "id": "type-explore-mechanical",
-    "input": { "subagent_type": "Explore", "prompt": "Where does the installer write its backup files?" },
+    "input": {
+      "subagent_type": "Explore",
+      "prompt": "Where does the installer write its backup files?"
+    },
     "expect": "haiku",
     "why": "A read-only search agent asked a location question is doing retrieval and nothing else."
   },
   {
     "id": "type-explore-diagnosis",
-    "input": { "subagent_type": "Explore", "prompt": "Explore the repo and figure out why the doctor check is slow." },
+    "input": {
+      "subagent_type": "Explore",
+      "prompt": "Explore the repo and figure out why the doctor check is slow."
+    },
     "expect": "inherit",
     "why": "The search-agent type reads mechanical but the prompt asks for a cause, which is diagnosis.",
     "adversarial": true
   },
-
   {
     "id": "judge-design-schema",
-    "input": { "prompt": "Design the schema for the routing corpus." },
+    "input": {
+      "prompt": "Design the schema for the routing corpus."
+    },
     "expect": "inherit",
     "why": "An open design decision with no stated constraints; every later file inherits whatever is chosen here."
   },
   {
     "id": "judge-decide-approaches",
-    "input": { "prompt": "Decide between the two approaches below and say which we should ship." },
+    "input": {
+      "prompt": "Decide between the two approaches below and say which we should ship."
+    },
     "expect": "inherit",
     "why": "The output is a decision, and a weak decision is expensive and hard to reverse."
   },
   {
     "id": "judge-why-install-slow",
-    "input": { "prompt": "Figure out why the install step is slow on Windows." },
+    "input": {
+      "prompt": "Figure out why the install step is slow on Windows."
+    },
     "expect": "inherit",
     "why": "Open-ended diagnosis where a plausible wrong cause sends the fix in the wrong direction."
   },
   {
     "id": "judge-best-structure",
-    "input": { "prompt": "What is the best way to structure the hooks directory as it grows?" },
+    "input": {
+      "prompt": "What is the best way to structure the hooks directory as it grows?"
+    },
     "expect": "inherit",
     "why": "There is no fact to look up; the answer is a judgment about future maintenance."
   },
   {
     "id": "judge-reconcile-reports",
-    "input": { "prompt": "Reconcile these two conflicting reports about where the config is loaded from." },
+    "input": {
+      "prompt": "Reconcile these two conflicting reports about where the config is loaded from."
+    },
     "expect": "inherit",
     "why": "Two sources disagree, so the agent must work out which is wrong rather than repeat one."
   },
   {
     "id": "judge-ci-only-failure",
-    "input": { "prompt": "The tests pass locally and fail in CI; find the root cause." },
+    "input": {
+      "prompt": "The tests pass locally and fail in CI; find the root cause."
+    },
     "expect": "inherit",
     "why": "Environment-dependent failures are the case where a shallow answer looks most convincing."
   },
   {
     "id": "judge-refactor-regexes",
-    "input": { "prompt": "Refactor the signal regexes so they stay readable as they grow." },
+    "input": {
+      "prompt": "Refactor the signal regexes so they stay readable as they grow."
+    },
     "expect": "inherit",
     "why": "Refactoring safety-critical matching rules is a design task, not a text edit."
   },
   {
     "id": "judge-evaluate-dependency",
-    "input": { "prompt": "Evaluate whether we should take a dependency for this or keep it in stdlib." },
+    "input": {
+      "prompt": "Evaluate whether we should take a dependency for this or keep it in stdlib."
+    },
     "expect": "inherit",
     "why": "A tradeoff with long-lived consequences and no single correct answer."
   },
   {
     "id": "judge-prioritise-findings",
-    "input": { "prompt": "Prioritise the findings in this report for the next sprint." },
+    "input": {
+      "prompt": "Prioritise the findings in this report for the next sprint."
+    },
     "expect": "inherit",
     "why": "Ranking by risk and cost is judgment, and a bad ordering quietly wastes a sprint."
   },
   {
     "id": "judge-ambiguous-tie",
-    "input": { "prompt": "The spec is unclear about what happens on a tie; work out what it should do." },
+    "input": {
+      "prompt": "The spec is unclear about what happens on a tie; work out what it should do."
+    },
     "expect": "inherit",
     "why": "The prompt names its own ambiguity, which is the exact condition that must resolve upward."
   },
   {
     "id": "judge-plan-migration",
-    "input": { "prompt": "Plan the migration off the legacy path helper." },
+    "input": {
+      "prompt": "Plan the migration off the legacy path helper."
+    },
     "expect": "inherit",
     "why": "Sequencing a migration is planning, and a bad plan is only discovered halfway through it."
   },
   {
     "id": "judge-route-by-type-or-text",
-    "input": { "prompt": "Should we route by agent type or by prompt text? Explain the architecture implications." },
+    "input": {
+      "prompt": "Should we route by agent type or by prompt text? Explain the architecture implications."
+    },
     "expect": "inherit",
     "why": "An architecture question posed as a choice between two options."
   },
-
   {
     "id": "adv-find-best-caching",
-    "input": { "prompt": "Find the best approach for caching the transcript reads." },
+    "input": {
+      "prompt": "Find the best approach for caching the transcript reads."
+    },
     "expect": "inherit",
     "why": "Says find, but there is nothing to retrieve - the best approach is a design decision.",
     "adversarial": true
   },
   {
     "id": "adv-list-tradeoffs",
-    "input": { "prompt": "List the tradeoffs between the two designs below." },
+    "input": {
+      "prompt": "List the tradeoffs between the two designs below."
+    },
     "expect": "inherit",
     "why": "Says list, but the list does not exist yet; producing it is the judgment.",
     "adversarial": true
   },
   {
     "id": "adv-count-real-findings",
-    "input": { "prompt": "Count how many of these findings are real." },
+    "input": {
+      "prompt": "Count how many of these findings are real."
+    },
     "expect": "opus",
     "why": "Says count, but the count is a by-product of verifying each finding one at a time.",
     "adversarial": true
   },
   {
     "id": "adv-search-root-cause",
-    "input": { "prompt": "Search the codebase for the root cause of the duplicated hook output." },
+    "input": {
+      "prompt": "Search the codebase for the root cause of the duplicated hook output."
+    },
     "expect": "inherit",
     "why": "Says search, but a root cause is inferred from behaviour, not found by matching text.",
     "adversarial": true
   },
   {
     "id": "adv-quick-check-correct",
-    "input": { "prompt": "Just quickly check whether this is correct." },
+    "input": {
+      "prompt": "Just quickly check whether this is correct."
+    },
     "expect": "opus",
     "why": "Phrased to sound trivial, but is-this-correct is verification with a silent failure mode.",
     "adversarial": true
   },
   {
     "id": "adv-simple-yes-no-leak",
-    "input": { "prompt": "Simple yes/no: does this patch actually fix the leak?" },
+    "input": {
+      "prompt": "Simple yes/no: does this patch actually fix the leak?"
+    },
     "expect": "opus",
     "why": "The short answer format hides that reaching the answer means verifying the fix.",
     "adversarial": true
   },
   {
     "id": "adv-just-grep-security",
-    "input": { "prompt": "Just grep for anything that looks like a security hole in the auth middleware." },
+    "input": {
+      "prompt": "Just grep for anything that looks like a security hole in the auth middleware."
+    },
     "expect": "opus",
     "why": "Says grep, but no pattern matches a security hole - it is a vulnerability hunt wearing a search verb.",
     "adversarial": true
   },
   {
     "id": "adv-list-failing-and-why",
-    "input": { "prompt": "List every test that fails and why each one fails." },
+    "input": {
+      "prompt": "List every test that fails and why each one fails."
+    },
     "expect": "inherit",
     "why": "The first clause is retrieval and the second is diagnosis; the harder clause sets the tier.",
     "adversarial": true
   },
   {
     "id": "adv-where-is-bug",
-    "input": { "prompt": "Where is the bug in this function?" },
+    "input": {
+      "prompt": "Where is the bug in this function?"
+    },
     "expect": "opus",
     "why": "Phrased as a location lookup, but nothing marks the bug - finding it is analysis of supplied code.",
     "adversarial": true
   },
   {
     "id": "adv-which-files-unsafe",
-    "input": { "prompt": "Which files handle untrusted input unsafely?" },
+    "input": {
+      "prompt": "Which files handle untrusted input unsafely?"
+    },
     "expect": "opus",
     "why": "Reads like a file listing, but unsafely is a security judgment applied per file.",
     "adversarial": true
   },
   {
     "id": "adv-run-tests-and-interpret",
-    "input": { "prompt": "Run the test suite and explain what the failures mean for the release." },
+    "input": {
+      "prompt": "Run the test suite and explain what the failures mean for the release."
+    },
     "expect": "inherit",
     "why": "Running is mechanical; deciding what the failures mean for shipping is a judgment call.",
     "adversarial": true
   },
   {
     "id": "adv-which-model-for-verifier",
-    "input": { "prompt": "Quick one: which model should a scan-verifier agent run on?" },
+    "input": {
+      "prompt": "Quick one: which model should a scan-verifier agent run on?"
+    },
     "expect": "inherit",
     "why": "Framed as a quick lookup, but it is a policy decision about safety-critical routing.",
     "adversarial": true
   },
   {
     "id": "adv-eyeball-one-liner",
-    "input": { "prompt": "It is a one-line change, can you eyeball it?" },
+    "input": {
+      "prompt": "It is a one-line change, can you eyeball it?"
+    },
     "expect": "opus",
     "why": "The size of the diff says nothing about the cost of missing what is wrong with it.",
     "adversarial": true
   },
   {
     "id": "adv-list-concurrency-assumptions",
-    "input": { "prompt": "List the assumptions this design makes that could break under concurrency." },
+    "input": {
+      "prompt": "List the assumptions this design makes that could break under concurrency."
+    },
     "expect": "inherit",
     "why": "Says list, but unstated assumptions have to be derived, which is reasoning about the design.",
     "adversarial": true
   },
   {
     "id": "adv-count-safe-call-sites",
-    "input": { "prompt": "Count the call sites that are actually safe after the patch." },
+    "input": {
+      "prompt": "Count the call sites that are actually safe after the patch."
+    },
     "expect": "opus",
     "why": "Says count, but actually safe has to be established per site before anything can be counted.",
     "adversarial": true
   },
   {
     "id": "adv-find-all-input-to-shell",
-    "input": { "prompt": "Find all the places user input reaches a shell command." },
+    "input": {
+      "prompt": "Find all the places user input reaches a shell command."
+    },
     "expect": "opus",
     "why": "Phrased as enumeration but it is taint tracing across call boundaries, and a miss is an injection bug.",
     "adversarial": true
   },
   {
     "id": "adv-just-a-rename",
-    "input": { "prompt": "Just a rename: change every decide call to route." },
+    "input": {
+      "prompt": "Just a rename: change every decide call to route."
+    },
     "expect": "haiku",
     "why": "Reads like refactoring but the scope is fully bounded and the transformation is textual.",
     "adversarial": true
   },
   {
     "id": "adv-search-why-slow",
-    "input": { "prompt": "Search for why the doctor command takes 8 seconds." },
+    "input": {
+      "prompt": "Search for why the doctor command takes 8 seconds."
+    },
     "expect": "inherit",
     "why": "Says search, but performance causes are inferred from measurement, not located by grep.",
     "adversarial": true
   },
   {
     "id": "adv-sanity-check-count",
-    "input": { "prompt": "Sanity-check the generated list - it should have 60 entries." },
+    "input": {
+      "prompt": "Sanity-check the generated list - it should have 60 entries."
+    },
     "expect": "haiku",
     "why": "Uses a verification verb for what is literally a length check against a stated number.",
     "adversarial": true
   },
   {
     "id": "adv-enumerate-then-pick",
-    "input": { "prompt": "Enumerate the options for the cache key and pick one." },
+    "input": {
+      "prompt": "Enumerate the options for the cache key and pick one."
+    },
     "expect": "inherit",
     "why": "Enumeration is the setup; pick one is the deliverable and it is a decision.",
     "adversarial": true
   },
   {
     "id": "adv-tell-me-if-ok-to-ship",
-    "input": { "prompt": "Have a look at the branch and tell me if it is OK to ship." },
+    "input": {
+      "prompt": "Have a look at the branch and tell me if it is OK to ship."
+    },
     "expect": "opus",
     "why": "Casual phrasing for a release gate; OK to ship is a verification verdict.",
     "adversarial": true
   },
   {
     "id": "adv-summarise-conflicting-logs",
-    "input": { "prompt": "Summarise these two log excerpts - they seem to disagree about the ordering." },
+    "input": {
+      "prompt": "Summarise these two log excerpts - they seem to disagree about the ordering."
+    },
     "expect": "inherit",
     "why": "Summarising sounds mechanical, but the stated disagreement means the real task is resolving it.",
     "adversarial": true
+  },
+  {
+    "id": "adv-review-design-direction",
+    "input": {
+      "prompt": "Adversarially review this design direction and verify whether it is genuinely specific or secretly generic."
+    },
+    "expect": "opus",
+    "why": "Verification of a design ARTIFACT. \"design\" here is the first half of \"design direction\"; the governing verbs are review and verify.",
+    "adversarial": true
+  },
+  {
+    "id": "adv-review-design-tokens-wcag",
+    "input": {
+      "prompt": "Review the design tokens file and check whether every colour passes WCAG contrast."
+    },
+    "expect": "opus",
+    "why": "Verification against a stated standard. \"design tokens\" names the file, not the work.",
+    "adversarial": true
+  },
+  {
+    "id": "adv-list-design-tokens",
+    "input": {
+      "prompt": "List every design token defined in tokens.json."
+    },
+    "expect": "haiku",
+    "why": "Pure enumeration. The noun \"design token\" carries no decision; nothing is chosen or judged.",
+    "adversarial": true
+  },
+  {
+    "id": "jud-design-verb-token-system",
+    "input": {
+      "prompt": "Design the token system for this brand."
+    },
+    "expect": "inherit",
+    "why": "The VERB design. This must stay judgment after the compound-noun narrowing — the lookahead may not swallow the verb."
+  },
+  {
+    "id": "adv-verify-architecture-diagram",
+    "input": {
+      "prompt": "Verify the architecture diagram matches the actual import graph."
+    },
+    "expect": "opus",
+    "why": "Verification. \"architecture diagram\" is the artifact under test, not an act of architecting.",
+    "adversarial": true
+  },
+  {
+    "id": "jud-redesign-navigation",
+    "input": {
+      "prompt": "Redesign the navigation so the primary action is reachable in one tap."
+    },
+    "expect": "inherit",
+    "why": "Open-ended redesign is judgment and is untouched by the narrowing (a different alternation)."
   }
 ]

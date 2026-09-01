@@ -129,3 +129,21 @@ test('sources.json and the built index agree on how many repos exist', (t) => {
   assert.ok(Number(m[2]) >= declared,
     `index reports ${m[2]} repos on disk but sources.json declares ${declared} clonable — a clone failed silently`)
 })
+
+test('the hook count stated in prose matches config/hooks.json', () => {
+  // Drifted twice in one session (10 -> 14 -> 16) while every other number was gated. The
+  // registration manifest is the source of truth; count what it actually registers.
+  const manifest = join(REPO, 'config', 'hooks.json')
+  if (!existsSync(manifest)) return
+  let registered = 0
+  for (const groups of Object.values(JSON.parse(readFileSync(manifest, 'utf8')).hooks || {})) {
+    for (const g of groups) registered += (g.hooks || []).length
+  }
+  for (const d of DOCS) {
+    const { text } = numbersIn(d)
+    const claim = text.match(/(\d+)\s+hooks\s+merged/)
+    if (!claim) continue
+    assert.equal(Number(claim[1]), registered,
+      `${d} says ${claim[1]} hooks merged; config/hooks.json registers ${registered}`)
+  }
+})

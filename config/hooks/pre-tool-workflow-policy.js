@@ -36,7 +36,12 @@ const TAIL_BYTES = 256 * 1024
 const SIGNAL_SOURCES = {
   /** Work where being wrong is expensive and hard to detect. Vetoes every downgrade. */
   JUDGMENT: [
-    '\\b(design|architect|architecture|decide|decision|choose|recommend|evaluate|assess)\\b',
+    // `design` and `architecture` as VERBS or bare nouns are judgment. As the first half of a
+    // compound domain noun — "design direction", "design tokens", "architecture diagram" —
+    // they name the artifact, not the task, and the task is whatever verb governs them.
+    // Without the lookahead "review this design direction" inherited the session model
+    // instead of routing to opus: safe, but pure over-assignment on the judge role.
+    '\\b(design(?! (direction|directions|system|systems|token|tokens|language|brief|file|files|doc|docs))|architect|architecture(?! (diagram|diagrams|doc|docs|document|overview))|decide|decision|choose|recommend|evaluate|assess)\\b',
     '\\b(trade-?offs?|approach|strategy|should we|best way|best approach|which is better)\\b',
     '\\b(ambigu\\w+|unclear|figure out|work out|reason about|think through)\\b',
     '\\b(refactor|redesign|rewrite|restructure|migrate)\\b',

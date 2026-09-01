@@ -53,7 +53,13 @@ const MIN_ADVERSARIAL = 15
 // not to block a documented trade — so it moves up only with a reason written here, and every
 // later change must move it DOWN. Getting it back below 0.17 means adding high-confidence
 // downgrade rules, never loosening a veto.
-const OVER_CEILING = 0.21
+//
+// Ratcheted 0.21 -> 0.20. Narrowing the judgment veto so that "design" and "architecture"
+// inside a compound domain noun ("design direction", "architecture diagram") no longer veto
+// took overs from 20.7% to 19.3% with unders still at zero, over a corpus grown from 82 to
+// 88 to cover exactly that shape. The ceiling follows the measurement down and stays tight:
+// one more over-assignment breaks it, which is the point.
+const OVER_CEILING = 0.20
 
 const results = CORPUS.map((c) => {
   const actual = decide(c.input) ?? 'inherit'
