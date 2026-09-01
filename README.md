@@ -92,6 +92,21 @@ triggers. More skills would make Claude measurably worse.
 | **3** — library | **0 tokens** | 800+ skills on disk, `grep` the index, read by path |
 | **4** — rejected | — | not cloned; `library/sources.json` records why |
 
+### Contention is the real cost, not tokens
+
+Token count is the obvious metric and the less important one. What actually degrades a large
+skill set is **trigger contention**: many skills claiming the same word, so dispatch becomes a
+coin flip between them. `doctor.mjs` measures it:
+
+```
+"animation" — 11 skills      "create" — 10 skills
+```
+
+A skill whose description says `"build a scroll animation"` competes with nothing. One that says
+`create`, `draw`, `export`, `save` competes with half your library and fires on prompts that have
+nothing to do with it. That single distinction is why one 144-skill pack was rejected here and a
+9-skill one was installed whole.
+
 Finding something in Tier 3:
 
 ```bash

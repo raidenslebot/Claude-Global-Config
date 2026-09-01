@@ -200,6 +200,57 @@ let tokens = 0
     : ok('no skill name collisions')
 }
 
+// ── 8. Trigger contention ───────────────────────────────────────────────────
+// Token cost is the obvious metric but not the dangerous one. What actually degrades a
+// large skill set is CONTENTION: many skills claiming the same trigger word, so dispatch
+// becomes a coin flip between them. A 144-skill pack was rejected from this repo for
+// exactly this — every one of its skills triggered on "animation".
+phase('Trigger contention')
+let contention = []
+{
+  const skillsDir = join(CONFIG_ROOT, 'skills')
+  // Words too generic to be evidence of anything, plus ordinary English glue.
+  // Two kinds of noise: ordinary English glue, and the boilerplate every skill
+  // description shares ("use when the user asks to ..."). Neither is evidence of
+  // contention — only domain words are.
+  const STOP = new Set(`the a an and or of to in for on with when use used using this that
+    it its is are be as by from at into any all more most other should skill skills claude user
+    if then than so not no which what how you your also can may per via each
+    them they will would about across after before between during over under only just
+    asks ask asked need needs want wants request requests requested
+    trigger triggers triggering covers covering provides providing including include
+    whenever instead rather already actual actually real really work works working
+    task tasks thing things something anything make makes making`
+    .split(/\s+/).filter(Boolean))
+  const claims = new Map()
+  for (const d of existsSync(skillsDir) ? readdirSync(skillsDir) : []) {
+    const f = join(skillsDir, d, 'SKILL.md')
+    if (!existsSync(f)) continue
+    const fm = (readFileSync(f, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ''])[1]
+    // Take the description VALUE only — up to the next top-level YAML key. Slicing to the
+    // end of the frontmatter swallows sibling keys (license:, allowed-tools:) and reports
+    // their words as triggers, which is noise dressed as a finding.
+    const lines = fm.split(/\r?\n/)
+    const start = lines.findIndex((l) => /^description:/.test(l))
+    if (start < 0) continue
+    const value = [lines[start].replace(/^description:\s*/, '')]
+    for (let j = start + 1; j < lines.length && !/^[A-Za-z_-]+:/.test(lines[j]); j++) value.push(lines[j])
+    const desc = value.join(' ').toLowerCase()
+    for (const w of new Set(desc.match(/[a-z][a-z-]{3,}/g) || [])) {
+      if (STOP.has(w)) continue
+      claims.set(w, [...(claims.get(w) || []), d])
+    }
+  }
+  contention = [...claims].filter(([, ds]) => ds.length >= 6).sort((a, b) => b[1].length - a[1].length)
+  if (!contention.length) ok('no trigger word claimed by 6+ skills')
+  else {
+    warn(`${contention.length} trigger word(s) claimed by 6+ skills — dispatch is a coin flip on these`)
+    for (const [w, ds] of contention.slice(0, 5)) say(`        "${w}" — ${ds.length}: ${ds.slice(0, 6).join(', ')}${ds.length > 6 ? '…' : ''}`)
+    say(`        Fix by narrowing descriptions to quoted phrases ("build a scroll animation"),`)
+    say(`        not bare topic words. Bare verbs like "create" or "draw" are the worst offenders.`)
+  }
+}
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 const counts = results.reduce((a, r) => ({ ...a, [r.level]: (a[r.level] || 0) + 1 }), {})
 if (JSON_OUT) {
