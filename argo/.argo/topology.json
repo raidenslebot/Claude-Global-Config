@@ -1,0 +1,258 @@
+{
+  "name": "AI Replication fleet",
+  "generatedBy": "argo topology init",
+  "allowMultipleSupervisors": false,
+  "agents": [
+    {
+      "id": "supervisor",
+      "role": "supervisor",
+      "agentType": "graph-supervisor",
+      "model": "claude-opus-5",
+      "reads": [
+        "**"
+      ],
+      "writes": [],
+      "tools": [
+        "read",
+        "grep",
+        "dispatch"
+      ]
+    },
+    {
+      "id": "worker-1",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "src/drift/cmd.js",
+        "src/drift/extract.js",
+        "src/drift/probe-cmd.js",
+        "src/drift/probe.js",
+        "src/drift/selfreport-cmd.js",
+        "src/drift/selfreport.js",
+        "test/drift.test.js",
+        "test/selfreport.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "src/drift/cmd.js",
+        "src/drift/extract.js",
+        "src/drift/probe-cmd.js",
+        "src/drift/probe.js",
+        "src/drift/selfreport-cmd.js",
+        "src/drift/selfreport.js",
+        "test/drift.test.js",
+        "test/selfreport.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    },
+    {
+      "id": "worker-2",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "src/doctor/**",
+        "src/topology/**",
+        "test/topology.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "src/doctor/**",
+        "src/topology/**",
+        "test/topology.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    },
+    {
+      "id": "worker-3",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "src/baseline/**",
+        "test/baseline.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "src/baseline/**",
+        "test/baseline.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    },
+    {
+      "id": "worker-4",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "src/divergence/**",
+        "test/divergence-gate.test.js",
+        "test/divergence.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "src/divergence/**",
+        "test/divergence-gate.test.js",
+        "test/divergence.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    },
+    {
+      "id": "worker-5",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "src/graph/build.js",
+        "src/graph/cmd.js",
+        "src/graph/partition.js",
+        "src/graph/report.js",
+        "src/graph/scan.js",
+        "test/graph.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "src/graph/build.js",
+        "src/graph/cmd.js",
+        "src/graph/partition.js",
+        "src/graph/report.js",
+        "src/graph/scan.js",
+        "test/graph.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    },
+    {
+      "id": "worker-6",
+      "role": "worker",
+      "agentType": "graph-worker",
+      "model": "claude-sonnet-5",
+      "reads": [
+        "plugin/**",
+        "src/cli.js",
+        "src/watch/**",
+        "test/plugin-hooks.test.js",
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "writes": [
+        "plugin/**",
+        "src/cli.js",
+        "src/watch/**",
+        "test/plugin-hooks.test.js"
+      ],
+      "tools": [
+        "read",
+        "grep",
+        "edit"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "supervisor",
+      "to": "worker-1",
+      "kind": "dispatch"
+    },
+    {
+      "from": "supervisor",
+      "to": "worker-2",
+      "kind": "dispatch"
+    },
+    {
+      "from": "supervisor",
+      "to": "worker-3",
+      "kind": "dispatch"
+    },
+    {
+      "from": "supervisor",
+      "to": "worker-4",
+      "kind": "dispatch"
+    },
+    {
+      "from": "supervisor",
+      "to": "worker-5",
+      "kind": "dispatch"
+    },
+    {
+      "from": "supervisor",
+      "to": "worker-6",
+      "kind": "dispatch"
+    },
+    {
+      "from": "worker-1",
+      "to": "supervisor",
+      "kind": "report"
+    },
+    {
+      "from": "worker-2",
+      "to": "supervisor",
+      "kind": "report"
+    },
+    {
+      "from": "worker-3",
+      "to": "supervisor",
+      "kind": "report"
+    },
+    {
+      "from": "worker-4",
+      "to": "supervisor",
+      "kind": "report"
+    },
+    {
+      "from": "worker-5",
+      "to": "supervisor",
+      "kind": "report"
+    },
+    {
+      "from": "worker-6",
+      "to": "supervisor",
+      "kind": "report"
+    }
+  ],
+  "sharedState": [
+    {
+      "id": "frozen-surface",
+      "description": "files named from more than one partition. Read-only during fan-out; edits happen in a serial pre-step before a single worker starts.",
+      "files": [
+        "src/drift/snapshot.js",
+        "src/graph/index.js"
+      ],
+      "readers": [
+        "worker-1",
+        "worker-2",
+        "worker-3",
+        "worker-4",
+        "worker-5",
+        "worker-6",
+        "supervisor"
+      ],
+      "writers": []
+    }
+  ]
+}

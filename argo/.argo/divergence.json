@@ -1,0 +1,265 @@
+{
+  "root": "C:\\Claude\\AI Replication",
+  "mode": "live",
+  "model": "(cli default)",
+  "threshold": 0.35,
+  "repeats": 1,
+  "agents": [
+    {
+      "name": "agent-a"
+    },
+    {
+      "name": "agent-b"
+    }
+  ],
+  "probes": [
+    {
+      "id": "top-hub",
+      "kind": "path",
+      "question": "Which single file in this repository is imported or required by the most other files in the same repository? Answer with the repo-relative path only.",
+      "graphAnswer": "src/drift/snapshot.js",
+      "alternatives": [
+        "src/graph/build.js",
+        "src/baseline/tasks.js"
+      ]
+    },
+    {
+      "id": "entrypoint",
+      "kind": "path",
+      "question": "What is the entrypoint of this repository — the file that runs first when a user invokes it? Answer with the repo-relative path only.",
+      "graphAnswer": "test/baseline.test.js",
+      "alternatives": [
+        "test/drift.test.js",
+        "src/baseline/cmd.js"
+      ]
+    },
+    {
+      "id": "file-count",
+      "kind": "number",
+      "question": "How many source files does this repository contain, excluding dependencies, build output and dot-directories? Answer with a single number.",
+      "graphAnswer": "44",
+      "alternatives": [
+        "46",
+        "41"
+      ]
+    },
+    {
+      "id": "top-importer",
+      "kind": "path",
+      "question": "Which file in this repository imports or requires the most other files from this same repository? Answer with the repo-relative path only.",
+      "graphAnswer": "test/baseline.test.js",
+      "alternatives": [
+        "test/drift.test.js",
+        "src/baseline/cmd.js"
+      ]
+    }
+  ],
+  "samples": {
+    "agent-a": [
+      [
+        "src/graph/build.js"
+      ],
+      [
+        "src/cli.js"
+      ],
+      [
+        "65"
+      ],
+      [
+        "test/baseline.test.js is the winner with 5 distinct repo-file imports, more than any other file (all others cap at 4).\n\n**test\\baseline.test.js**"
+      ]
+    ],
+    "agent-b": [
+      [
+        "src/graph/build.js"
+      ],
+      [
+        "src/cli.js"
+      ],
+      [
+        "66"
+      ],
+      [
+        "src/graph/index.js"
+      ]
+    ]
+  },
+  "gate": "max",
+  "matrix": {
+    "agents": [
+      "agent-a",
+      "agent-b"
+    ],
+    "questionCount": 4,
+    "answers": {
+      "agent-a": [
+        "src/graph/build.js",
+        "src/cli.js",
+        "65",
+        "test/baseline.test.js is the winner with 5 distinct repo-file imports, more than any other file (all others cap at 4).\n\n**test\\baseline.test.js**"
+      ],
+      "agent-b": [
+        "src/graph/build.js",
+        "src/cli.js",
+        "66",
+        "src/graph/index.js"
+      ]
+    },
+    "pairs": [
+      {
+        "a": "agent-a",
+        "b": "agent-b",
+        "meanDivergence": 0.5,
+        "maxDivergence": 1,
+        "scoredQuestions": 4,
+        "perQuestion": [
+          {
+            "index": 0,
+            "divergence": 0
+          },
+          {
+            "index": 1,
+            "divergence": 0
+          },
+          {
+            "index": 2,
+            "divergence": 1
+          },
+          {
+            "index": 3,
+            "divergence": 1
+          }
+        ]
+      }
+    ],
+    "worstPair": {
+      "a": "agent-a",
+      "b": "agent-b",
+      "meanDivergence": 0.5,
+      "maxDivergence": 1,
+      "scoredQuestions": 4,
+      "perQuestion": [
+        {
+          "index": 0,
+          "divergence": 0
+        },
+        {
+          "index": 1,
+          "divergence": 0
+        },
+        {
+          "index": 2,
+          "divergence": 1
+        },
+        {
+          "index": 3,
+          "divergence": 1
+        }
+      ]
+    },
+    "worstQuestion": {
+      "index": 2,
+      "meanDivergence": 1,
+      "maxDivergence": 1
+    },
+    "fleetMean": 0.5,
+    "selfDivergence": {
+      "agent-a": null,
+      "agent-b": null
+    }
+  },
+  "consensus": [
+    {
+      "index": 0,
+      "level": "none",
+      "trapped": false,
+      "majority": [
+        "agent-a",
+        "agent-b"
+      ],
+      "dissenters": [],
+      "majorityAnswer": "src/graph/build.js",
+      "size": 2,
+      "note": "no cluster of three or more identical answers"
+    },
+    {
+      "index": 1,
+      "level": "none",
+      "trapped": false,
+      "majority": [
+        "agent-a",
+        "agent-b"
+      ],
+      "dissenters": [],
+      "majorityAnswer": "src/cli.js",
+      "size": 2,
+      "note": "no cluster of three or more identical answers"
+    },
+    {
+      "index": 2,
+      "level": "none",
+      "trapped": false,
+      "majority": [
+        "agent-a"
+      ],
+      "dissenters": [
+        "agent-b"
+      ],
+      "majorityAnswer": "65",
+      "size": 1,
+      "note": "no cluster of three or more identical answers"
+    },
+    {
+      "index": 3,
+      "level": "none",
+      "trapped": false,
+      "majority": [
+        "agent-b"
+      ],
+      "dissenters": [
+        "agent-a"
+      ],
+      "majorityAnswer": "src/graph/index.js",
+      "size": 1,
+      "note": "no cluster of three or more identical answers"
+    }
+  ],
+  "breaches": [
+    {
+      "a": "agent-a",
+      "b": "agent-b",
+      "meanDivergence": 0.5,
+      "maxDivergence": 1,
+      "scoredQuestions": 4,
+      "perQuestion": [
+        {
+          "index": 0,
+          "divergence": 0
+        },
+        {
+          "index": 1,
+          "divergence": 0
+        },
+        {
+          "index": 2,
+          "divergence": 1
+        },
+        {
+          "index": 3,
+          "divergence": 1
+        }
+      ],
+      "gatedOn": "max",
+      "gatedValue": 1
+    }
+  ],
+  "groundTruth": {
+    "agent-a": 0.9094,
+    "agent-b": 1
+  },
+  "errors": [],
+  "verdict": {
+    "level": "breach",
+    "message": "1 of 1 pair(s) exceed the 0.35 gate on worst-probe divergence. Worst: agent-a <-> agent-b at 1.000 (mean 0.500). They split hardest on: \"How many source files does this repository contain, excluding dependencies, build outpu...\". Two of your own agents answered the same question differently — averaging across probes is what would hide it."
+  }
+}

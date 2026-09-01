@@ -86,11 +86,13 @@ const AWS_SECRET = /\b(?:aws|amazon)[A-Za-z0-9_\- ]{0,24}(?:secret|access)[A-Za-
 // value guards below are what keep this from firing on `token: string` and on every prose
 // sentence containing the word "password".
 const SECRET_ASSIGN =
-  /\b([A-Za-z0-9_.\-]*(?:secret|token|password|passwd|api[_\-]?key|apikey|client[_\-]?secret|access[_\-]?key|auth[_\-]?token|credential|private[_\-]?key)[A-Za-z0-9_.\-]*)\s*[:=]\s*(?:['"`]([^'"`\n]{12,})['"`]|([^\s'"`,;)\]}]{12,}))/gi
+  /\b([A-Za-z0-9_.\-]*(?:secret|token|password|passwd|api[_\-]?key|apikey|client[_\-]?secret|access[_\-]?key|auth[_\-]?token|credential|private[_\-]?key)[A-Za-z0-9_.\-]*)\s*[:=]\s*(?:['"`]([^'"`\n]{12,})['"`]|([^\s'"`,;()\[\]{}<>=&|]{12,}))/gi
 
 // Values that look secret-shaped but are not: templates, env indirection, URLs, obvious
 // samples. Anchored forms first, then substrings that disqualify a value anywhere in it.
-const NOT_A_SECRET = /^(?:\{\{|\$\{|\$[A-Z_]|<|-|\.{0,2}\/|[A-Za-z]:[\\/]|https?:|process\.env|import\.meta|require\(|true$|false$|null$|undefined$|string$|number$|boolean$)|(?:\{\{|\}\}|\*{3}|x{6,}|redact|placeholder|changeme|your[_\-]|example|dummy|sample|fake|<[a-z-]+>)/i
+// `Ident.member` catches unquoted code expressions (`tokens = Math.round(...)`) that the
+// bare-value branch would otherwise read as an assigned credential.
+const NOT_A_SECRET = /^(?:\{\{|\$\{|\$[A-Z_]|<|-|\.{0,2}\/|[A-Za-z]:[\\/]|https?:|process\.env|import\.meta|require|[A-Za-z_$][A-Za-z0-9_$]*\.[A-Za-z_$]|true$|false$|null$|undefined$|string$|number$|boolean$)|(?:\{\{|\}\}|\*{3}|x{6,}|redact|placeholder|changeme|your[_\-]|example|dummy|sample|fake|<[a-z-]+>)/i
 
 // Lines whose long opaque strings are structurally explained: lockfile digests, inline
 // image payloads, integrity hashes. Skipping the entropy rule here is the single biggest

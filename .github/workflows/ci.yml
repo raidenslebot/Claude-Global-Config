@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# Nothing in this pipeline writes to the repo. This is a public mirror of a personal
+# ~/.claude directory, so the token handed to every step is read-only by construction.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # FIRST, and gating everything after it. This repo mirrors ~/.claude, which sits one
+      # directory away from .credentials.json (live Claude OAuth access + refresh tokens)
+      # and .claude.json (mcpOAuth client secrets). If a credential ever reaches the tree,
+      # the run stops here — before any later step can cache, log or publish it.
+      - name: Secret scan
+        run: node tools/scan-secrets.mjs
+
+      # doctor.mjs reports on a real machine's install: resolved node path, linked skills,
+      # hook registration in settings.json. A hosted runner has none of that, so every
+      # finding is machine-specific noise. Run it to prove it still executes, never let it
+      # fail the build.
+      - name: Config doctor (informational)
+        run: node tools/doctor.mjs --json || true
+
+      # sync.mjs --check diffs the live ~/.claude against what this repo has committed and
+      # exits 1 on any difference. That is the guard against the repo silently drifting
+      # behind the config it claims to mirror — someone edits ~/.claude by hand, never runs
+      # sync, and the published repo quietly stops matching reality. A hosted runner has no
+      # ~/.claude to compare against, so here it can only report "nothing tracked"; the
+      # check does its real work on a developer machine or a self-hosted runner. Kept in CI
+      # so the command stays exercised and cannot rot unnoticed.
+      - name: Config drift check
+        run: node tools/sync.mjs --check
+        continue-on-error: true
+
+      - name: argo test suite
+        working-directory: argo
+        # `npm ci` requires a committed lockfile. argo declares zero dependencies and has
+        # no lockfile yet, so fall back to install rather than breaking CI on a fresh
+        # checkout; --ignore-scripts either way, since nothing here needs postinstall.
+        #
+        # The package's test script passes a glob to node's test runner, which only expands
+        # globs itself on Node 21+. On the pinned Node 20 hand the runner the directory
+        # instead — it walks it recursively — so a real test failure still fails the build
+        # instead of being hidden behind a "pattern not found" error.
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --ignore-scripts
+          else
+            npm install --ignore-scripts --no-audit --no-fund
+          fi
+          if node -e 'process.exit(+process.versions.node.split(".")[0] >= 21 ? 0 : 1)'; then
+            npm test
+          else
+            node --test test/
+          fi

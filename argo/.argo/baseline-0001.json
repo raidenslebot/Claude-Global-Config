@@ -1,0 +1,524 @@
+{
+  "comparison": {
+    "label": "0001",
+    "workers": 3,
+    "meta": {
+      "tasksFile": "C:\\Claude\\AI Replication\\examples\\tasks.json",
+      "repeats": 1,
+      "model": null,
+      "dryRun": true,
+      "seed": 1337,
+      "stamp": null,
+      "taskErrors": [],
+      "probeErrors": []
+    },
+    "tasks": 8,
+    "solo": {
+      "passed": 6,
+      "total": 8,
+      "rate": 0.75,
+      "perTask": [
+        {
+          "id": "hub-identification",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 7701,
+          "costUsd": 0.02588,
+          "tokens": 7164,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "entrypoint",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 11631,
+          "costUsd": 0.040615,
+          "tokens": 11585,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        },
+        {
+          "id": "dependency-count",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 11522,
+          "costUsd": 0.040209,
+          "tokens": 11463,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        },
+        {
+          "id": "shared-surface-definition",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 6677,
+          "costUsd": 0.022039,
+          "tokens": 6012,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "speedup-model",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 4037,
+          "costUsd": 0.012139,
+          "tokens": 3042,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "coverage-metric",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 4806,
+          "costUsd": 0.015022,
+          "tokens": 3906,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "tests-pass",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 7698,
+          "costUsd": 0.025866,
+          "tokens": 7160,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "docs-exist",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 8149,
+          "costUsd": 0.027558,
+          "tokens": 7667,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        }
+      ]
+    },
+    "crew": {
+      "passed": 4,
+      "total": 8,
+      "rate": 0.5,
+      "perTask": [
+        {
+          "id": "hub-identification",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 15094,
+          "costUsd": 0.087991,
+          "tokens": 26149,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        },
+        {
+          "id": "entrypoint",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 22797,
+          "costUsd": 0.138092,
+          "tokens": 42285,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "dependency-count",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 22583,
+          "costUsd": 0.136712,
+          "tokens": 41840,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        },
+        {
+          "id": "shared-surface-definition",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 13087,
+          "costUsd": 0.074933,
+          "tokens": 21944,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "speedup-model",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 7913,
+          "costUsd": 0.041272,
+          "tokens": 11103,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "coverage-metric",
+          "attempts": 1,
+          "passes": 1,
+          "ms": 9420,
+          "costUsd": 0.051073,
+          "tokens": 14257,
+          "errors": 0,
+          "pass": true,
+          "rate": 1
+        },
+        {
+          "id": "tests-pass",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 15088,
+          "costUsd": 0.087944,
+          "tokens": 26134,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        },
+        {
+          "id": "docs-exist",
+          "attempts": 1,
+          "passes": 0,
+          "ms": 15972,
+          "costUsd": 0.093698,
+          "tokens": 27985,
+          "errors": 0,
+          "pass": false,
+          "rate": 0
+        }
+      ]
+    },
+    "rawDelta": {
+      "tasks": -2,
+      "rate": -0.25
+    },
+    "amplification": {
+      "regressions": 3,
+      "fixes": 1,
+      "amplification": 3,
+      "netDelta": -2
+    },
+    "cost": {
+      "soloUsd": 0.2093,
+      "crewUsd": 0.7117,
+      "soloMs": 62221,
+      "crewMs": 121954,
+      "soloTokens": 57999,
+      "crewTokens": 211697,
+      "ratio": 3.4,
+      "basis": "measured"
+    },
+    "requiredMargin": 0.12,
+    "rows": [
+      {
+        "id": "hub-identification",
+        "solo": true,
+        "crew": false,
+        "outcome": "regression",
+        "soloRate": 1,
+        "crewRate": 0
+      },
+      {
+        "id": "entrypoint",
+        "solo": false,
+        "crew": true,
+        "outcome": "fix",
+        "soloRate": 0,
+        "crewRate": 1
+      },
+      {
+        "id": "dependency-count",
+        "solo": false,
+        "crew": false,
+        "outcome": "both-fail",
+        "soloRate": 0,
+        "crewRate": 0
+      },
+      {
+        "id": "shared-surface-definition",
+        "solo": true,
+        "crew": true,
+        "outcome": "both-pass",
+        "soloRate": 1,
+        "crewRate": 1
+      },
+      {
+        "id": "speedup-model",
+        "solo": true,
+        "crew": true,
+        "outcome": "both-pass",
+        "soloRate": 1,
+        "crewRate": 1
+      },
+      {
+        "id": "coverage-metric",
+        "solo": true,
+        "crew": true,
+        "outcome": "both-pass",
+        "soloRate": 1,
+        "crewRate": 1
+      },
+      {
+        "id": "tests-pass",
+        "solo": true,
+        "crew": false,
+        "outcome": "regression",
+        "soloRate": 1,
+        "crewRate": 0
+      },
+      {
+        "id": "docs-exist",
+        "solo": true,
+        "crew": false,
+        "outcome": "regression",
+        "soloRate": 1,
+        "crewRate": 0
+      }
+    ],
+    "verdict": {
+      "level": "crew-subtracts",
+      "message": "The crew broke 3.00 tasks for every one it fixed. Raw rate moved -25.0%, but that average is hiding work the solo agent already had right. Cut the fan-out or shrink what the workers may touch."
+    },
+    "priorNote": "The 45% solo-success inflection point is a prior, not a law — it comes from one study on one model family. Your own measured rates override it; if this list is unrepresentative of your real work, the verdict is too.",
+    "rerunNote": "Re-run after every model upgrade. A better model raises the solo baseline, and a higher solo baseline is what makes a crew stop paying — this verdict expires on model releases, not dates."
+  },
+  "preview": [
+    {
+      "arm": "solo",
+      "command": "claude -p --output-format json   <- prompt on stdin (306 chars)"
+    },
+    {
+      "arm": "crew",
+      "command": "claude -p --output-format json   <- prompt on stdin (394 chars)"
+    }
+  ],
+  "runs": {
+    "solo": [
+      {
+        "id": "hub-identification",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 7701,
+        "costUsd": 0.02588,
+        "tokens": 7164,
+        "output": "[dry-run] simulated solo response for hub-identification (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.463)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "entrypoint",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": false,
+        "ms": 11631,
+        "costUsd": 0.040615,
+        "tokens": 11585,
+        "output": "[dry-run] simulated solo response for entrypoint (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.954)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "dependency-count",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": false,
+        "ms": 11522,
+        "costUsd": 0.040209,
+        "tokens": 11463,
+        "output": "[dry-run] simulated solo response for dependency-count (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.94)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "shared-surface-definition",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 6677,
+        "costUsd": 0.022039,
+        "tokens": 6012,
+        "output": "[dry-run] simulated solo response for shared-surface-definition (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.335)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "speedup-model",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 4037,
+        "costUsd": 0.012139,
+        "tokens": 3042,
+        "output": "[dry-run] simulated solo response for speedup-model (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.005)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "coverage-metric",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 4806,
+        "costUsd": 0.015022,
+        "tokens": 3906,
+        "output": "[dry-run] simulated solo response for coverage-metric (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.101)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "tests-pass",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 7698,
+        "costUsd": 0.025866,
+        "tokens": 7160,
+        "output": "[dry-run] simulated solo response for tests-pass (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.462)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "docs-exist",
+        "arm": "solo",
+        "repeat": 0,
+        "pass": true,
+        "ms": 8149,
+        "costUsd": 0.027558,
+        "tokens": 7667,
+        "output": "[dry-run] simulated solo response for docs-exist (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.519)",
+        "simulated": true,
+        "error": null
+      }
+    ],
+    "crew": [
+      {
+        "id": "hub-identification",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": false,
+        "ms": 15094,
+        "costUsd": 0.087991,
+        "tokens": 26149,
+        "output": "[dry-run] simulated crew response for hub-identification (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.463)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "entrypoint",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": true,
+        "ms": 22797,
+        "costUsd": 0.138092,
+        "tokens": 42285,
+        "output": "[dry-run] simulated crew response for entrypoint (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.954)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "dependency-count",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": false,
+        "ms": 22583,
+        "costUsd": 0.136712,
+        "tokens": 41840,
+        "output": "[dry-run] simulated crew response for dependency-count (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.94)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "shared-surface-definition",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": true,
+        "ms": 13087,
+        "costUsd": 0.074933,
+        "tokens": 21944,
+        "output": "[dry-run] simulated crew response for shared-surface-definition (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.335)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "speedup-model",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": true,
+        "ms": 7913,
+        "costUsd": 0.041272,
+        "tokens": 11103,
+        "output": "[dry-run] simulated crew response for speedup-model (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.005)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "coverage-metric",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": true,
+        "ms": 9420,
+        "costUsd": 0.051073,
+        "tokens": 14257,
+        "output": "[dry-run] simulated crew response for coverage-metric (check would pass)",
+        "detail": "simulated (seed 1337, difficulty 0.101)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "tests-pass",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": false,
+        "ms": 15088,
+        "costUsd": 0.087944,
+        "tokens": 26134,
+        "output": "[dry-run] simulated crew response for tests-pass (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.462)",
+        "simulated": true,
+        "error": null
+      },
+      {
+        "id": "docs-exist",
+        "arm": "crew",
+        "repeat": 0,
+        "pass": false,
+        "ms": 15972,
+        "costUsd": 0.093698,
+        "tokens": 27985,
+        "output": "[dry-run] simulated crew response for docs-exist (check would fail)",
+        "detail": "simulated (seed 1337, difficulty 0.519)",
+        "simulated": true,
+        "error": null
+      }
+    ]
+  }
+}

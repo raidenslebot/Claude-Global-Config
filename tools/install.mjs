@@ -185,17 +185,10 @@ if (wants('skills')) {
     }
   }
 
-  // Skills that live inside the argo plugin.
-  const argoSkills = join(REPO, 'argo', 'plugin', 'skills')
-  if (existsSync(argoSkills)) {
-    let n = 0
-    for (const name of readdirSync(argoSkills)) {
-      if (!existsSync(join(argoSkills, name, 'SKILL.md'))) continue
-      const r = linkDir(join(argoSkills, name), join(skillsDir, name))
-      if (r !== 'exists') n++
-    }
-    ok(`argo plugin skills (${n} newly linked)`)
-  }
+  // argo's skills, agents and commands are NOT linked here. They are delivered by the
+  // argonaut plugin (see the argo phase). Doing both double-loads all 22 of its
+  // components into every session for no benefit.
+  skip('argo skills — delivered by the argonaut plugin, not loose-linked')
 }
 
 // ── 4. argo CLI ─────────────────────────────────────────────────────────────
@@ -208,18 +201,27 @@ if (wants('argo')) {
     if (r.status === 0 || DRY) ok('argo linked globally (`argo graph .`, `argo diverge`, `argo drift`)')
     else warn(`npm link failed: ${String(r.stderr || '').split('\n')[0]} — run 'npm link' in ${argoDir} manually`)
 
-    // Agents and commands ship with the plugin; register them where Claude Code looks.
-    for (const kind of ['agents', 'commands']) {
-      const from = join(argoDir, 'plugin', kind)
-      if (!existsSync(from)) continue
-      const to = join(CONFIG_ROOT, kind)
-      mkdirSync(to, { recursive: true })
-      let n = 0
-      for (const f of readdirSync(from).filter((f) => f.endsWith('.md'))) {
-        if (!DRY) writeFileSync(join(to, f), readFileSync(join(from, f), 'utf8'), 'utf8')
-        n++
-      }
-      ok(`argo ${kind} installed (${n})`)
+    // Register argo as a proper local marketplace plugin rather than scattering its
+    // skills, agents and commands as loose files. The plugin route gives namespacing,
+    // a real uninstall, and one source of truth — copies in ~/.claude would shadow the
+    // repo and drift. Its 22 components cost ~1,559 tokens always-on.
+    const claudeBin = IS_WIN
+      ? join(HOME, '.local', 'bin', 'claude.exe')
+      : join(HOME, '.local', 'bin', 'claude')
+    const cli = existsSync(claudeBin) ? claudeBin : 'claude'
+    if (!existsSync(join(argoDir, '.claude-plugin', 'marketplace.json'))) {
+      warn('argo/.claude-plugin/marketplace.json missing — cannot register as a plugin')
+    } else {
+      const add = run(cli, ['plugin', 'marketplace', 'add', argoDir], { timeout: 120000 })
+      const addOut = String(add.stdout || '') + String(add.stderr || '')
+      if (add.status === 0 || /already/i.test(addOut) || DRY) ok('marketplace argonaut-local registered')
+      else warn(`marketplace add failed: ${addOut.split('\n')[0]}`)
+
+      const inst = run(cli, ['plugin', 'install', 'argonaut@argonaut-local'], { timeout: 120000 })
+      const instOut = String(inst.stdout || '') + String(inst.stderr || '')
+      if (inst.status === 0 || /already/i.test(instOut) || DRY) {
+        ok('argonaut plugin installed — 22 skills, 3 agents, 2 hooks')
+      } else warn(`plugin install failed: ${instOut.split('\n')[0]} — run: claude plugin install argonaut@argonaut-local`)
     }
   }
 }

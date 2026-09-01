@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Refuse any commit that would introduce a credential.
+# Wired by: git config core.hooksPath .githooks   (install.mjs does this)
+#
+# This exists because a human eyeballing grep output WILL eventually wave through a
+# match they assume is a false positive. The scanner distinguishes its own detection
+# patterns from real secrets; a person skimming does not.
+exec node "$(git rev-parse --show-toplevel)/tools/scan-secrets.mjs"

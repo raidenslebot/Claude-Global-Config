@@ -1,0 +1,25 @@
+{
+  "name": "argonaut-local",
+  "owner": {
+    "name": "argonaut",
+    "email": "aqwmaster21212@gmail.com"
+  },
+  "metadata": {
+    "description": "Graph Engineering for Claude Code — decide which agents may talk to which before you pay for a fleet.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "argonaut",
+      "source": "./plugin",
+      "description": "Measure the shared surface before fanning out, check the crew against a solo control, and catch it when the agent changes under you.",
+      "version": "0.1.0",
+      "keywords": [
+        "graph-engineering",
+        "multi-agent",
+        "agent-topology",
+        "fan-out"
+      ]
+    }
+  ]
+}

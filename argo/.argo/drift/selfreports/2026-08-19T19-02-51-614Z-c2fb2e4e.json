@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "kind": "self-report",
+  "capturedAt": "2026-08-19T19:02:51.614Z",
+  "label": "2.1.x post-reinstall",
+  "model": "claude-opus-5",
+  "source": "self-report",
+  "hash": "c2fb2e4e1fc114ab",
+  "declaredNone": false,
+  "gates": [
+    {
+      "text": "Do not call the AgentTool unless the user requested it",
+      "mechanisms": [
+        "agent-tool"
+      ],
+      "restrictions": [
+        "prohibition",
+        "conditional",
+        "user-gated"
+      ],
+      "isGate": true,
+      "score": 13
+    },
+    {
+      "text": "Do not use workflows or deep-research unless the user requested it",
+      "mechanisms": [
+        "workflow",
+        "deep-research"
+      ],
+      "restrictions": [
+        "prohibition",
+        "conditional",
+        "user-gated"
+      ],
+      "isGate": true,
+      "score": 14
+    }
+  ],
+  "mentions": [],
+  "confidence": {
+    "level": "strong",
+    "score": 14,
+    "note": "A named delegation mechanism restricted by a user-conditional. This is the shape of a gate."
+  },
+  "caveat": "Reported by the agent from its own context, not captured off the wire. Wording may be paraphrased. Confirm behaviourally: run one delegating task on two models and count the child tasks that start."
+}

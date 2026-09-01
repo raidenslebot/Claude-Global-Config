@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "tool": "argo drift",
+  "capturedAt": "2026-08-19T19:02:51.548Z",
+  "label": "post-reinstall, node 24",
+  "platform": "win32-x64",
+  "install": {
+    "found": false,
+    "source": null,
+    "root": null,
+    "otherRoots": [],
+    "packageName": null,
+    "packageVersion": null,
+    "versionFrom": null,
+    "cliVersion": "2.1.235",
+    "cliBin": "claude",
+    "files": [],
+    "skipped": [],
+    "bundlesRead": [],
+    "reason": "no claude-code install found on this machine"
+  },
+  "strings": {
+    "count": 0,
+    "scannedBytes": 0,
+    "truncated": false,
+    "limit": 20000,
+    "items": []
+  },
+  "config": {
+    "root": "C:\\Users\\Administrator\\.claude",
+    "entries": [
+      {
+        "path": "CLAUDE.md",
+        "kind": "memory",
+        "bytes": 5112,
+        "sha256": "325a216383f4fcd616d5dd74c457b24f79d300d98ed81befc713083ab7d4e2ae",
+        "lines": 54
+      },
+      {
+        "path": "hooks/react-doctor.mjs",
+        "kind": "hook",
+        "bytes": 4100,
+        "sha256": "32808317b56cb876906bc9db2a41b73ccb08534a30b86ea63be557654cd006a5"
+      },
+      {
+        "path": "hooks/restore-dispatch.js",
+        "kind": "hook",
+        "bytes": 1819,
+        "sha256": "b1c9632bf40f747c2aabce030492ce0a6f5cdd543e12c558e13e1d5e851d6ec7"
+      },
+      {
+        "path": "hooks/session-start-react-stack.js",
+        "kind": "hook",
+        "bytes": 540,
+        "sha256": "f3ba25e6e34d86d84bbf97f5302b21e1025d0438db6ba63b79f9ee1dd4accc2a"
+      },
+      {
+        "path": "hooks/session-start-security-stack.js",
+        "kind": "hook",
+        "bytes": 538,
+        "sha256": "8f2b65f7977c120a72232cd348f923ac593b8d45c6bbb1e97016f4bc47e22bdc"
+      },
+      {
+        "path": "hooks/session-start-ui-stack.js",
+        "kind": "hook",
+        "bytes": 540,
+        "sha256": "fdd5e83be68ece73696c4baeb713a4e48fdde289a5c617cdc1263a590511e3a1"
+      },
+      {
+        "path": "hooks/user-prompt-react-stack.js",
+        "kind": "hook",
+        "bytes": 993,
+        "sha256": "e0d54f295165b97258d458fa6abe8775d022946297fb32bd51e4ee229aff379b"
+      },
+      {
+        "path": "hooks/user-prompt-security-stack.js",
+        "kind": "hook",
+        "bytes": 729,
+        "sha256": "74c28f6f9509f58fe6dae6c58b07524ffe73fb88470cec70347c7263896bc06e"
+      },
+      {
+        "path": "hooks/user-prompt-ui-stack.js",
+        "kind": "hook",
+        "bytes": 732,
+        "sha256": "44cd0b11bfe90c780ac35a4966df73655c3b18de936b3b822c0d971ff53a94fe"
+      },
+      {
+        "path": "plugins/cache/",
+        "kind": "listing",
+        "bytes": 4,
+        "sha256": "35543953a6713675fe14d53aa39cd550d637ae5ef0e1d18768572224d9f87299",
+        "names": [
+          "anthropic-agent-skills",
+          "claude-plugins-official",
+          "ponytail",
+          "ralph-marketplace"
+        ]
+      },
+      {
+        "path": "plugins/installed_plugins.json",
+        "kind": "plugins",
+        "bytes": 2505,
+        "sha256": "e0b8be11e7123d778c167494cc6a660f7ce8c369c3375839713914ae699f57bf"
+      },
+      {
+        "path": "plugins/marketplaces/",
+        "kind": "listing",
+        "bytes": 4,
+        "sha256": "35543953a6713675fe14d53aa39cd550d637ae5ef0e1d18768572224d9f87299",
+        "names": [
+          "anthropic-agent-skills",
+          "claude-plugins-official",
+          "ponytail",
+          "ralph-marketplace"
+        ]
+      },
+      {
+        "path": "settings.json",
+        "kind": "settings",
+        "bytes": 2987,
+        "sha256": "c41371ba6db45af3438c967c9cc478570975196a30f0230d2d1ac5fb45d01f73",
+        "keys": [
+          "autoUpdatesChannel",
+          "enableWorkflows",
+          "enabledPlugins",
+          "enabledPlugins.claude-api@anthropic-agent-skills",
+          "enabledPlugins.document-skills@anthropic-agent-skills",
+          "enabledPlugins.example-skills@anthropic-agent-skills",
+          "enabledPlugins.ponytail@ponytail",
+          "enabledPlugins.ralph-skills@ralph-marketplace",
+          "enabledPlugins.superpowers@claude-plugins-official",
+          "extraKnownMarketplaces",
+          "extraKnownMarketplaces.anthropic-agent-skills",
+          "extraKnownMarketplaces.anthropic-agent-skills.source",
+          "extraKnownMarketplaces.anthropic-agent-skills.source.repo",
+          "extraKnownMarketplaces.anthropic-agent-skills.source.source",
+          "extraKnownMarketplaces.ponytail",
+          "extraKnownMarketplaces.ponytail.source",
+          "extraKnownMarketplaces.ponytail.source.repo",
+          "extraKnownMarketplaces.ponytail.source.source",
+          "extraKnownMarketplaces.ralph-marketplace",
+          "extraKnownMarketplaces.ralph-marketplace.source",
+          "extraKnownMarketplaces.ralph-marketplace.source.repo",
+          "extraKnownMarketplaces.ralph-marketplace.source.source",
+          "hooks",
+          "hooks.SessionStart",
+          "hooks.UserPromptSubmit",
+          "skipDangerousModePermissionPrompt",
+          "skipWorkflowUsageWarning",
+          "theme"
+        ]
+      },
+      {
+        "path": "settings.local.json",
+        "kind": "settings",
+        "bytes": 353,
+        "sha256": "31e25c7384b775847b09573fd1585caf1f7f23cc0a40145a782a8d507f5b7c84",
+        "keys": [
+          "permissions",
+          "permissions.allow"
+        ]
+      }
+    ],
+    "notes": []
+  },
+  "fingerprint": "bcf19b8bb8e57a2ff9bf7f5dd9291de8bf1c8903634b245f92c064259f84db5d",
+  "id": "2.1.235-bcf19b8b"
+}
