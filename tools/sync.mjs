@@ -73,12 +73,19 @@ const settingsPath = join(CONFIG_ROOT, 'settings.json')
 if (existsSync(settingsPath)) {
   const s = JSON.parse(readFileSync(settingsPath, 'utf8').replace(/^﻿/, ''))
   // Hook scripts can be registered from anywhere on this machine (a plugin dir, a sibling
-  // project). install.mjs gathers them all into {{CONFIG_ROOT}}\hooks, so normalise every
-  // script path to that single home here — otherwise the repo records a path that exists
-  // only on the machine that wrote it, and the hook is a silent no-op everywhere else.
+  // project). install.mjs gathers them all into <config>/hooks, so normalise every script
+  // path to that single home here — otherwise the repo records a path that exists only on
+  // the machine that wrote it, and the hook is a silent no-op everywhere else.
+  //
+  // FORWARD slashes, and {{CONFIG_ROOT:url}} so the root is forward-slashed too. A
+  // backslash is a literal filename character on POSIX, so the native Windows form
+  // produced dead hooks on every macOS and Linux install. Windows accepts forward
+  // slashes in file arguments, so one form serves both.
   const ABS_SCRIPT = /"[A-Za-z]:[^"]*[\\/]([\w.-]+\.(?:js|mjs|cjs))"/g
   const normalise = (cmd) =>
-    templatize(String(cmd), vars).replace(ABS_SCRIPT, (_m, base) => `"{{CONFIG_ROOT}}\\hooks\\${base}"`)
+    templatize(String(cmd), vars)
+      .replace(ABS_SCRIPT, (_m, base) => `"{{CONFIG_ROOT:url}}/hooks/${base}"`)
+      .replace(/\{\{CONFIG_ROOT\}\}[\\/]+hooks[\\/]+/g, '{{CONFIG_ROOT:url}}/hooks/')
 
   const hooks = {}
   for (const [event, groups] of Object.entries(s.hooks || {})) {

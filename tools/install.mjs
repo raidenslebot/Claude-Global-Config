@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, relative } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, buildVars, realize, unresolved } from './paths.mjs'
+import { spawnPlan, onPath } from '../argo/src/spawn.js'
 
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')
@@ -32,9 +33,21 @@ const warn = (m) => { say(`  \x1b[33mwarn\x1b[0m  ${m}`); results.push(['warn', 
 const fail = (m) => { say(`  \x1b[31mFAIL\x1b[0m  ${m}`); results.push(['fail', m]); failures++ }
 const wants = (p) => !ONLY || ONLY === p
 
+// Launch without a shell. On Windows a bare name like `npm` is really `npm.cmd`, and node
+// resolves only .com/.exe for a bare name — so `npm` gives ENOENT while `npm.cmd` gives
+// EINVAL (node refuses to exec a .cmd directly since the 2024 argument-injection CVE).
+// argo/src/spawn.js already solves this: resolve the real shim via PATH+PATHEXT, then
+// route .cmd/.bat through cmd.exe as its own argv entry, refusing any argument cmd.exe
+// would reinterpret rather than trying to out-quote two parsers at once.
 function run(cmd, argv, opts = {}) {
   if (DRY) { say(`  [dry] ${cmd} ${argv.join(' ')}`); return { status: 0, stdout: '' } }
-  return spawnSync(cmd, argv, { encoding: 'utf8', timeout: opts.timeout ?? 300000, shell: false, ...opts })
+  let file = String(cmd)
+  if (IS_WIN && !/[\\/]/.test(file)) file = onPath(file) || file
+  const plan = spawnPlan(file, argv)
+  if (plan.unsafe !== null) {
+    return { status: 1, stdout: '', stderr: `refusing to run via shim: argument would be reparsed by cmd.exe (${plan.unsafe})` }
+  }
+  return spawnSync(plan.file, plan.args, { encoding: 'utf8', timeout: opts.timeout ?? 300000, shell: false, ...opts })
 }
 
 /** Cross-platform directory link. Windows junctions need no admin rights; POSIX uses symlinks. */

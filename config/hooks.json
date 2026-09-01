@@ -5,25 +5,25 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-ui-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-ui-stack.js\"",
             "timeout": 15,
             "statusMessage": "Loading UI/design resource stack"
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-react-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-react-stack.js\"",
             "timeout": 15,
             "statusMessage": "Loading React tooling stack"
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-security-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-security-stack.js\"",
             "timeout": 15,
             "statusMessage": "Loading Security tooling stack"
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\session-start-graph.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-graph.js\"",
             "timeout": 10
           }
         ]
@@ -34,32 +34,32 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-ui-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-ui-stack.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-react-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-react-stack.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-security-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-security-stack.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\restore-dispatch.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/restore-dispatch.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-graph.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-graph.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT}}\\hooks\\user-prompt-visual.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-visual.js\"",
             "timeout": 10
           }
         ]
