@@ -140,7 +140,7 @@ has to be loaded up front. Only the skill *body* is free until use. Installing 1
 "100 skills available at no cost"; it is a fixed toll on every conversation, plus a hundred more
 triggers competing to match each request.
 
-This is why the repo tiers its library: 12 resident Tier-2 skills, and 800+ Tier-3 skills that
+This is why the repo tiers its library: 13 resident Tier-2 skills, and 800+ Tier-3 skills that
 live on disk at zero session cost and are found with `grep` over `library/INDEX.md`.
 
 **Fix.** `doctor.mjs` names the offenders rather than just the number — it prints the five

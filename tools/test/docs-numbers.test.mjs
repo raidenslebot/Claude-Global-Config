@@ -44,7 +44,7 @@ function numbersIn(relPath) {
   return { text, nums }
 }
 
-const DOCS = ['README.md', 'config/CLAUDE.md', 'config/ui-design-stack.md', 'docs/architecture.md']
+const DOCS = ['README.md', 'config/CLAUDE.md', 'config/ui-design-stack.md', 'docs/architecture.md', 'docs/troubleshooting.md']
 
 test('the tier-2 count stated in prose matches sources.json', () => {
   const actual = sources.tier2.length
