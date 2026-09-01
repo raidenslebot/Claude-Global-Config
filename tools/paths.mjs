@@ -98,7 +98,11 @@ export function templatize(text, vars) {
 
 /** Substitute tokens back to real paths. `:url` always renders forward-slashed. */
 export function realize(text, vars, { slash = 'native' } = {}) {
-  return text.replace(/\{\{([A-Z_]+)(:url)?\}\}/g, (m, key, url) => {
+  // [A-Z0-9_] — digits included. With [A-Z_] a token like {{T3MP3ST_ROOT}} matched
+  // nothing, so it was never substituted AND never reported unresolved: the guard below
+  // shared the blind spot with the substituter, and a broken path shipped into the live
+  // mandate telling Claude to cd somewhere that does not exist.
+  return text.replace(/\{\{([A-Z0-9_]+)(:url)?\}\}/g, (m, key, url) => {
     const v = vars[key]
     if (v === undefined) return m
     const s = String(v)
@@ -111,5 +115,5 @@ export function realize(text, vars, { slash = 'native' } = {}) {
 
 /** Any token left unresolved after install is a bug — report, don't ship silently. */
 export function unresolved(text) {
-  return [...new Set([...text.matchAll(/\{\{([A-Z_]+)(?::url)?\}\}/g)].map((m) => m[1]))]
+  return [...new Set([...text.matchAll(/\{\{([A-Z0-9_]+)(?::url)?\}\}/g)].map((m) => m[1]))]
 }

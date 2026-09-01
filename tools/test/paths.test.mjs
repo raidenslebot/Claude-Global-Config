@@ -6,12 +6,12 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { templatize, realize, unresolved, buildVars } from '../paths.mjs'
+import { templatize, realize, unresolved, buildVars, REPO } from '../paths.mjs'
 
 // A Windows-shaped table: spaces, backslashes, and one value that is a strict prefix of
 // another (HOME vs CONFIG_ROOT). All three properties have broken this code before.
@@ -167,4 +167,43 @@ test('buildVars produces absolute, non-empty values for every path this repo sub
 
 test('overrides passed to buildVars win over detection', () => {
   assert.equal(buildVars({ NODE: 'X:\\pinned\\node.exe' }).NODE, 'X:\\pinned\\node.exe')
+})
+
+// ── Regression: a token name containing a DIGIT ─────────────────────────────
+// Shipped bug. realize() and unresolved() both used /\{\{([A-Z_]+)\}\}/, which excludes
+// digits. {{T3MP3ST_ROOT}} therefore matched NEITHER: it was never substituted, and the
+// guard meant to catch that never reported it. A mandate shipped to the live config
+// telling Claude to cd into a literal "{{T3MP3ST_ROOT}}".
+//
+// The general lesson this pins: a validator written from the same assumption as the code
+// it validates cannot catch that assumption being wrong.
+
+test('a token whose name contains a digit is substituted, not silently ignored', () => {
+  const vars = { T3MP3ST_ROOT: 'C:\Claude\T3MP3ST', NODE: 'C:\Program Files\nodejs\node.exe' }
+  const out = realize('run inside `{{T3MP3ST_ROOT}}` with {{NODE}}', vars)
+  assert.ok(!out.includes('{{'), `a digit-bearing token survived substitution: ${out}`)
+  assert.ok(out.includes('C:\Claude\T3MP3ST'))
+})
+
+test('unresolved() reports a digit-bearing token rather than passing it as clean', () => {
+  // The guard must not share the substituter's blind spot.
+  assert.deepEqual(unresolved('see {{T3MP3ST_ROOT}}'), ['T3MP3ST_ROOT'])
+  assert.deepEqual(unresolved('see {{T3MP3ST_ROOT:url}}'), ['T3MP3ST_ROOT'])
+})
+
+test('a digit-bearing path round-trips templatize -> realize byte-identical', () => {
+  const vars = { T3MP3ST_ROOT: 'C:\Claude\T3MP3ST' }
+  const original = 'cd C:\Claude\T3MP3ST && npm run server'
+  assert.equal(realize(templatize(original, vars), vars), original)
+})
+
+test('no mandate in config/ ships an unresolved token of any shape', () => {
+  // Catches the class directly at the artifact, independent of the regex used to find it.
+  const dir = join(REPO, 'config')
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+    const text = readFileSync(join(dir, f), 'utf8')
+    const realized = realize(text, buildVars())
+    const left = realized.match(/\{\{[^}]{1,40}\}\}/g)
+    assert.equal(left, null, `${f} still holds ${left && left.join(', ')} after realize()`)
+  }
 })

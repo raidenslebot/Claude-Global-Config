@@ -86,20 +86,66 @@
       "url": "https://github.com/parkerhancock/browser-canvas.git",
       "rejected": true,
       "reason": "Requires local servers on ports 9847/3210/9224 to render anything. Its capability — previewing a live UI — is already native to Claude Code via the Browser pane and preview_start, so nothing is lost by excluding it."
+    },
+    {
+      "name": "asd-ste100-skill",
+      "url": "https://github.com/danyuchn/asd-ste100-skill.git",
+      "tier": 2,
+      "note": "Simplified Technical English (ASD-STE100) scoped to text a MACHINE parses without a human to resolve ambiguity: tool descriptions, error messages, inter-agent instructions, status reports. ~125 tokens resident. Directly relevant here — a skill description is English a model parses to decide dispatch, so this is the discipline that reduces trigger contention. Correctly refuses to reproduce the standard's copyrighted ~900-word dictionary from memory and points at the official free download instead."
     }
   ],
   "tier2": [
-    { "name": "gsap-web", "path": "web-animation-skills/skills/gsap-web" },
-    { "name": "svg-animation", "path": "web-animation-skills/skills/svg-animation" },
-    { "name": "lottie-animation", "path": "web-animation-skills/skills/lottie-animation" },
-    { "name": "60fps-animation", "path": "web-animation-skills/skills/60fps-animation" },
-    { "name": "accessible-animation", "path": "web-animation-skills/skills/accessible-animation" },
-    { "name": "micro-interaction", "path": "web-animation-skills/skills/micro-interaction" },
-    { "name": "page-transition-animation", "path": "web-animation-skills/skills/page-transition-animation" },
-    { "name": "glassmorphism", "path": "web-animation-skills/skills/glassmorphism" },
-    { "name": "ascii-animation", "path": "web-animation-skills/skills/ascii-animation" },
-    { "name": "threejs-webgl", "path": "claudedesignskills/plugins/individual/threejs-webgl/skills/threejs-webgl" },
-    { "name": "react-three-fiber", "path": "claudedesignskills/plugins/individual/react-three-fiber/skills/react-three-fiber" },
-    { "name": "web3d-integration-patterns", "path": "claudedesignskills/plugins/individual/web3d-integration-patterns/skills/web3d-integration-patterns" }
+    {
+      "name": "gsap-web",
+      "path": "web-animation-skills/skills/gsap-web"
+    },
+    {
+      "name": "svg-animation",
+      "path": "web-animation-skills/skills/svg-animation"
+    },
+    {
+      "name": "lottie-animation",
+      "path": "web-animation-skills/skills/lottie-animation"
+    },
+    {
+      "name": "60fps-animation",
+      "path": "web-animation-skills/skills/60fps-animation"
+    },
+    {
+      "name": "accessible-animation",
+      "path": "web-animation-skills/skills/accessible-animation"
+    },
+    {
+      "name": "micro-interaction",
+      "path": "web-animation-skills/skills/micro-interaction"
+    },
+    {
+      "name": "page-transition-animation",
+      "path": "web-animation-skills/skills/page-transition-animation"
+    },
+    {
+      "name": "glassmorphism",
+      "path": "web-animation-skills/skills/glassmorphism"
+    },
+    {
+      "name": "ascii-animation",
+      "path": "web-animation-skills/skills/ascii-animation"
+    },
+    {
+      "name": "threejs-webgl",
+      "path": "claudedesignskills/plugins/individual/threejs-webgl/skills/threejs-webgl"
+    },
+    {
+      "name": "react-three-fiber",
+      "path": "claudedesignskills/plugins/individual/react-three-fiber/skills/react-three-fiber"
+    },
+    {
+      "name": "web3d-integration-patterns",
+      "path": "claudedesignskills/plugins/individual/web3d-integration-patterns/skills/web3d-integration-patterns"
+    },
+    {
+      "name": "asd-ste100",
+      "path": "asd-ste100-skill"
+    }
   ]
 }

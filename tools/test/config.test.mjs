@@ -155,7 +155,11 @@ test('every tier2 entry names a skill and the path it is linked from', () => {
     assert.equal(typeof s.name, 'string', `tier2 entry without a name: ${JSON.stringify(s)}`)
     assert.ok(s.name.length, 'empty tier2 name')
     assert.equal(typeof s.path, 'string', `tier2 "${s.name}" has no path`)
-    assert.ok(s.path.includes('/'), `tier2 "${s.name}" path must be repo-relative with / separators — ${s.path}`)
+    // A skill may live at the ROOT of its repo (asd-ste100-skill, animate-skill,
+    // css-animation-skill all ship SKILL.md at the top level), so a path with no
+    // separator is legitimate. What must hold is that separators, when present, are
+    // forward slashes — a backslash here would not resolve on POSIX.
+    assert.ok(!s.path.includes('\\'), `tier2 "${s.name}" path must use / not \\ — ${s.path}`)
     assert.ok(!/^[A-Za-z]:|^[\\/]/.test(s.path), `tier2 "${s.name}" path must not be absolute — ${s.path}`)
   }
 })
