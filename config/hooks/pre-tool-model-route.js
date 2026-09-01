@@ -1,53 +1,139 @@
 #!/usr/bin/env node
 /**
- * pre-tool-model-route.js — set the model on every spawned agent AUTOMATICALLY.
+ * pre-tool-model-route.js — assign the model for every spawned agent. AUTHORITATIVELY.
  *
- * WHY THIS EXISTS RATHER THAN AN INSTRUCTION
- * A routing rule delivered as context still depends on the model reading it and choosing to
- * comply. This is a PreToolUse hook: it rewrites the Agent tool's input before the call runs,
- * so the policy is applied mechanically. Nothing has to remember it and nothing can skip it.
- * (Claude Code changelog: "PreToolUse hooks can now modify tool inputs", returned as
- * `hookSpecificOutput.updatedInput`.)
+ * This hook does not advise and it does not defer. It rewrites the Agent tool's input before
+ * the call runs (`hookSpecificOutput.updatedInput`), so the caller cannot spawn an agent on a
+ * model this file did not choose. A model passed by the caller is treated as a SUGGESTION and
+ * is overridden — an instruction that can be ignored is not a rule.
  *
- * TWO BEHAVIOURS
+ * ── THE SAFETY INVARIANT ───────────────────────────────────────────────────────────────────
  *
- * 1. PINNED SESSION -> STRIP the model option entirely.
- *    When the session runs a version the coarse aliases cannot express (Opus 4.7, Sonnet 4.6,
- *    Opus 4.8 ...), inheritance is the ONLY mechanism that reproduces that exact version:
- *    passing `opus` from an Opus 4.7 session may resolve to a different Opus. Removing the
- *    option is therefore not a preference, it is the only correct action — and it is purely
- *    mechanical, so it is safe to automate completely.
+ * A classifier over free text cannot be right every time, so it is built so its mistakes only
+ * ever fall in one direction:
  *
- * 2. CURRENT-GENERATION SESSION -> FILL IN a model only when the choice is unambiguous.
- *    An explicit choice already made by the caller is always respected. Otherwise the model is
- *    inferred from the agent type and the shape of the prompt, and ONLY when the signal is
- *    strong. When in doubt the option is left unset, which means inherit — the safe direction.
- *    A wrong downgrade costs quality silently, so this never guesses downward.
+ *   UNDER-assignment (too weak for the task) is a CORRECTNESS failure. The agent returns
+ *   something plausible and wrong, and nobody notices without redoing the work. This must be
+ *   impossible.
  *
- * Deliberately does NOT return a permissionDecision: the user's normal approval flow for
- * spawning agents is left exactly as it was. This hook adjusts an argument, it does not grant
- * permission.
+ *   OVER-assignment (stronger than needed) is a COST failure. It is visible, bounded, and
+ *   recoverable.
  *
- * Universal: no hardcoded path, no project assumption, node built-ins only. Exits 0 always and
- * emits nothing when it has no change to make.
+ * So: a downgrade below the session model requires a POSITIVE high-confidence signal that the
+ * task needs no judgment, AND the absence of any judgment signal. Ambiguity always resolves
+ * upward. That is what makes "never too low" structural rather than aspirational.
+ *
+ * Over-assignment is minimised the only honest way — by widening the high-confidence downgrade
+ * rules one measured case at a time, each pinned by a labelled corpus test. See
+ * tools/test/model-corpus.test.mjs; the gate there is ZERO under-assignments, with
+ * over-assignment reported as a number rather than assumed away.
+ *
+ * ── THE PINNED EXCEPTION ───────────────────────────────────────────────────────────────────
+ *
+ * When the session runs a version the coarse aliases cannot express (Opus 4.7, Sonnet 4.6,
+ * Opus 4.8 ...), every agent inherits and the option is stripped. Inheritance is the ONLY
+ * mechanism that reproduces an exact version: `opus` from an Opus 4.7 session may resolve to a
+ * different Opus. That case is purely mechanical, so it is absolute.
+ *
+ * Universal: no hardcoded path, no project assumption, node built-ins only. Never returns a
+ * permissionDecision — it sets an argument, it does not grant approval. Exits 0 always.
  */
 
 const fs = require('node:fs')
 
 const TAIL_BYTES = 256 * 1024
-
-/** Tools that spawn an agent. Both names are handled — the tool has been called Task and Agent. */
 const AGENT_TOOLS = /^(Agent|Task)$/i
 
-function readPayload() {
-  try {
-    return JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
-  } catch {
-    return {}
-  }
+/** Sentinel: remove the model option entirely so the agent inherits the session model. */
+const INHERIT = null
+
+// ── Signals ─────────────────────────────────────────────────────────────────────────────────
+// Each is deliberately narrow. A signal that fires broadly would either downgrade something it
+// should not (unsafe) or upgrade everything (useless).
+
+/** Work where being wrong is expensive and hard to detect. Vetoes every downgrade. */
+const JUDGMENT = new RegExp([
+  '\\b(design|architect|architecture|decide|decision|choose|recommend|evaluate|assess)\\b',
+  '\\b(trade-?offs?|approach|strategy|should we|best way|best approach|which is better)\\b',
+  '\\b(ambigu\\w+|unclear|figure out|work out|reason about|think through)\\b',
+  '\\b(refactor|redesign|rewrite|restructure|migrate|plan)\\b',
+  '\\b(root cause|diagnose|debug|why (is|does|did|are)|investigate)\\b',
+  '\\b(synthesi[sz]e|reconcile|resolve the|weigh|prioriti[sz]e)\\b',
+].join('|'), 'i')
+
+/** Checking someone else's work. High reasoning, but the context is handed to it. */
+const VERIFY = new RegExp([
+  '\\b(review|reviewing|verify|verif\\w+|validate|audit|auditing)\\b',
+  '\\b(adversarial|critique|scrutin\\w+|double-?check|sanity-?check)\\b',
+  '\\b(is (this|that|it) (correct|right|real|valid|sound|accurate))\\b',
+  '\\b(find (bugs|flaws|defects|vulnerabilities|problems|issues))\\b',
+  '\\b(security (review|audit)|threat model|check whether|confirm whether)\\b',
+  '\\b(does (this|it) (actually|really)|prove|disprove|refute)\\b',
+].join('|'), 'i')
+
+/** Carrying out a decision that is already stated. */
+const SPECIFIED = new RegExp([
+  '\\b(implement|apply|write|add|create) (the|this|these) (change|changes|fix|patch|spec|specification|plan|design|function|method|test|tests)\\b',
+  '\\baccording to the (spec|specification|plan|design|description)\\b',
+  '\\bas (described|specified|outlined|detailed) (above|below|in)\\b',
+  '\\b(port|translate|convert) (this|the) \\w+ (to|into)\\b',
+  '\\bwrite tests? (for|that cover) the\\b',
+].join('|'), 'i')
+
+/** Retrieval and mechanical transformation. No decision is required to do it correctly. */
+const MECHANICAL = new RegExp([
+  '\\b(list|enumerate|inventory|catalogue|catalog|tally|count) (all|every|each|the)\\b',
+  '\\b(find|locate) (all|every|each|the) (file|files|occurrence|occurrences|instance|instances|usage|usages|reference|references|line|lines|definition)\\b',
+  '\\b(grep|search) (for|the (codebase|repo|tree|files))\\b',
+  '\\b(which|what) files\\b',
+  '\\bwhere (is|are) (the|it|this)\\b',
+  '\\b(read|extract|collect|gather|report) (the|all|every)[^.]{0,40}\\b(and (list|report|return|output))\\b',
+  '\\brun (the )?(tests?|test suite|lint|linter|build|command)\\b',
+  '\\b(rename|reformat|reindent|sort|deduplicate) (all|every|the)\\b',
+].join('|'), 'i')
+
+/** Agent types whose job is fixed by their definition, regardless of prompt wording. */
+const TYPE_VERIFY = /review|verif|audit|critic|security|adversar|scan-verifier|patch-verifier/i
+const TYPE_SEARCH = /^(explore|.*:explore)$/i
+
+/**
+ * Decide the model for one dispatch.
+ *
+ * @returns {'haiku'|'sonnet'|'opus'|null} null means INHERIT (strip the option).
+ */
+function decide(input) {
+  const type = String((input && (input.subagent_type || input.subagentType)) || '')
+  const text = `${(input && input.description) || ''}\n${(input && input.prompt) || ''}`
+
+  // 1. Agent TYPE is the strongest signal: it is chosen deliberately and names the job.
+  //    A verifier type stays high even if its prompt reads mechanically.
+  if (TYPE_VERIFY.test(type)) return 'opus'
+
+  const judgment = JUDGMENT.test(text)
+
+  // 2. A read-only search agent may still be handed a judgment question. The type only
+  //    downgrades when nothing in the prompt asks it to decide something.
+  if (TYPE_SEARCH.test(type) && !judgment) return 'haiku'
+
+  // 3. Judgment vetoes EVERY downgrade. This is the invariant: anything that has to decide
+  //    for itself runs on the session model, whatever else the text looks like.
+  if (judgment) return INHERIT
+
+  // 4. Verification: named explicitly so a weaker session model never becomes the gate.
+  if (VERIFY.test(text)) return 'opus'
+
+  // 5. Specified work — the thinking is already in the prompt.
+  if (SPECIFIED.test(text)) return 'sonnet'
+
+  // 6. Pure retrieval and mechanical transformation.
+  if (MECHANICAL.test(text)) return 'haiku'
+
+  // 7. Unrecognised. Inherit: the safe direction, by construction.
+  return INHERIT
 }
 
-/** Model id on the most recent assistant message, or null. */
+// ── Session model ───────────────────────────────────────────────────────────────────────────
+
 function currentModel(transcriptPath) {
   if (!transcriptPath || typeof transcriptPath !== 'string') return null
   let text
@@ -85,41 +171,12 @@ function classify(model) {
   return routable ? 'routable' : 'pinned'
 }
 
-/**
- * Infer a model from the dispatch, or null to leave it unset (inherit).
- *
- * Only high-confidence signals downgrade. Everything ambiguous inherits, because a wrong
- * downgrade produces confident, plausible, wrong output that nobody notices — the expensive
- * failure. An unnecessary inherit only costs money, which is the cheap failure.
- */
-function inferModel(input) {
-  const type = String(input.subagent_type || input.subagentType || '').toLowerCase()
-  const text = `${input.description || ''}\n${input.prompt || ''}`.toLowerCase()
-
-  // Agent TYPE is the strongest signal: it is chosen deliberately and names the job.
-  if (/(^|[-:])explore$/.test(type) || type === 'explore') return 'haiku'
-  if (/review|verif|audit|critic|security|adversar/.test(type)) return 'opus'
-
-  // Verification language: never downgrade this work, and name opus so a weaker session model
-  // does not become the quality gate.
-  if (/\b(review|verify|verif\w+|audit|adversarial|is this (correct|real|right)|find (bugs|flaws)|critique|assess whether)\b/.test(text)) {
-    return 'opus'
+function readPayload() {
+  try {
+    return JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
+  } catch {
+    return {}
   }
-
-  // Purely mechanical retrieval. Requires an explicit "no judgment" shape AND the absence of
-  // any decision verb, so "find the best approach" is never mistaken for "find the file".
-  const mechanical = /\b(list|locate|find (all|every|the file|files|occurrences)|grep|search for|count|inventory|enumerate|which files|where is)\b/.test(text)
-  const judgment = /\b(decide|design|choose|recommend|architect|evaluate|trade-?off|should we|best (way|approach)|refactor|rewrite|fix|implement|why)\b/.test(text)
-  if (mechanical && !judgment) return 'haiku'
-
-  // Specified implementation: the decision is already in the prompt. Requires an explicit
-  // marker that a spec exists, not merely the word "implement".
-  if (/\b(implement|apply|write) (the|this) (change|fix|spec|specification|plan|patch)\b/.test(text)
-      || /\baccording to the (spec|plan|design)\b/.test(text)) {
-    return 'sonnet'
-  }
-
-  return null // unsure -> inherit
 }
 
 function main() {
@@ -131,23 +188,20 @@ function main() {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return
 
   const mode = classify(currentModel(payload.transcript_path))
-  if (!mode) return // model unknown: change nothing rather than guess
+  if (!mode) return // session model unknown: change nothing rather than guess
 
-  let updated = null
+  // AUTHORITATIVE. Whatever the caller passed, the decision is recomputed here. On a pinned
+  // session the answer is always INHERIT; otherwise it is whatever decide() returns.
+  const chosen = mode === 'pinned' ? INHERIT : decide(input)
 
-  if (mode === 'pinned') {
-    // The one fully mechanical case. Any override is wrong here, so remove it.
-    if ('model' in input) {
-      updated = { ...input }
-      delete updated.model
-    }
-  } else if (!input.model) {
-    // Respect an explicit choice; only fill in a blank.
-    const inferred = inferModel(input)
-    if (inferred) updated = { ...input, model: inferred }
-  }
+  const updated = { ...input }
+  if (chosen === INHERIT) delete updated.model
+  else updated.model = chosen
 
-  if (!updated) return // nothing to change; stay silent
+  // Only speak when something actually changes.
+  const had = 'model' in input ? input.model : undefined
+  const now = 'model' in updated ? updated.model : undefined
+  if (had === now) return
 
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
@@ -157,9 +211,15 @@ function main() {
   }))
 }
 
-try {
-  main()
-} catch {
-  // A hook that throws is worse than one that does nothing.
+// Exported so a labelled corpus can exercise the classifier directly, without spawning a
+// process per case. Running the file still behaves as a hook.
+module.exports = { decide, classify, INHERIT }
+
+if (require.main === module) {
+  try {
+    main()
+  } catch {
+    // A hook that throws is worse than one that does nothing.
+  }
+  process.exit(0)
 }
-process.exit(0)

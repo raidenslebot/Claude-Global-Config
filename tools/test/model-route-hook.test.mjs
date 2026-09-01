@@ -90,9 +90,20 @@ test('open-ended design inherits rather than being routed anywhere', (t) => {
   assert.equal(run('claude-opus-5', { prompt: 'Design the data model for this feature.' }, t), null)
 })
 
-test('an explicit model chosen by the caller is respected, not overwritten', (t) => {
-  assert.equal(run('claude-opus-5', { prompt: 'List every test file.', model: 'opus' }, t), null,
-    'a deliberate choice must win over inference')
+test('a model the caller passed is OVERRIDDEN — the hook is authoritative', (t) => {
+  // The whole point of moving this into a hook is that the caller cannot spawn an agent on a
+  // model the policy did not choose. Deferring to a passed value would make the rule advisory
+  // again, which is what it was before and what did not work.
+  const updated = run('claude-opus-5', { prompt: 'List every test file.', model: 'opus' }, t)
+  assert.ok(updated, 'an over-assigned model must be corrected, not accepted')
+  assert.equal(updated.model, 'haiku', 'pure retrieval is haiku regardless of what was passed')
+})
+
+test('a caller under-assigning a judgment task is corrected upward', (t) => {
+  // The dangerous direction. A caller asking haiku to make a design decision must not get it.
+  const updated = run('claude-opus-5', { prompt: 'Design the caching strategy for this service.', model: 'haiku' }, t)
+  assert.ok(updated, 'an under-assigned model must be corrected')
+  assert.equal('model' in updated, false, 'judgment work inherits the session model')
 })
 
 // ── Safety ──────────────────────────────────────────────────────────────────
