@@ -96,7 +96,8 @@ phase('Prerequisites')
     run('git', ['config', '--global', 'core.longpaths', 'true'])
     ok('git core.longpaths enabled (Windows MAX_PATH guard)')
   }
-  mkdirSync(CONFIG_ROOT, { recursive: true })
+  // --dry-run must change nothing, including creating the target directory.
+  if (!DRY) mkdirSync(CONFIG_ROOT, { recursive: true })
 }
 
 // ── 1. Mandate files ────────────────────────────────────────────────────────

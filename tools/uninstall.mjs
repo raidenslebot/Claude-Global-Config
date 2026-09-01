@@ -27,6 +27,7 @@ import {
 } from 'node:fs'
 import { join, basename, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { spawnPlan, onPath } from '../argo/src/spawn.js'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, buildVars } from './paths.mjs'
 
 const args = process.argv.slice(2)
@@ -58,9 +59,19 @@ const gone = (m) => {
   else { say(`  \x1b[32mok\x1b[0m    ${m}`); results.push(['ok', m]) }
 }
 
+// Same shell-less launch rule as install.mjs. On Windows a bare `npm` is really npm.cmd:
+// node resolves only .com/.exe for a bare name (ENOENT), and refuses to exec a .cmd
+// directly since the 2024 argument-injection CVE (EINVAL). Without this the plugin and
+// global-link removal silently warn instead of running, leaving half an install behind.
 function run(cmd, argv, opts = {}) {
   if (DRY) return { status: 0, stdout: '', stderr: '' }
-  return spawnSync(cmd, argv, { encoding: 'utf8', timeout: opts.timeout ?? 120000, shell: false, ...opts })
+  let file = String(cmd)
+  if (IS_WIN && !/[\\/]/.test(file)) file = onPath(file) || file
+  const plan = spawnPlan(file, argv)
+  if (plan.unsafe !== null) {
+    return { status: 1, stdout: '', stderr: `refusing to run via shim: cmd.exe would reparse ${plan.unsafe}` }
+  }
+  return spawnSync(plan.file, plan.args, { encoding: 'utf8', timeout: opts.timeout ?? 120000, shell: false, ...opts })
 }
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, ''))
@@ -267,7 +278,7 @@ phase('argo — plugin, marketplace, CLI')
 {
   const claudeBin = join(HOME, '.local', 'bin', IS_WIN ? 'claude.exe' : 'claude')
   const cli = existsSync(claudeBin) ? claudeBin : 'claude'
-  const onPath = existsSync(claudeBin) ||
+  const claudeAvailable = existsSync(claudeBin) ||
     spawnSync(IS_WIN ? 'where' : 'which', ['claude'], { encoding: 'utf8' }).status === 0
 
   const mktFile = join(REPO, 'argo', '.claude-plugin', 'marketplace.json')
@@ -276,7 +287,7 @@ phase('argo — plugin, marketplace, CLI')
     const mkt = readJson(mktFile)
     // Not having the CLI is a warning, never a failure: everything else here still
     // uninstalls, and the plugin can be removed by hand later.
-    if (!onPath) warn(`claude CLI not found — remove the plugin yourself: claude plugin uninstall ${(mkt.plugins || [{}])[0].name}@${mkt.name}`)
+    if (!claudeAvailable) warn(`claude CLI not found — remove the plugin yourself: claude plugin uninstall ${(mkt.plugins || [{}])[0].name}@${mkt.name}`)
     else {
       for (const p of mkt.plugins || []) {
         const r = run(cli, ['plugin', 'uninstall', `${p.name}@${mkt.name}`])
