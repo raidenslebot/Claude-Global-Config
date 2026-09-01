@@ -127,8 +127,20 @@ if (wants('hooks')) {
   for (const srcDir of hookSources) {
     if (!existsSync(srcDir)) continue
     for (const f of readdirSync(srcDir).filter((f) => /\.(js|mjs|cjs)$/.test(f))) {
-      const text = realize(readFileSync(join(srcDir, f), 'utf8'), vars, { slash: 'native' })
-      if (!DRY) writeFileSync(join(hooksDir, f), text, 'utf8')
+      // FORWARD slashes, always. A Windows path substituted into a JS string literal
+      // gets read as escapes: "C:\Users\npm" becomes "C:Users" + a newline + "pm".
+      // Node accepts forward slashes on Windows, so this is safe and unambiguous.
+      const dest = join(hooksDir, f)
+      const text = realize(readFileSync(join(srcDir, f), 'utf8'), vars, { slash: 'forward' })
+      if (!DRY) {
+        writeFileSync(dest, text, 'utf8')
+        // A hook with a syntax error fails silently at runtime. Catch it at install.
+        const chk = run(vars.NODE, ['--check', dest], { timeout: 20000 })
+        if (chk.status !== 0) {
+          fail(`hooks/${f} does not parse — ${String(chk.stderr || '').split('\n')[1] || 'syntax error'}`)
+          continue
+        }
+      }
       ok(`hooks/${f}`)
     }
   }

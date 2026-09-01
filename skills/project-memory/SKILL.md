@@ -236,15 +236,14 @@ node .claude/memory/build-index.mjs
 ```
 
 No dependencies, node ≥18. It reads the frontmatter of every `decisions/*.md` plus the unchecked
-lines of `questions.md` and `backlog.md`, and writes the routing table. Full file templates and
-a worked `INDEX.md` are in [`references/templates.md`](references/templates.md).
+lines of `questions.md` and `backlog.md`, and writes the routing table. Its freshness stamp is
+derived from the files' own dates rather than the clock, so re-running it with no changes
+produces a byte-identical file and never churns the git diff.
 
 ## Setting it up in a project
 
-First time in a repo: create `.claude/memory/`, copy `build-index.mjs`, create `questions.md`,
-`backlog.md`, `facts.md` with their frontmatter, and run the script. Do not seed it with
-invented content — an empty store that grows from real work beats a pre-populated one that
-nobody trusts.
+Bootstrap commands, a worked `INDEX.md` to calibrate against, and the pruning routine:
+[`references/setup.md`](references/setup.md).
 
 Do not create the directory speculatively. It earns existence the first time there is a real
 decision to record.
