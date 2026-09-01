@@ -211,6 +211,20 @@ if (wants('skills')) {
     }
   }
 
+  // Saved workflows: multi-agent procedures that are too structural to live in a skill.
+  // design-divergence is the mechanism behind creative-divergence -- N blind workers, one
+  // operator each, adversarial genericness scoring. Prose alone cannot enforce that.
+  const wfSrc = join(REPO, 'workflows')
+  if (existsSync(wfSrc)) {
+    const wfDest = join(CONFIG_ROOT, 'workflows')
+    mkdirSync(wfDest, { recursive: true })
+    let n = 0
+    for (const f of readdirSync(wfSrc).filter((f) => /.(js|mjs)$/.test(f))) {
+      if (!DRY) writeFileSync(join(wfDest, f), realize(readFileSync(join(wfSrc, f), 'utf8'), vars, { slash: 'forward' }), 'utf8')
+      n++
+    }
+    ok(`workflows installed (${n})`)
+  }
   // argo's skills, agents and commands are NOT linked here. They are delivered by the
   // argonaut plugin (see the argo phase). Doing both double-loads all 22 of its
   // components into every session for no benefit.

@@ -75,7 +75,13 @@ function main() {
     'entrances); decide what a two-second glance should learn and build hierarchy around ' +
     'it; refuse the templated "AI-made-this" look. "Fine" is the enemy — make one decision ' +
     'only this project would make. For React/Tailwind, also use the ui-design-stack ' +
-    'component libraries as the component layer under this taste layer.'
+    'component libraries as the component layer under this taste layer. ' +
+    'IF LOOKING DISTINCTIVE IS THE GOAL (hero, landing page, game UI, brand surface, art ' +
+    'direction), load `creative-divergence` FIRST and run its protocol, or the ' +
+    '`design-divergence` workflow for the full agent fan-out. The taste layer judges ' +
+    'whether a design is good; it does not generate one. Polishing your first idea only ' +
+    'polishes the average, and reaching for a component library while the concept is still ' +
+    'open adopts that library\'s opinion. Decide the concept, then build it fast.'
 
   process.stdout.write(
     JSON.stringify({

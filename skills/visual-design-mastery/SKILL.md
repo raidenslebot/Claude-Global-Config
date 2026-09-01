@@ -15,6 +15,29 @@ field, a terminal cell. This skill is the through-line. It carries the taste; th
 *specific and alive* instead of *safe and templated* — and you know exactly which move
 to make in the language in front of you.
 
+## Before the creed: decide WHAT, then judge how well
+
+This skill judges whether a design is good. It does not generate one. That distinction matters,
+because the default output of any model is the **centroid** — the average of every design it has
+seen — and a standard applied to the centroid yields a *well-executed* centroid. Competent, and
+forgettable.
+
+The creed below says "make one decision only this project would make" nine different ways. That
+is a demand, not a method. **The method is [`creative-divergence`](../creative-divergence/SKILL.md)**:
+mine the subject's own materials and motifs, generate several structurally different directions
+using explicit operators, apply the swap test — *replace the product name and content with a
+competitor's; does it still work? then you designed the category* — and commit to one without
+blending.
+
+Load it **first** whenever looking distinctive is the actual goal: a hero, a landing page, a game
+UI, a brand surface, an art direction. Skip it for a settings page or a checkout flow, where
+convention is the feature. Run the whole protocol with agents via the `design-divergence`
+workflow, whose workers are deliberately blind to each other — a worker that can see a sibling's
+direction converges on it, and converged workers reproduce the centroid.
+
+Then come back here to judge the execution. Divergence chooses *what*; this skill governs *how
+well*, and still wins on conflict.
+
 ## The creed
 
 1. **Intention beats default, every time.** Every value — a colour, a duration, a margin,
