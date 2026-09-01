@@ -76,6 +76,37 @@ phases in sequence, reading each result before the next, over one mega-agent.
 Do the work in the main thread yourself for architecture, security-critical
 judgment, genuine ambiguity, or trivial edits where a subagent is overkill.
 
+## MANDATORY Model Routing for spawned agents
+
+**Two mechanism facts.** A subagent **inherits the parent's model by default**, and the model
+option accepts **coarse aliases only** — `sonnet`, `opus`, `haiku`, `fable`. It cannot name a
+version.
+
+**THE EXCEPTION, and it overrides everything below.** If the main model is set to a specific
+version the aliases cannot express — **Opus 4.7, Sonnet 4.6, Opus 4.8**, or any other pinned
+selection — then **every** spawned agent, subagent and workflow agent runs on that same model.
+Pass **no** `model` option: not to the Agent tool, not to workflow `agent()` calls, not in agent
+frontmatter. Inheritance is the *only* mechanism that reproduces an exact version; passing
+`opus` from an Opus 4.7 session may silently resolve to a different Opus. Omitting the option is
+the instruction, not an oversight.
+
+**Otherwise, gauge each agent by TASK DIFFICULTY** — by the hardest decision it must make on its
+own, never by how much text it reads:
+
+| Difficulty | Model |
+|---|---|
+| Trivial, no judgment — search, locate, inventory, count, run tests, mechanical transforms | `haiku` |
+| Specified work, thinking already done — implement a decided change, tests to a spec, bounded refactor | `sonnet` |
+| Verification and review — is this correct, is this finding real, adversarial checking | `opus` (named explicitly) |
+| Genuinely hard — open design, unresolved ambiguity, synthesising conflicting results | **inherit** (omit) |
+
+Pair a `sonnet` coder with an `opus` reviewer: the gate is what makes the cheaper coder safe.
+**If you cannot state what the agent must NOT have to decide, do not downgrade it.** Fan-out
+width multiplies whichever you choose, so this matters most when there are many agents.
+
+A hook reads the session's actual model each prompt and states the applicable rule, so the policy
+is never stale. Full reasoning: skill `model-routing`.
+
 ## MANDATORY Graph Engineering — argo
 
 **Before dispatching more than one agent, measure the graph.** Multi-agent work
