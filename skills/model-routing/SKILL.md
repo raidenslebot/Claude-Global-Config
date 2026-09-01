@@ -150,6 +150,19 @@ Limits, stated plainly: a workflow whose `args` is a bare string cannot carry th
 inherits. And a script that omits the helper inherits — which is the safe direction, so a
 forgotten helper costs money, never correctness.
 
+This path depends on the harness honouring `updatedInput` for the Workflow tool — a contract
+that was **observed, not assumed**, and that an upgrade could change. The shipped workflow
+`probe-model-policy` returns the args a script actually received, spawning nothing. Run it
+after any Claude Code upgrade, or whenever a fan-out shows every worker on the session model:
+
+```
+Workflow({ name: 'probe-model-policy', args: { brief: 'probe' } })
+→ { policyPresent: true, sessionModel: '…', pinned: false, signalKeys: […], briefSurvived: 'probe' }
+```
+
+`policyPresent: false` means the hook is no longer reaching scripts and every fan-out is
+silently inheriting.
+
 ## How this composes
 
 `graph-engineering` decides **how many** agents and what they may read; this skill decides **what
