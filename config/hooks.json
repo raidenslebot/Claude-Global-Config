@@ -118,6 +118,17 @@
             "statusMessage": "Applying model routing"
           }
         ]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/pre-tool-workflow-policy.js\"",
+            "timeout": 10,
+            "statusMessage": "Injecting model policy into the workflow"
+          }
+        ]
       }
     ]
   }

@@ -115,6 +115,41 @@ decide.** If you cannot, it inherits.
 - **Setting a model in agent frontmatter "to be safe".** That silently overrides inheritance for
   every future session, including pinned ones, which is precisely the failure above.
 
+## Workflow fan-outs — a second dispatch path, covered separately
+
+The per-dispatch routing hook fires on the Agent tool. **Workflow agents never pass through
+it**: the Workflow runtime dispatches them directly. Left alone, every worker in a fan-out
+inherits the session model — correct on a pinned session, pure over-assignment on a routable
+one. That was observed: six workers on the top-tier model, one of them editing a single YAML
+file.
+
+So a second hook fires on the **Workflow tool call itself** and injects the session policy into
+the script's `args` before it runs:
+
+```js
+args.__modelPolicy = { sessionModel, pinned, signals }
+```
+
+The script applies the same classifier with a small helper (scripts cannot import anything, so
+it is inlined — the shipped `workflows/design-divergence.js` is the reference copy):
+
+```js
+const M = (prompt, extra) => {
+  const m = routeModel(POLICY, { prompt, ...(extra || {}) })
+  return m ? { model: m } : {}
+}
+agent(prompt, { label, phase, ...M(prompt) })
+```
+
+`routeModel` returns an alias or `undefined` (inherit), and returns `undefined` for **every**
+agent when `pinned` is true. Two gates keep this honest: the hook's copy of the signal
+vocabulary is held byte-identical to the routing hook's by test, and the shipped helper text is
+evaluated against `decide()` over the entire labelled corpus.
+
+Limits, stated plainly: a workflow whose `args` is a bare string cannot carry the policy and
+inherits. And a script that omits the helper inherits — which is the safe direction, so a
+forgotten helper costs money, never correctness.
+
 ## How this composes
 
 `graph-engineering` decides **how many** agents and what they may read; this skill decides **what

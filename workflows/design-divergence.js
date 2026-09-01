@@ -34,6 +34,40 @@ const OPERATORS = (input.operators && input.operators.length)
 
 const JUDGES = input.judgesPerDirection || 3
 
+// ── Model routing for workflow agents ────────────────────────────────────────────────────────
+// Workflow agents are dispatched by the runtime, not the Agent tool, so the per-dispatch
+// routing hook never sees them. A PreToolUse hook on the Workflow tool injects the session's
+// policy into args instead: { sessionModel, pinned, signals }. This helper applies the SAME
+// classifier. A test evaluates this exact function text against the routing hook's decide()
+// over the whole labelled corpus, so the two cannot drift.
+//
+// Returns a coarse alias, or undefined to INHERIT. Undefined always when pinned: inheritance is
+// the only mechanism that reproduces an exact version, so on a pinned session no agent may be
+// given a model at all. Ambiguity resolves upward — a wrong downgrade is a correctness failure.
+function routeModel(policy, input) {
+  if (!policy || policy.pinned || !policy.signals) return undefined
+  const S = policy.signals
+  const rx = (src) => new RegExp(Array.isArray(src) ? src.join('|') : src, 'i')
+  const type = String((input && (input.subagent_type || input.subagentType)) || '')
+  const text = `${(input && input.description) || ''}\n${(input && input.prompt) || ''}`
+  if (rx(S.TYPE_VERIFY).test(type)) return 'opus'
+  const judgment = rx(S.JUDGMENT).test(text)
+  if (rx(S.TYPE_SEARCH).test(type) && !judgment) return 'haiku'
+  if (judgment) return undefined
+  if (rx(S.VERIFY).test(text)) return 'opus'
+  if (rx(S.SPECIFIED).test(text)) return 'sonnet'
+  if (rx(S.MECHANICAL).test(text)) return 'haiku'
+  return undefined
+}
+// end routeModel
+
+const POLICY = (input && input.__modelPolicy) || null
+/** Spread into agent() opts: `{ model }` when routing applies, `{}` when the agent inherits. */
+const M = (prompt, extra) => {
+  const m = routeModel(POLICY, { prompt, ...(extra || {}) })
+  return m ? { model: m } : {}
+}
+
 const DNA_SCHEMA = {
   type: 'object',
   required: ['materials', 'motifs', 'palette', 'tempo', 'vernacular'],
@@ -83,7 +117,7 @@ const dna = await agent(
   `So mine the SUBJECT's actual artifacts — its own imagery, its interfaces, its fiction, its materials — and report what it is physically made of, its recurring geometry, colours SAMPLED from it (say where each came from), how it moves, and what it calls things in its own vocabulary.\n\n` +
   `Also report the laws its world obeys and the anti-patterns — what would instantly read as WRONG to someone who knows this subject well. Those constraints are worth more than any inspiration.\n\n` +
   `If the subject has no strong world of its own, derive the DNA from its domain instead: the materials, grammar and tempo of the activity it serves.`,
-  { label: 'dna', phase: 'DNA', schema: DNA_SCHEMA }
+  { label: 'dna', phase: 'DNA', schema: DNA_SCHEMA, ...M('extract the visual DNA of the subject: materials, motifs, palette, tempo, vernacular; do not design') }
 )
 
 phase('Diverge')
@@ -101,7 +135,7 @@ const directions = await parallel(OPERATORS.map((op) => () =>
     `- Do not hedge toward safety. A direction that could ship for any product in this category has failed.\n` +
     `- Before you answer, apply the swap test to yourself: swap the product name and content for a competitor's. If your design still works, throw it away and go further.\n` +
     `- State your riskiest decision plainly rather than hiding it.`,
-    { label: `direction:${op.key}`, phase: 'Diverge', schema: DIRECTION_SCHEMA }
+    { label: `direction:${op.key}`, phase: 'Diverge', schema: DIRECTION_SCHEMA, ...M('produce one design direction under a hard constraint and commit to it') }
   )
 ))
 
@@ -118,7 +152,7 @@ const judged = await parallel(directions.filter(Boolean).map((d) => () =>
           'Judge as a hostile art director whose only question is "have I seen this before?"',
           'Judge on whether the constraint was actually obeyed, or quietly abandoned once it got inconvenient.'][i % 3]}\n\n` +
       `Name specific centroid tells — features that are the category default wearing a costume. Grain, glow and a custom cursor on a generic layout is still a generic layout.`,
-      { label: `judge:${d.operator}:${i + 1}`, phase: 'Judge', schema: VERDICT_SCHEMA }
+      { label: `judge:${d.operator}:${i + 1}`, phase: 'Judge', schema: VERDICT_SCHEMA, ...M('adversarially review this design direction and verify whether it is genuinely specific or secretly generic') }
     )
   )).then((vs) => {
     const v = vs.filter(Boolean)
@@ -145,7 +179,7 @@ const decision = await agent(
   `THE RULE YOU MUST NOT BREAK: **commit to one direction and keep its internal logic pure.** Averaging several good directions reconstructs the centroid — that is exactly how "three strong concepts" becomes "a dark app with accent colours and some cards". You may graft AT MOST ONE element from a runner-up, and only if it does not contradict the winner's logic.\n\n` +
   `Deliver: the chosen direction and why it beat the others; the constraint that must be obeyed throughout; the concrete design system it implies (type, colour with real values from the DNA, spatial logic, motion law); what to build FIRST to prove the concept; and the specific centroid tells the judges found, as things to avoid during execution.\n\n` +
   `Also state plainly which directions were rejected and why — a rejected direction with its reasoning stops the idea being re-raised later, and belongs in project-memory.`,
-  { label: 'commit', phase: 'Commit', effort: 'high' }
+  { label: 'commit', phase: 'Commit', effort: 'high', ...M('choose one design direction from the ranked candidates and develop it into a brief') }
 )
 
 return {
