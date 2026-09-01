@@ -48,6 +48,16 @@ function syncFile(from, to, tmpl) {
   checked++
   const prev = existsSync(to) ? readFileSync(to, 'utf8') : null
   if (prev === text) return
+
+  // The repo is the source of truth, but sync copies live -> repo. So if the REPO file is
+  // newer than the live one, the edit being overwritten is the authored one: someone changed
+  // the repo and has not installed it yet. Refuse rather than silently reverting their work.
+  // (This ate a real edit before the guard existed.)
+  if (prev !== null && existsSync(to) && statSync(to).mtimeMs > statSync(from).mtimeMs + 1000) {
+    warnings.push(`${relative(REPO, to)} is NEWER than the live file — refusing to overwrite. `
+      + `Run: node tools/install.mjs   (then sync), or delete the repo copy to accept live.`)
+    return
+  }
   changed++
   if (CHECK) { console.log(`  DRIFT  ${relative(REPO, to)}`); return }
   mkdirSync(dirname(to), { recursive: true })

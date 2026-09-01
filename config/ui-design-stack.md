@@ -100,7 +100,13 @@ Floyd–Steinberg weights — engine-agnostic, transfers straight to MonoGame/sh
 | "Motion works but feels dead" | **`visual-design-mastery/references/animation-principles.md`** | Never install the 144-skill cross product. |
 
 ## Rules
-1. Before building any UI component, check the component libraries above for an existing implementation and adapt it — never build from scratch what already exists there.
+1. **The component libraries are for EXECUTION, never for deciding the concept.** Once you know
+   what you are building, check them before hand-rolling a carousel, a command palette or a
+   chart — reimplementing solved mechanics is waste. But reaching for them *first*, while the
+   concept is still open, is how work ends up looking like everything else: these libraries are
+   the average of current web design, and adapting one is adopting its opinion. Decide the idea
+   first (`creative-divergence`, or the `design-divergence` workflow), then use them to build it
+   fast. A library component that fights the concept gets rebuilt, not accepted.
 2. For animation, reach for Motion (React) or Anime.js **for UI motion** — don't hand-roll
    keyframe/rAF machinery a library already solves. This is not a ban on `requestAnimationFrame`:
    per-pixel and per-frame work (ASCII rendering, canvas/WebGL loops, generative fields, a hand-
