@@ -104,8 +104,23 @@ Pair a `sonnet` coder with an `opus` reviewer: the gate is what makes the cheape
 **If you cannot state what the agent must NOT have to decide, do not downgrade it.** Fan-out
 width multiplies whichever you choose, so this matters most when there are many agents.
 
-A hook reads the session's actual model each prompt and states the applicable rule, so the policy
-is never stale. Full reasoning: skill `model-routing`.
+**This is APPLIED AUTOMATICALLY — you do not have to pick, and you cannot forget.** A
+`PreToolUse` hook rewrites the Agent tool's input before every dispatch (`updatedInput`):
+
+- On a **pinned** session it **strips** any `model` option, forcing inheritance. That case is
+  purely mechanical, so it is fully automated and cannot be violated.
+- On a current-generation session it **fills in** a model only when the signal is unambiguous —
+  a reviewer/verifier agent type or verification language gets `opus`; pure retrieval with no
+  decision verb gets `haiku`; work explicitly scoped to a stated spec gets `sonnet`. Anything
+  ambiguous is left unset, which means inherit.
+- An explicit choice you made is always respected; the hook only fills a blank.
+
+The bias is deliberate: a wrong downgrade yields confident, plausible, wrong output that nobody
+notices, while an unnecessary inherit only costs money. So ambiguity always resolves upward. The
+hook never returns a permission decision — it adjusts an argument, it does not grant approval.
+
+A second hook states the applicable rule each prompt so the reasoning is visible. Full detail:
+skill `model-routing`.
 
 ## MANDATORY Graph Engineering — argo
 

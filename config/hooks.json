@@ -95,6 +95,19 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/pre-tool-model-route.js\"",
+            "timeout": 10,
+            "statusMessage": "Applying model routing"
+          }
+        ]
+      }
     ]
   }
 }

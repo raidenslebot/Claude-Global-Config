@@ -55,7 +55,7 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 | Phase | What |
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
-| **Hooks** | 10 hooks merged into `settings.json`, each pinned to an absolute Node path |
+| **Hooks** | 14 hooks merged into `settings.json`, each pinned to an absolute Node path |
 | **Skills** | `visual-design-mastery`, the argo skill set, and 13 Tier-2 animation/3D and technical-writing skills |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |

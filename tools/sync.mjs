@@ -125,7 +125,15 @@ if (existsSync(settingsPath)) {
 for (const t of [...TRACKED, ...TRACKED_DIRS.flatMap((d) =>
   existsSync(d.to) ? readdirSync(d.to).map((n) => ({ to: join(d.to, n) })) : [])]) {
   if (!existsSync(t.to)) continue
-  const left = readFileSync(t.to, 'utf8').match(/[A-Za-z]:[\\/](?:Users|Claude|Program Files)/g)
+  // Skip comment lines. A path inside a comment is inert — never parsed as a string literal,
+  // never resolved at runtime — so it is documentation, not a portability defect. Several
+  // shipped hooks deliberately DEMONSTRATE the escape bug using a real-looking path, and
+  // warning about those trains the reader to ignore this check.
+  const left = readFileSync(t.to, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(\/\/|\*|#)/.test(line))
+    .join('\n')
+    .match(/[A-Za-z]:[\\/](?:Users|Claude|Program Files)/g)
   if (left) warnings.push(`${relative(REPO, t.to)} still holds ${left.length} absolute path(s) — add a token in paths.mjs`)
 }
 
