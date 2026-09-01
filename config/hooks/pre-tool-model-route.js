@@ -175,10 +175,18 @@ function currentModel(transcriptPath) {
   } catch {
     return null
   }
+  // Scan backwards: the most recent fact about the model wins. A `/model` command is recorded
+  // as a user-side record before any assistant turn on the new model exists, so it must beat
+  // the last assistant message or a switch to a PINNED model would route by difficulty for one
+  // turn — the exact violation the pin rule forbids. Only the structured command form is
+  // matched; the plain "Set model to" confirmation can be quoted inside tool output.
   const lines = text.split(/\r?\n/).filter(Boolean)
   for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    const sw = line.match(/<command-name>\/model<\/command-name>[\s\S]{0,300}?<command-args>([A-Za-z0-9._\[\]-]{4,60})<\/command-args>/)
+    if (sw) return sw[1]
     let j
-    try { j = JSON.parse(lines[i]) } catch { continue }
+    try { j = JSON.parse(line) } catch { continue }
     const m = (j && j.message && j.message.model) || (j && j.model)
     if (typeof m === 'string' && m.length > 3) return m
   }
