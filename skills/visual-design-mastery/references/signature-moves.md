@@ -8,8 +8,8 @@ fight. Five is a template with effects on it.
 
 Every face named here is free (Google Fonts unless marked *Fontshare*), so there is never a
 reason to fall back to Inter. Load with `<link href="https://fonts.googleapis.com/css2?family=…&display=swap">`
-or self-host; `tools/screen-render.mjs` names any @font-face that failed to load. See a pairing and a
-palette set for real before choosing: `node tools/specimen.mjs --display "Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,300,0..100,0..1"
+or self-host; `cgc render` names any @font-face that failed to load. See a pairing and a
+palette set for real before choosing: `cgc specimen --display "Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,300,0..100,0..1"
 --text Archivo --mono "JetBrains Mono" --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"`
 renders the display line, the text at reading size, the pairing reversed, and every colour with its contrast
 against the surface and the ink. Google Fonts serves only the axes the URL requests — an axis left out
@@ -101,7 +101,7 @@ p { max-width: 66ch; line-height: 1.55; text-wrap: pretty; }
 - **Width as rhythm.** One variable face stepped through `wdth` per line (Anybody, Archivo):
   the block reads as a poster, not a paragraph.
 - **The wordmark leaves as paths.** Anything set in a face and sent to a shop, a cutter or an
-  embroiderer goes as outlines: `node tools/outline-text.mjs --font "<family:axes>" --text "…"
+  embroiderer goes as outlines: `cgc outline --font "<family:axes>" --text "…"
   --out mark.svg` — one `<path>`, the font's own kerning, the viewBox at the ink. Customise
   the letterforms from there; never ship live text.
 
@@ -246,9 +246,9 @@ purple→pink gradient, the acid accent on `#0a0a0a`, four pure greys, glass.
   report typeset as a printed ledger, with the thesis copy-edited in red".
 - **Ambition floor** — name the structural move (layout, material or motion). If the only
   moves are a font and a colour, the structure is still the default.
-- **The floor** — the numbers `tools/page-audit.mjs` holds, which are not taste: contrast 4.5:1
+- **The floor** — the numbers `cgc audit` holds, which are not taste: contrast 4.5:1
   for text, 3:1 for large text (≥ 24 px, or ≥ 18.66 px bold) — WCAG 1.4.3; tap targets ≥ 24 CSS px
   (WCAG 2.5.8; Apple's guideline is 44 pt), with a link inside running text exempt; reduced motion
   respected. A page that fails these is not finished, whatever it looks like.
-- **The look** — `node tools/screen-render.mjs page.html --mobile`, desktop and phone, at
+- **The look** — `cgc render page.html --mobile`, desktop and phone, at
   least twice. The first render is never the one to show.

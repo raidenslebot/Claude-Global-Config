@@ -58,25 +58,25 @@ unconditionally on conflict; the others add specificity under it, never replace 
 brochure, sticker, packaging, or anything on a t-shirt, hoodie, cap or tote: taste from
 `visual-design-mastery/references/print-and-physical.md`, concept from `creative-divergence`,
 craft from **`print-design`** or **`apparel-design`**, then **render** with
-`node tools/print-render.mjs` (HTML/SVG in physical units → PDF at trim + bleed, PNG proof, or a
+`cgc print` (HTML/SVG in physical units → PDF at trim + bleed, PNG proof, or a
 true-scale garment mockup, through the local headless Chromium) and **gate** with
-`node tools/print-lint.mjs` (type under the minimum, hairlines, rasters under 300 dpi, a page in
+`cgc print-lint` (type under the minimum, hairlines, rasters under 300 dpi, a page in
 pixels or without bleed all fail). A paragraph describing a card is not a deliverable.
 
 **Every other field is covered by `design-fields`** — logos and identity systems, favicons and
 app icons, icon sets, illustration systems, diagrams and infographics, social posts, stories
 and thumbnails, slide decks, email, packaging and labels, signage and wayfinding, banners and
 environments — with the real canvas, minimums and delivery format of each, its hero moves and
-its slop, and `node tools/screen-render.mjs <file> --preset <field>` for the exact pixels. A
+its slop, and `cgc render <file> --preset <field>` for the exact pixels. A
 field with no reference follows the same eight steps; the skill says how to find its spec.
 
 **The loop is mandatory, in every field, and has no pass count.** The first render is never
 the one shown. Render it (`screen-render` for screens, `print-render` for paper and fabric),
 look at the picture, name the weakest thing, fix it and extrapolate the fix, gate it
-(`node tools/slop-lint.mjs` — the fingerprint of AI-made design: the default face, the purple
+(`cgc lint` — the fingerprint of AI-made design: the default face, the purple
 gradient, the glass card, the three-card grid, the centred hero, emoji icons, the acid accent
 on near-black, the blurred blob, the stock copy — reported by a hook on every screen file
-written; then `node tools/page-audit.mjs <file> --mobile`, which measures the rendered page —
+written; then `cgc audit <file> --mobile`, which measures the rendered page —
 contrast on the real ground, faces that fell back, measure, text too small, widows, sideways
 scroll on a phone, tap targets, focus, reduced motion, the palette by area — and must show no
 failure; `print-lint` for paper), render again — and **fix and refine and improve and evolve
@@ -85,8 +85,28 @@ human professional's work in that field.** `creative-divergence` Step 4 carries 
 professional's questions that end it; the vocabulary with its parameters — faces and settings,
 palettes, layout grammars, materials, motion laws, image treatments — is
 `visual-design-mastery/references/signature-moves.md`. A face or a palette is chosen by looking at
-it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`
+it set, not by its name: `cgc specimen --display <face> --text <face> --palette <colours>`
 renders the pairing at display and reading size, reversed, with every colour and its contrast.
+
+**Anything that moves is judged in frames, never in source.** A duration and an easing keyword
+say nothing about how a move reads, and the most common animation defect of all is invisible in
+a diff: it never ran. The class was not applied, the trigger did not fire, the element was out
+of view, the library did not load — and the result gets described as "subtle" and shipped.
+`cgc motion <file> --duration <ms>` steps the page under a virtual clock — `performance.now`,
+`Date.now` and `requestAnimationFrame` are replaced before the page's own scripts run, and
+declarative animations are scrubbed by `currentTime`, so CSS, Web Animations, GSAP, Motion and
+any hand-rolled loop all advance exactly when told and the capture is identical on any machine
+— photographs every frame, and writes a contact sheet carrying the change under each frame and
+the measured curve plotted against the straight line. **Look at the sheet.** It reports what the
+source cannot: whether anything moved at all, the easing the frames actually show (a straight
+line is the absence of a decision), where the motion settles, whether one frame carries the
+whole change (it snaps, it does not move), and whether it still animates for a viewer who asked
+it not to. `--trigger hover:<selector>`, `--trigger click:<selector>` and `--trigger scroll`
+cover interaction and scroll-driven work; `--strict` exits non-zero on a dead, linear,
+jump-cut or reduced-motion failure. A hook reports every animating file that has not been
+watched, and names the tells it can already see in the source. The loop above does not change
+for motion: watch it, name the weakest frame, fix it, watch it again — until it moves the way a
+passionate professional would have made it move.
 
 **Technique layer (installed skills, per-library craft):** `gsap-web` (timelines, ScrollTrigger,
 pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animation`,

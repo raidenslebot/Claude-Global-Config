@@ -126,7 +126,7 @@ function parseArgs(argv) {
 }
 
 const HELP = `usage:
-  outline-text --font <file.ttf|otf|woff|woff2 | "Google Family[:axes]"> --text "<string>" [--size <px>]
+  cgc outline --font <file.ttf|otf|woff|woff2 | "Google Family[:axes]"> --text "<string>" [--size <px>]
                [--tracking <em>] [--wght N] [--wdth N] [--opsz N] [--ital 0|1] [--fill <colour>] [--pad <px>]
                [--units in|mm|pt] [--out <file.svg>] [--json]
 

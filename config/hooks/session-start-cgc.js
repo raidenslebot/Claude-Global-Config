@@ -205,7 +205,10 @@ function main() {
   const line = compose(ver, u, v, t)
   const extra = details(u)
   const fix = v && v.failed.length ? `\nStill failing after repair: ${v.failed.join('; ')} — run node ${tool('doctor.mjs')} and fix what it names.` : ''
-  const tests = t && t.fail ? `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.` : ''
+  const tests = t && t.fail
+    ? `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.`
+      + (t.failed && t.failed.length ? ` The failing case${t.failed.length === 1 ? ' is' : 's are'}: ${t.failed.join(' · ')}.` : '')
+    : ''
   const say = always
     ? 'The user sees this line too. Open your first reply with it, verbatim, on its own line, then answer the user; say nothing more about it unless it is DEGRADED or blocked, in which case add the fix in one sentence.'
     : 'Do not mention it unless it is DEGRADED or blocked.'

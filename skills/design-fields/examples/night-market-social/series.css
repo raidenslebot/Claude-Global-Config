@@ -1,6 +1,6 @@
 /* Night Market — the feed series. One template; the stalls are the variable (see directions.md).
-   Canvas 1080 × 1350 (ig-post). Render: node tools/screen-render.mjs post-1.html --preset ig-post
-   Gate:   node tools/slop-lint.mjs .   ·   node tools/page-audit.mjs post-1.html --viewport 1080x1350 */
+   Canvas 1080 × 1350 (ig-post). Render: cgc render post-1.html --preset ig-post
+   Gate:   cgc lint .   ·   cgc audit post-1.html --viewport 1080x1350 */
 
 @import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@900&family=JetBrains+Mono:wght@400;500&display=swap');
 

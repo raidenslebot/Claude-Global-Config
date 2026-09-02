@@ -2,8 +2,8 @@
 <!--
   The back carries everything the front refused. One typeface at two sizes; a rule; three
   contact lines, not seven. Text is 100% K (letterpress prints one ink — the spec sheet names it).
-  Render:  node tools/print-render.mjs back.html --size business-card-us --marks --png 300
-  Gate:    node tools/print-lint.mjs   back.html --size business-card-us
+  Render:  cgc print back.html --size business-card-us --marks --png 300
+  Gate:    cgc print-lint   back.html --size business-card-us
 -->
 <style>
   @page { size: 3.75in 2.25in; margin: 0; }

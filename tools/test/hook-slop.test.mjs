@@ -39,7 +39,7 @@ test('the template is reported with its fingerprints, the verdict, and the revie
   assert.match(ctx, /gradient-purple/)
   assert.match(ctx, /hero-centroid/)
   assert.match(ctx, /Do not decorate it/)
-  assert.match(ctx, /screen-render/)
+  assert.match(ctx, /cgc render/)
 })
 
 test('one strong tell is enough to report, worded as a default to replace', (t) => {

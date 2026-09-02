@@ -100,7 +100,7 @@ function parseArgs(argv) {
 }
 
 const HELP = `usage:
-  specimen --display <Google Fonts family[:axes]> --text <family[:axes]> [--mono <family>] [--italic]
+  cgc specimen --display <Google Fonts family[:axes]> --text <family[:axes]> [--mono <family>] [--italic]
            [--palette "<css colour>,<css colour>,…"] [--words "<display line>"] [--out <base>] [--no-render]
 
 Writes <base>.html and renders <base>-1440.png (full page). The first palette colour is the

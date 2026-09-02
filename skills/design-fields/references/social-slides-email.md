@@ -7,7 +7,7 @@ mangled by Outlook. The design decision is made against *that* surface. **[C]** 
 
 ## The canvases
 
-Render each with `node tools/screen-render.mjs post.html --preset <name>` for the exact pixels.
+Render each with `cgc render post.html --preset <name>` for the exact pixels.
 
 | Preset | Size | Notes |
 |---|---|---|
@@ -54,7 +54,7 @@ Render each with `node tools/screen-render.mjs post.html --preset <name>` for th
 - **Charts on slides**: one series emphasised, the axis labelled once, the takeaway *as the
   title* ("Costs fell 40% after the gate"), never "Figure 3".
 - **Format**: 16:9; HTML slides render exactly with `--preset slide`; PDF export at 1920 ×
-  1080 via `print-render --trim 20x11.25in --bleed 0` for a deck that must travel [D].
+  1080 via `cgc print --trim 20x11.25in --bleed 0` for a deck that must travel [D].
 
 ## Email — designed for the worst client in the list
 
@@ -73,7 +73,7 @@ Render each with `node tools/screen-render.mjs post.html --preset <name>` for th
 - **The move** here is restraint executed perfectly: one face at three sizes, one signal
   colour, generous line-height, a real hierarchy, and the one link that matters styled as a
   bulletproof button (a table cell with padding and a background) [D].
-- **Proof**: `screen-render --preset email --full`, then a real send to two clients [N].
+- **Proof**: `cgc render --preset email --full`, then a real send to two clients [N].
 
 ## Slop to recoil from
 

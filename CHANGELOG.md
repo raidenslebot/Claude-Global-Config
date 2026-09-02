@@ -5,6 +5,34 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.10.0 — 2026-09-02
+
+Two defects, both of the same kind: a standard that could not be checked where it mattered.
+
+- **Every gate this package ships was unrunnable outside this repository.** The skills and
+  mandates named their commands as repo-relative paths — `node tools/slop-lint.mjs page.html` —
+  and that resolves only when the working directory happens to be this clone. In any other
+  project it throws `MODULE_NOT_FOUND`, so the lint, the audit, the renders and the print
+  checks never ran, and nothing was gated. Which is exactly what a user reported: the design
+  work was fine here and slop everywhere else. There is now one global command, `cgc`, linked
+  onto PATH by the install (`npm link`, under the `deps` phase); 87 invocations across 46
+  shipped files were rewritten to use it; the doctor fails if it is not resolvable; and a test
+  refuses any shipped file that names a path relative to this repo.
+
+- **Nothing in the package had ever watched an animation.** Motion was reviewed by reading the
+  easing keyword out of the CSS, which cannot see the defect that matters most — that it never
+  ran. New tool `cgc motion`: it replaces `performance.now`, `Date.now` and
+  `requestAnimationFrame` before the page's scripts run and scrubs declarative animations by
+  `currentTime`, so CSS, Web Animations, GSAP, Motion and any rAF loop advance deterministically;
+  it photographs every frame and writes a contact sheet with the change under each frame and the
+  measured curve against the straight line. From the pixels it reports whether anything moved,
+  the easing the frames actually show, where the motion settles, whether one frame carries the
+  whole change, and whether it still animates under `prefers-reduced-motion` — verified by
+  re-capturing that way, not by grepping for the query. New hook `post-tool-motion.js` reports
+  every animating file that has not been watched and names the tells visible in the source.
+  The loop in `CLAUDE.md` now covers motion on the same terms as every other surface.
+
+- Fixed: `slop-lint` exited 0 on a file that does not exist and 1 on `--help`.
 ## 1.9.1 — 2026-09-02
 
 Found by doing the thing the package promises and had never been tested: cloning it from

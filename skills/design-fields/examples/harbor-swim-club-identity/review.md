@@ -1,9 +1,9 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs brand-sheet.html --full` and the icon master with
-`--preset app-icon`; gated with `slop-lint` (clean) and `node tools/page-audit.mjs
+Rendered with `cgc render brand-sheet.html --full` and the icon master with
+`--preset app-icon`; gated with `slop-lint` (clean) and `cgc audit
 brand-sheet.html --mobile`; the tee's mark, which now carries the outlined wordmark, re-gated
-with `print-lint --method screen` and re-rendered as a mockup.
+with `cgc print-lint --method screen` and re-rendered as a mockup.
 
 ## Pass 1
 

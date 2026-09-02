@@ -363,6 +363,23 @@ if (wants('deps')) {
   }
 }
 
+// ── 4c. The design toolkit on PATH ───────────────────────────────────────────
+// Without this, every command the skills name — `cgc lint`, `cgc audit`, `cgc render` — is a
+// command the machine does not have, and the gates silently never run outside this repository.
+// That is not a convenience: it is the difference between a mandate that is checked and one
+// that is decoration.
+if (wants('deps')) {
+  phase('Design toolkit on PATH')
+  const already = run(IS_WIN ? 'where' : 'which', ['cgc'])
+  if (already.status === 0 && !DRY) skip('cgc already on PATH')
+  else {
+    const r = run('npm', ['link'], { cwd: REPO, timeout: 180000 })
+    if (r.status === 0 || DRY) ok('cgc linked globally — `cgc lint`, `cgc audit`, `cgc render`, `cgc print` work in any project')
+    else warn(`npm link failed in ${REPO} — the skills' commands will not resolve elsewhere. `
+      + `Run 'npm link' there by hand, or invoke the tools as node "${join(REPO, 'tools', 'cgc.mjs')}" <command>.`)
+  }
+}
+
 // ── 5. Global npm packages ──────────────────────────────────────────────────
 if (wants('npm') && !SKIP.has('npm')) {
   phase('Global npm packages')

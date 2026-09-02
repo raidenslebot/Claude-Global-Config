@@ -67,11 +67,11 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | Phase | What |
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
-| **Hooks** | 19 hooks merged into `settings.json`, each pinned to an absolute Node path — including the session-start check that updates, verifies and repairs the install |
+| **Hooks** | 20 hooks merged into `settings.json`, each pinned to an absolute Node path — including the session-start check that updates, verifies and repairs the install |
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
 | **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `design-fields`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills. A skill already present under one of these names is moved to `~/.claude/.cgc-replaced/` and replaced; a plugin known to shadow them (`open-design`) is disabled |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
-| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen); `tools/outline-text.mjs` (any text as one SVG path with the font's own kerning — the outlined wordmark every shop asks for) |
+| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) `tools/motion-render.mjs` (the animation stepped under a virtual clock and photographed frame by frame, with the real easing curve measured from the pixels) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen); `tools/outline-text.mjs` (any text as one SVG path with the font's own kerning — the outlined wordmark every shop asks for) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -106,11 +106,11 @@ folds, die-cuts) and `apparel-design` (screen print / DTG / embroidery / HTV con
 zones in inches, garment colour as artwork, SVG garment flats). And the output is a file:
 
 ```bash
-node tools/print-render.mjs card.html --size business-card-us --marks --png 300   # PDF at trim+bleed, PNG proof
-node tools/print-render.mjs front.html back.html --size business-card-us --marks  # one two-page PDF
-node tools/print-lint.mjs   ./card --size business-card-us                        # every side; fails on what the press would reject
-node tools/print-render.mjs mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150 --presentation
-node tools/print-render.mjs poster.html --size poster-18x24 --distance 40ft,10ft,2ft   # the far read, proved
+cgc print card.html --size business-card-us --marks --png 300   # PDF at trim+bleed, PNG proof
+cgc print front.html back.html --size business-card-us --marks  # one two-page PDF
+cgc print-lint   ./card --size business-card-us                        # every side; fails on what the press would reject
+cgc print mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150 --presentation
+cgc print poster.html --size poster-18x24 --distance 40ft,10ft,2ft   # the far read, proved
 ```
 
 `--distance` is the one proof a full-size render cannot give: a piece seen from *D* subtends what
@@ -128,6 +128,36 @@ placement sheet, so the shape of a finished piece is on disk before the first on
 The renderer drives the headless Chromium already installed for the Playwright MCP — nothing
 new to install, no account. It writes RGB and says so; the skill says what to hand an offset shop.
 
+
+### Motion — the animation watched, not read
+
+Every other check in this package reads the source: the easing keyword, the duration, the
+reduced-motion query. None of them can tell you the thing that decides whether motion is any
+good — that the element snaps, that a third of the timeline is dead air, that nothing moved at
+all because the class was never applied. That is only visible in frames, and a diff has none.
+
+```bash
+cgc motion page.html --duration 800 --frames 14        # the whole timeline, photographed
+cgc motion page.html --trigger hover:.card --duration 250
+cgc motion page.html --trigger click:"button.menu"
+cgc motion page.html --trigger scroll --frames 16      # scroll-driven work, scrubbed
+```
+
+It replaces `performance.now`, `Date.now` and `requestAnimationFrame` before the page's own
+scripts run, and scrubs every CSS animation, transition and Web Animation by `currentTime`. GSAP,
+Motion, a hand-rolled rAF loop and a plain `@keyframes` therefore all advance only when the tool
+says so — the same page yields the same frames on any machine, at any CPU speed. It writes the
+frames and a contact sheet: every frame in order with its change bar, and the cumulative curve
+drawn against the straight line.
+
+From those pixels it reports what the source cannot — whether anything moved at all (the most
+common animation defect there is, and the one that ships described as "subtle"), the easing the
+frames actually show, where the motion settles, whether one frame carries the whole change, and
+whether it still animates under `prefers-reduced-motion: reduce`, which it verifies by capturing it
+again that way rather than by looking for the media query. A hook reports every animating file
+that has not been watched, naming the tells already visible in the source: linear easing,
+`transition: all`, the bare `ease` default, an animated layout property, a missing
+reduced-motion branch. `--strict` turns the failures into a non-zero exit.
 ### Screens — the gate, the proof, and the loop
 
 The model's first design is the centroid of every design it has seen, and the centroid has a
@@ -137,13 +167,18 @@ blob, copy that says "seamless". None is wrong alone; four together is the templ
 `tools/slop-lint.mjs` finds them by pattern, names each with its line and what a decision would
 look like instead, and a hook reports the result on every screen file as it is written.
 
+Every one of these is a **global command**, `cgc`, linked at install. That matters more than it
+sounds: the gates are named by skills that are read in *other* projects, and a command written
+`node tools/slop-lint.mjs` resolves only inside this repository — everywhere else it fails, and a
+gate that fails is a gate that never ran.
+
 ```bash
-node tools/slop-lint.mjs page.html                  # verdict: clean / fingerprints / centroid (exit 1)
-node tools/screen-render.mjs page.html --mobile     # page-1440.png and page-390.png; names fonts that failed
-node tools/screen-render.mjs post.html --preset ig-post   # 1080×1350 exactly; story, yt-thumb, og, slide, email, app-icon…
-node tools/page-audit.mjs page.html --mobile        # FAIL: contrast, a face that fell back, text under 10px, sideways scroll, tap targets under 24px
-node tools/specimen.mjs --display "Fraunces:ital,opsz,wght@1,9..144,300" --text Archivo --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"
-node tools/outline-text.mjs --font "Archivo:wdth,wght@75,600" --text HARBOR --tracking 0.14 --wdth 75 --wght 600 --out wordmark.svg
+cgc lint page.html                                  # verdict: clean / fingerprints / centroid (exit 1)
+cgc render page.html --mobile     # page-1440.png and page-390.png; names fonts that failed
+cgc render post.html --preset ig-post   # 1080×1350 exactly; story, yt-thumb, og, slide, email, app-icon…
+cgc audit page.html --mobile        # FAIL: contrast, a face that fell back, text under 10px, sideways scroll, tap targets under 24px
+cgc specimen --display "Fraunces:ital,opsz,wght@1,9..144,300" --text Archivo --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"
+cgc outline --font "Archivo:wdth,wght@75,600" --text HARBOR --tracking 0.14 --wdth 75 --wght 600 --out wordmark.svg
 ```
 
 `page-audit` exists because a screenshot clips to the viewport: the example page below scrolled

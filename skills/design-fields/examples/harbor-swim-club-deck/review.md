@@ -1,7 +1,7 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs slide-NN.html --preset slide` (1920 × 1080 exactly, one
-PNG per slide); gated with `slop-lint .` (clean) and `node tools/page-audit.mjs slide-NN.html
+Rendered with `cgc render slide-NN.html --preset slide` (1920 × 1080 exactly, one
+PNG per slide); gated with `cgc lint .` (clean) and `cgc audit slide-NN.html
 --viewport 1920x1080` on every slide that carries more than a number (no failures, no warnings).
 The audit passed every slide on the first pass; the eye did not.
 

@@ -158,17 +158,17 @@ the safe zone. A minimal card, front:
 <div class="sheet"><div class="safe">…</div></div>
 ```
 
-**2 · Render.** `node tools/print-render.mjs card-front.html --trim 3.5x2in --bleed 0.125in
+**2 · Render.** `cgc print card-front.html --trim 3.5x2in --bleed 0.125in
 --marks --png 300` writes `card-front.pdf` (page = trim + bleed; with `--marks`, plus a 0.25 in
 slug on every side, the marks sitting in the slug and pointing at the trim corners), and
 `card-front.png` at 300 dpi for review. `--size` may be a named preset (`business-card-us`,
 `a5`, `letter`, `dl` …). Output is RGB; see the limitation below.
 
 For a two-sided piece, give both files and get one two-page PDF with a PNG per page:
-`node tools/print-render.mjs front.html back.html --size business-card-us --marks --png 300 --out card`.
+`cgc print front.html back.html --size business-card-us --marks --png 300 --out card`.
 
-**3 · Gate.** `node tools/print-lint.mjs card-front.html --trim 3.5x2in --bleed 0.125in` (or the
-whole directory: `node tools/print-lint.mjs ./card --size business-card-us`, so a side is never
+**3 · Gate.** `cgc print-lint card-front.html --trim 3.5x2in --bleed 0.125in` (or the
+whole directory: `cgc print-lint ./card --size business-card-us`, so a side is never
 forgotten) fails on:
 type below 6 pt; stroke/border below 0.25 pt; a raster placed below 300 dpi; no `@page` size
 or a size that is not trim + 2×bleed; pixel units used for physical dimensions. A warning names

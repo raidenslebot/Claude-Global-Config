@@ -1,7 +1,7 @@
 # Print methods on fabric — what each can do, and the numbers
 
 **[C]** constraint · **[D]** strong default · **[N]** confirm with the shop. Every shop's
-screens, platens, threads and pretreat differ. `tools/print-lint.mjs --method <name>` applies
+screens, platens, threads and pretreat differ. `cgc print-lint --method <name>` applies
 the minimums below.
 
 ## Screen printing

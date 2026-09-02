@@ -1,0 +1,89 @@
+// The motion hook: it fires on files that move, stays quiet on files that do not, and names
+// the defect rather than nagging. The gate that matters is the last one — every file that
+// animates must be told to run cgc motion, because reading a duration is not watching it.
+
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const HOOK = resolve(HERE, '..', '..', 'config', 'hooks', 'post-tool-motion.js')
+
+function run(name, body) {
+  const dir = mkdtempSync(join(tmpdir(), 'hook-motion-'))
+  const file = join(dir, name)
+  writeFileSync(file, body, 'utf8')
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: file } }),
+    encoding: 'utf8', timeout: 15000,
+  })
+  assert.equal(r.status, 0, 'a reporting hook always exits 0')
+  if (!r.stdout.trim()) return ''
+  return JSON.parse(r.stdout).hookSpecificOutput.additionalContext
+}
+
+test('a file that does not animate is left alone', () => {
+  assert.equal(run('static.css', '.card { color: #222; padding: 24px; border: 1px solid #ddd }'), '')
+  assert.equal(run('prose.html', '<!doctype html><h1>A page</h1><p>Words, and no movement at all.</p>'), '')
+})
+
+test('linear-gradient is not linear easing', () => {
+  const ctx = run('grad.css', '.hero { background: linear-gradient(#fff, #000); transition: opacity 240ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .hero { transition: none } }')
+  assert.ok(ctx, 'the file animates, so the hook speaks')
+  assert.doesNotMatch(ctx, /linear \(L/, 'a gradient is not an easing curve')
+})
+
+test('the flat curve, the unnamed property, and the default ease are each named', () => {
+  const linear = run('a.css', '.x { transition: transform 300ms linear }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(linear, /linear \(L1\)/)
+  assert.match(linear, /cubic-bezier/)
+  const all = run('b.css', '.x { transition: all 300ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(all, /transition-all/)
+  const dflt = run('c.css', '.x { transition: opacity 300ms ease; }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(dflt, /default-ease/)
+})
+
+test('animating a layout property is reported, transform and opacity are not', () => {
+  const bad = run('d.css', '.x { transition: height 300ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(bad, /layout-animation/)
+  assert.match(bad, /composited/)
+  const good = run('e.css', '.x { transition: transform 300ms cubic-bezier(.2,.8,.2,1), opacity 300ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.doesNotMatch(good, /layout-animation/)
+})
+
+test('a file that animates and never mentions reduced motion is reported', () => {
+  const ctx = run('f.css', '@keyframes rise { from { transform: translateY(20px) } to { transform: none } }\n.x { animation: rise 400ms cubic-bezier(.2,.8,.2,1) }')
+  assert.match(ctx, /no-reduced-motion/)
+  assert.match(ctx, /vestibular/)
+})
+
+test('a long duration is reported, an infinite marquee is not', () => {
+  const slow = run('g.css', '.x { transition: transform 2400ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(slow, /slow \(L1\)/)
+  const marquee = run('h.css', '.x { animation: run 45s linear infinite }\n@media (prefers-reduced-motion: reduce) { .x { animation: none } }')
+  assert.doesNotMatch(marquee, /\bslow \(L/, 'a ticker is meant to be long')
+})
+
+test('every animating file is told to watch it, whatever the source says', () => {
+  // A clean file still gets the instruction: the source cannot tell you how it looks moving.
+  const clean = run('clean.css', '.x { transition: transform 240ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
+  assert.match(clean, /cgc motion/)
+  assert.match(clean, /LOOK AT THE SHEET/)
+  // And so does a JS-driven one, where there is no CSS to read in the first place.
+  const js = run('anim.js', 'const el = document.querySelector(".x")\nfunction f(t) { el.style.transform = "translateX(" + t + "px)"; requestAnimationFrame(f) }\nrequestAnimationFrame(f)')
+  assert.match(js, /cgc motion/)
+  assert.match(js, /--trigger/)
+})
+
+test('a non-write tool and unreadable input never produce output', () => {
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: 'x.css' } }), encoding: 'utf8', timeout: 10000 })
+  assert.equal(r.status, 0)
+  assert.equal(r.stdout.trim(), '')
+  const bad = spawnSync(process.execPath, [HOOK], { input: 'not json at all', encoding: 'utf8', timeout: 10000 })
+  assert.equal(bad.status, 0)
+  assert.equal(bad.stdout.trim(), '')
+})

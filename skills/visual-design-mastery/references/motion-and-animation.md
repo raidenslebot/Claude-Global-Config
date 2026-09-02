@@ -314,3 +314,40 @@ Recognize these on sight and refuse them:
 - **Long, showy page transitions** that tax the user on every navigation.
 
 The antidote is always the same: *what does this motion mean, where should the eye go, how does a real object with mass do this* — then the smallest, fastest, most curved version that delivers it.
+
+
+---
+
+## Watch it. You have not seen it.
+
+Everything above is written as if you can see the result. You cannot: you have read a diff. The
+gap between a duration in a stylesheet and a movement on a screen is where nearly all bad motion
+lives, and it is not closed by being careful.
+
+```bash
+cgc motion page.html --duration 800 --frames 14
+cgc motion page.html --trigger hover:.card --duration 250
+cgc motion page.html --trigger click:"button.menu" --duration 400
+cgc motion page.html --trigger scroll --frames 16
+```
+
+It replaces `performance.now`, `Date.now` and `requestAnimationFrame` before the page's own
+scripts run, and scrubs every CSS animation, transition and Web Animation by `currentTime`. So
+GSAP, Motion, a hand-rolled rAF loop and a plain `@keyframes` all advance only when it says so:
+the same page yields the same frames on any machine, at any CPU speed. Then it photographs each
+step and writes **`<name>-motion.png`** — the frames in order, the change under each one, and
+the cumulative curve drawn against the straight line.
+
+**Look at that image.** The numbers below come free, but they are not the point; the point is
+that you can finally see the thing you built.
+
+| What it measures from the pixels | Why the source cannot tell you |
+|---|---|
+| Nothing moved at all | The single most common animation defect. A diff shows the keyframes; only frames show that the class was never applied, the trigger missed, or the element was off-screen. It ships described as "subtle". |
+| The easing the frames actually show | The keyword says `cubic-bezier(.4, 0, .2, 1)`; the measured curve says whether that reads as an arrival or as a slide. A straight line means nobody decided. |
+| Where the motion settles | A 2400 ms timeline whose movement is over at 600 ms is three quarters waiting. |
+| One frame carrying the change | It is switching, not animating — a property that cannot be interpolated, or a `display` change wearing a transition. |
+| Whether reduced motion is honoured | The media query being *present* is not the query *working*. The capture runs again under `prefers-reduced-motion: reduce` and the two are compared. |
+
+Then the loop, exactly as everywhere else: name the weakest frame, fix it, capture again. Stop
+when a professional watching it would have nothing left to say — not when the warnings clear.

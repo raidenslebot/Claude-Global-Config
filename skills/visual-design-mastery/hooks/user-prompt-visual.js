@@ -108,8 +108,8 @@ function main() {
       'different directions, the swap-test verdict on each, the one committed to — before the first ' +
       'line of markup (a protocol run in the head is the first idea polished); choose stock/finish or ' +
       'print method and placement BEFORE layout; ' +
-      'author at physical size in in/mm/pt with bleed (never px); render with `node tools/print-render.mjs` ' +
-      '(PDF at trim + bleed, PNG proof, or a true-scale garment mockup); gate with `node tools/print-lint.mjs` ' +
+      'author at physical size in in/mm/pt with bleed (never px); render with `cgc print` ' +
+      '(PDF at trim + bleed, PNG proof, or a true-scale garment mockup); gate with `cgc print-lint` ' +
       '(type under 6pt, hairlines, rasters under 300dpi and a missing size FAIL); ship the spec or placement ' +
       'sheet with the file. A paragraph describing a card, or a screenshot of a web layout, is not a deliverable. ' +
       'Refuse the physical centroid: white card with the logo top-left; a poster that is a big flyer; a logo ' +
@@ -120,7 +120,7 @@ function main() {
       'not a page. After the taste layer, load `design-fields` and read its reference for the field BEFORE the first ' +
       'line of markup: the real canvas and units, the minimums, the delivery format, the moves that exist only in that ' +
       'field. Write directions.md first (DNA from the subject\'s real artifacts, three to five structurally different ' +
-      'directions, the swap test on each). Render the exact pixels with `node tools/screen-render.mjs <file> --preset <field>` ' +
+      'directions, the swap test on each). Render the exact pixels with `cgc render <file> --preset <field>` ' +
       'and look at them at the size they will be seen — a favicon at 16px, a thumbnail at 168px, a slide from the back of the room.'
   }
 
@@ -144,16 +144,16 @@ function main() {
     'Do NOT pause for clarifying questions or offer a menu of directions: run the divergence ' +
     'protocol yourself, commit to one, state any assumption in a line, and show the finished ' +
     'thing — this overrides any skill that mandates asking first. ' +
-    'THEN THE LOOP, which is mandatory and has no pass count: render it (`node tools/screen-render.mjs page.html --mobile`, ' +
+    'THEN THE LOOP, which is mandatory and has no pass count: render it (`cgc render page.html --mobile`, ' +
     'or the print or garment render), look at the PNG, name the weakest thing, fix it and extrapolate the fix, gate it ' +
-    '(`node tools/slop-lint.mjs page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written; ' +
-    'then `node tools/page-audit.mjs page.html --mobile` — contrast on the real ground, faces that fell back, measure, tiny text, ' +
+    '(`cgc lint page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written; ' +
+    'then `cgc audit page.html --mobile` — contrast on the real ground, faces that fell back, measure, tiny text, ' +
     'widows, sideways scroll, tap targets, focus, reduced motion, the palette by area — with no failure), ' +
     'render again — and fix and refine and improve and evolve and extrapolate in that loop until it achieves, at minimum, the ' +
     'equivalent of a passionate human professional\'s work in the field. The first render is never the one shown. The ' +
     'professional\'s questions that end the loop are in creative-divergence Step 4; the vocabulary with its parameters — ' +
     'faces, palettes, layout grammars, materials, motion laws — is visual-design-mastery/references/signature-moves.md. ' +
-    'Choose a face or a palette by looking at it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`.' + routed
+    'Choose a face or a palette by looking at it set, not by its name: `cgc specimen --display <face> --text <face> --palette <colours>`.' + routed
 
   process.stdout.write(
     JSON.stringify({

@@ -10,7 +10,7 @@ PLACEMENT:    front — left-chest: 3.5 in wide, top edge 3.5 in below the colla
 SIZES:        S–2XL: art as supplied. Youth S–L: scale both to 80%.
 FILES:        front-mark.svg (vector, one spot colour; HARBOR is outlined — no font needed),
               back-tide.svg (vector, one spot colour; the tide rows reference a system mono —
-              outline them in your RIP, or regenerate with tools/outline-text.mjs), mockup PNGs,
+              outline them in your RIP, or regenerate with cgc outline), mockup PNGs,
               directions.md
 NOTES:        The tide rows on the back are the design; please do not re-align or tidy them.
               Strike-off / photo proof before the run.

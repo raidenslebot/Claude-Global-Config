@@ -1,7 +1,7 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs contact-sheet.html --mobile`; gated with
-`slop-lint` (clean) and `node tools/page-audit.mjs contact-sheet.html --mobile` (no failures, no
+Rendered with `cgc render contact-sheet.html --mobile`; gated with
+`slop-lint` (clean) and `cgc audit contact-sheet.html --mobile` (no failures, no
 warnings at 1440 and 390). Each icon file is written from the sprite by `split.mjs`, so the
 master and the delivered files cannot drift.
 

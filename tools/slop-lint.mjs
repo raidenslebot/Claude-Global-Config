@@ -289,7 +289,7 @@ function expand(paths) {
 }
 
 const HELP = `usage:
-  slop-lint <file|dir> [more…] [--json]
+  cgc lint <file|dir> [more…] [--json]
 
 Files: ${[...EXTS].join(' ')}. A directory lints every such file in it.
 Verdicts: clean (score < 2) · fingerprints (2–3) · centroid (4+, exit 1).
@@ -299,13 +299,14 @@ ${FAMILIES.map((f) => `  ${f.id.padEnd(16)} ${f.weight}  ${f.why.split('.')[0]}`
 export function main(argv = process.argv.slice(2)) {
   const json = argv.includes('--json')
   const paths = argv.filter((a) => !a.startsWith('--'))
-  if (!paths.length || argv.includes('--help')) { console.log(HELP); return paths.length ? 0 : 1 }
+  // --help is a request that was answered: exit 0. No paths at all is a usage error: exit 1.
+  if (!paths.length || argv.includes('--help')) { console.log(HELP); return argv.includes('--help') ? 0 : 1 }
   const results = []
   for (const p of expand(paths)) {
     if (typeof p === 'object') { results.push({ file: p.missing, error: 'no such file' }); continue }
     results.push(lint(p))
   }
-  const bad = results.filter((r) => r.verdict === 'centroid').length
+  const bad = results.filter((r) => r.verdict === 'centroid' || r.error).length
   if (json) { console.log(JSON.stringify({ ok: bad === 0, files: results }, null, 2)); return bad ? 1 : 0 }
   for (const r of results) {
     if (r.error) { console.log(`\x1b[31m${basename(r.file)}\x1b[0m — ${r.error}`); continue }

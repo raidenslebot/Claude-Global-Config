@@ -7,7 +7,7 @@
   The brand sheet: every version of the mark, the lockups, the one variable, clear space and
   minimum sizes, colour, type, and what not to do — with every SVG inlined so the sheet is one
   file. Generated from directions.md by generate.mjs; the SVG masters sit beside it.
-  Render: node tools/screen-render.mjs brand-sheet.html --full   ·   Gate: node tools/page-audit.mjs brand-sheet.html --mobile
+  Render: cgc render brand-sheet.html --full   ·   Gate: cgc audit brand-sheet.html --mobile
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,500;75,600;100,400;100,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -155,7 +155,7 @@
 
   <h2>Type</h2>
   <p class="type">Harbor Swim Club</p>
-  <p class="cap">Archivo, width 75, weight 600, caps, tracked 0.14 em — harbour signage. The wordmark is delivered as outlines (tools/outline-text.mjs); this line is the live face for everything else: headings tracked 0.06 em, body at width 100 weight 400.</p>
+  <p class="cap">Archivo, width 75, weight 600, caps, tracked 0.14 em — harbour signage. The wordmark is delivered as outlines (cgc outline); this line is the live face for everything else: headings tracked 0.06 em, body at width 100 weight 400.</p>
 
   <h2>Never</h2>
   <ul>

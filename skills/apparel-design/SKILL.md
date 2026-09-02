@@ -103,7 +103,7 @@ template.
 ## Artwork the shop will accept
 
 - **Vector** (SVG, AI, EPS, PDF) for anything screen printed, embroidered or cut. Fonts
-  converted to outlines — `node tools/outline-text.mjs --font <face> --text "…" --out name.svg`
+  converted to outlines — `cgc outline --font <face> --text "…" --out name.svg`
   writes any line of type as one path, with the font's kerning, so the file depends on no font. Colours as **named spots** (Pantone) — one per screen — not as
   gradients or RGB.
 - **Raster** (PNG, transparent background) only for DTG and printable transfers, at **300 dpi
@@ -124,8 +124,8 @@ tote — in [`assets/`](assets/), drawn at real garment dimensions with the prin
 artwork onto one at true scale:
 
 ```
-node tools/print-render.mjs artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150
-node tools/print-render.mjs artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150 --presentation
+cgc print artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150
+cgc print artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150 --presentation
 ```
 
 `--art-width` is the size on the placement sheet; without it the art fills the zone, which is

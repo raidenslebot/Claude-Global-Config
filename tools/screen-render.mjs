@@ -53,7 +53,7 @@ function parseArgs(argv) {
 }
 
 const HELP = `usage:
-  screen-render <page.html | url> [--viewport WxH | --preset <name>] [--mobile] [--full] [--dark] [--scale N] [--out <base>] [--json]
+  cgc render <page.html | url> [--viewport WxH | --preset <name>] [--mobile] [--full] [--dark] [--scale N] [--out <base>] [--json]
 
 Writes <base>-<width>.png for each viewport (default 1440×900; --mobile adds 390×844).
 --full captures the whole page, --dark emulates prefers-color-scheme: dark, --scale 2 doubles the pixels.

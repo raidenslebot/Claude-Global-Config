@@ -12,8 +12,8 @@
   a table row or a background colour, so this is the same design with images off — the one
   <img> is the mark, and it carries alt text.
 
-  Render: node tools/screen-render.mjs email.html --preset email --full
-  Gate:   node tools/slop-lint.mjs .   ·   node tools/page-audit.mjs email.html --viewport 640x1200
+  Render: cgc render email.html --preset email --full
+  Gate:   cgc lint .   ·   cgc audit email.html --viewport 640x1200
   Send-test it in a real client before any real send; nothing here can prove Outlook.
 -->
 <style>

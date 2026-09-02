@@ -39,8 +39,8 @@ function main() {
     ? 'This is the template. Do not decorate it — run the divergence protocol, change the STRUCTURE, and lint again'
     : 'Each of these is a default, not a decision — replace it or state why it stays'
   const context = `SLOP FINGERPRINT in ${path.basename(file)} — score ${result.score} of ${result.max} (${result.verdict}): ${list}. `
-    + `${verdict}: node "${path.join(REPO, 'tools', 'slop-lint.mjs')}" "${file}". `
-    + 'The absence of fingerprints is not design: render it (tools/screen-render.mjs), look at desktop and phone, name the weakest thing, fix it, render again — twice — before showing it. '
+    + `${verdict}: cgc lint "${file}". `
+    + 'The absence of fingerprints is not design: render it (cgc render "' + file + '" --mobile), look at desktop and phone, name the weakest thing, fix it, and run cgc audit on it — then again, until nothing can be named. '
     + 'The moves with their real parameters are in visual-design-mastery/references/signature-moves.md.'
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: context },

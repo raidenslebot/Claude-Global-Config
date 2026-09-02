@@ -1,7 +1,7 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs post-N.html --preset ig-post` (1080 × 1350 exactly);
-gated with `slop-lint .` and `node tools/page-audit.mjs post-1.html --viewport 1080x1350`.
+Rendered with `cgc render post-N.html --preset ig-post` (1080 × 1350 exactly);
+gated with `cgc lint .` and `cgc audit post-1.html --viewport 1080x1350`.
 
 ## Pass 1
 

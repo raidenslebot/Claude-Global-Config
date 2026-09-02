@@ -98,6 +98,12 @@
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-slop.js\"",
             "timeout": 15,
             "statusMessage": "Checking a screen design for the templated look"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-motion.js\"",
+            "timeout": 10,
+            "statusMessage": "Checking motion that has not been watched"
           }
         ]
       },

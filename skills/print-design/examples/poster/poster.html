@@ -5,10 +5,10 @@
   Riso as the material with its misregistration drawn rather than filtered, every dimension
   physical, bleed 0.25 in because the sheet is large format.
 
-  Render:  node tools/print-render.mjs poster.html --size poster-18x24 --marks --png 60
-  Far read: node tools/print-render.mjs poster.html --size poster-18x24 --distance 40ft,10ft,2ft
+  Render:  cgc print poster.html --size poster-18x24 --marks --png 60
+  Far read: cgc print poster.html --size poster-18x24 --distance 40ft,10ft,2ft
             (at 10 ft the word and the when-and-where read; the board is texture — as intended)
-  Gate:    node tools/print-lint.mjs   poster.html --size poster-18x24
+  Gate:    cgc print-lint   poster.html --size poster-18x24
   Beside it: directions.md (read first) and spec-sheet.txt
 -->
 <style>

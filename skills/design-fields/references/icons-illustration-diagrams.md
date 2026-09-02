@@ -74,4 +74,4 @@ An illustration *system* is a set of constraints that make ten drawings look lik
 ## Proof
 
 A contact sheet HTML rendering the set or the drawings at every delivered size, on light and
-dark → `node tools/screen-render.mjs sheet.html --mobile`. Look at the smallest size first.
+dark → `cgc render sheet.html --mobile`. Look at the smallest size first.

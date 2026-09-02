@@ -37,7 +37,7 @@ Each was written by someone who had read the surrounding code.
 
 1. **Substituting into raw JSON text.** `{{NODE}}` in `config/hooks.json` replaced with
    `C:\Program Files\nodejs\node.exe` gave `SyntaxError: Bad escaped character in JSON at
-   position 136`. Fix in `tools/install.mjs`: `JSON.parse` first, `realize()` into each
+   position 136`. Fix in `cgc install`: `JSON.parse` first, `realize()` into each
    `h.command` value, `JSON.stringify` out. Pinned by `tools/test/config.test.mjs` —
    "substituting into the raw JSON text is unsafe, which is why install parses first".
 
@@ -77,7 +77,7 @@ Each was written by someone who had read the surrounding code.
 7. **One command string, three parsers.** `node --test <dir>` resolves the directory as a
    module on some versions; `node --test "**/*.test.mjs"` relies on node expanding the glob,
    which older supported versions do not; a shell glob in an npm script expands under `sh` and
-   not under `cmd.exe`. `tools/run-tests.mjs` sidesteps all three by enumerating absolute file
+   not under `cmd.exe`. `cgc test` sidesteps all three by enumerating absolute file
    paths itself and passing them as argv.
 
 ## Rules that fall out

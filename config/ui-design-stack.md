@@ -56,11 +56,11 @@ Physical media are not screens, and have their own technique layer and a real ou
 - **`apparel-design`** — t-shirts, hoodies, caps, totes, merch. Screen print / DTG / embroidery /
   HTV constraints, placement zones with real dimensions, garment colour as part of the artwork,
   SVG garment flats for a true-scale mockup.
-- **`tools/print-render.mjs`** renders HTML/SVG authored in physical units to a PDF at trim +
+- **`cgc print`** renders HTML/SVG authored in physical units to a PDF at trim +
   bleed (crop marks in a slug; several files become one multi-page PDF) and a PNG proof at a
   real dpi, or composites artwork onto one of nine garment flats at true scale
   (`--presentation` for a reviewable studio render) — through the headless Chromium already
-  installed for the Playwright MCP. No account, nothing fetched. **`tools/print-lint.mjs`** is the gate: type under the minimum,
+  installed for the Playwright MCP. No account, nothing fetched. **`cgc print-lint`** is the gate: type under the minimum,
   hairlines, rasters under 300 dpi, a page sized in pixels or without bleed, all **fail**.
   Taste first (`visual-design-mastery/references/print-and-physical.md`), concept next
   (`creative-divergence`), then the technique skill, then render, then lint.
@@ -116,7 +116,7 @@ Floyd–Steinberg weights — engine-agnostic, transfers straight to MonoGame/sh
 | Scroll technique vs whole scroll site | **`gsap-web`** for technique; pull `dskills\scroll-craft` only when the deliverable is an entire scroll-driven site | — |
 | Lottie | **`lottie-animation`** (web-animation-skills) | Better authored than the claudedesignskills duplicate. |
 | "Motion works but feels dead" | **`visual-design-mastery/references/animation-principles.md`** | Never install the 144-skill cross product. |
-| Anything printed on paper | **`print-design`**, rendered by `tools/print-render.mjs`, gated by `tools/print-lint.mjs` | A screen layout at card size is not a print file. The host `canvas-design` skill owns a poster's *philosophy*; `print-design` makes it printable. |
+| Anything printed on paper | **`print-design`**, rendered by `cgc print`, gated by `cgc print-lint` | A screen layout at card size is not a print file. The host `canvas-design` skill owns a poster's *philosophy*; `print-design` makes it printable. |
 | Anything on a garment | **`apparel-design`** | Method before art, placement before layout, garment colour is part of the artwork. |
 
 ## Rules

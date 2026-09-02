@@ -1,7 +1,7 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs email.html --preset email --full`; gated with
-`slop-lint .` (clean) and `node tools/page-audit.mjs email.html --viewport 640x1200`. The HTML is
+Rendered with `cgc render email.html --preset email --full`; gated with
+`cgc lint .` (clean) and `cgc audit email.html --viewport 640x1200`. The HTML is
 8.9 KB, well under Gmail's 102 KB clip. Nothing here proves Outlook — only a send-test does, and
 the file says so.
 

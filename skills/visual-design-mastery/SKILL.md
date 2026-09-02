@@ -128,6 +128,7 @@ writing code — it has the real APIs, real values, and real snippets.
 | You are working in… | Read |
 |---|---|
 | **Motion / animation / transitions** (any platform) | [`motion-and-animation.md`](references/motion-and-animation.md) — start here for anything that moves |
+| **Motion you have written but not watched** | `cgc motion <file> --duration <ms>` — steps it under a virtual clock, photographs every frame, and measures the real curve from the pixels. Reading the CSS is not watching it. |
 | **Motion that "works" but feels dead** — diagnosing *why* | [`animation-principles.md`](references/animation-principles.md) — Disney's 12, with an honest transfer map for UI vs games |
 | **Web** — HTML/CSS/JS, layout, type, colour, the browser as canvas | [`web-and-css.md`](references/web-and-css.md) |
 | **Shaders / GPU art** — GLSL/HLSL, WebGL, Three.js, r3f, post-processing | [`shaders-and-gpu.md`](references/shaders-and-gpu.md) |
@@ -136,7 +137,7 @@ writing code — it has the real APIs, real values, and real snippets.
 | **Generative art / TUI / data-viz** — p5/Processing, terminal UIs, charts | [`generative-creative-tui-dataviz.md`](references/generative-creative-tui-dataviz.md) |
 | **Print and physical** — business cards, flyers, posters, brochures, stickers, packaging; t-shirts, hoodies, caps, merch | [`print-and-physical.md`](references/print-and-physical.md) — the taste; then `print-design` or `apparel-design` for the craft and the render pipeline |
 | **Any field, the vocabulary** — faces and their settings, palettes, layout grammars, materials, motion laws, image treatments, each with its numbers | [`signature-moves.md`](references/signature-moves.md) — one hero move per piece; the ambition floor |
-| **Every other field** — logos and identity, icon sets, illustration, diagrams, social, thumbnails, slides, email, packaging, signage | the `design-fields` skill — the real canvas, minimums and delivery format per field, and `tools/screen-render.mjs --preset` for the exact pixels |
+| **Every other field** — logos and identity, icon sets, illustration, diagrams, social, thumbnails, slides, email, packaging, signage | the `design-fields` skill — the real canvas, minimums and delivery format per field, and `cgc render --preset` for the exact pixels |
 
 ## How this composes with what's already here
 
@@ -156,9 +157,9 @@ writing code — it has the real APIs, real values, and real snippets.
 ## The loop
 
 Judging is not a single verdict at the end; it is the loop that gets the work there. Render it
-the way it will be seen — `node tools/screen-render.mjs page.html --mobile`, or the print or
+the way it will be seen — `cgc render page.html --mobile`, or the print or
 garment render — look at the picture, name the weakest thing, fix it and extrapolate the fix,
-gate it (`node tools/slop-lint.mjs` for a screen, `print-lint` for paper), render again. And
+gate it (`cgc lint` for a screen, `print-lint` for paper), render again. And
 **fix and refine and improve and evolve and extrapolate in that loop until it achieves, at
 minimum, the equivalent of a passionate human professional's work in the field.** The first
 render is never the one shown; a pass count is never the exit. `creative-divergence` Step 4

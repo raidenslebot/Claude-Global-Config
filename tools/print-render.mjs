@@ -280,16 +280,16 @@ function parseArgs(argv) {
   return out
 }
 
-const HELP = `print-render — HTML/SVG at physical size -> PDF (+ PNG proof), or a true-scale garment mockup
+const HELP = `cgc print — HTML/SVG at physical size -> PDF (+ PNG proof), or a true-scale garment mockup
 
 usage:
-  print-render <design.html|svg> (--size <preset> | --trim WxH<unit>) [--bleed <len>] [--marks]
+  cgc print <design.html|svg> (--size <preset> | --trim WxH<unit>) [--bleed <len>] [--marks]
                [--png <dpi>] [--out <base>] [--json]
-  print-render <front.html> <back.html> [...]  same flags — one multi-page PDF, one PNG per page
-  print-render <poster.html> --size <preset> --distance 40ft,10ft,2ft [--viewer 12in]
+  cgc print <front.html> <back.html> [...]  same flags — one multi-page PDF, one PNG per page
+  cgc print <poster.html> --size <preset> --distance 40ft,10ft,2ft [--viewer 12in]
                the far read, proved: one PNG per distance, each sized so that holding the screen
                at --viewer (default 12in) subtends exactly what the eye gets at that distance
-  print-render <art.svg|png> --mockup <garment> --zone <zone> [--garment <css colour>]
+  cgc print <art.svg|png> --mockup <garment> --zone <zone> [--garment <css colour>]
                [--art-width <len>] [--show-zones] [--presentation] [--png <dpi>] [--out <base>] [--json]
 
   presets:  ${Object.keys(PRESETS).join(', ')}

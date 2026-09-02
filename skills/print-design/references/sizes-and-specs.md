@@ -2,8 +2,8 @@
 
 **[C]** constraint · **[D]** strong default · **[N]** confirm with the printer. Every printer's
 cutter, press and paper differ; these are the numbers that get you to the right order of
-magnitude and to the right questions. `tools/print-render.mjs --size <preset>` and
-`tools/print-lint.mjs` use the same names and values as the tables below.
+magnitude and to the right questions. `cgc print --size <preset>` and
+`cgc print-lint` use the same names and values as the tables below.
 
 ## Trim sizes (finished size, before bleed)
 

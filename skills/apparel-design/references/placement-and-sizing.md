@@ -2,7 +2,7 @@
 
 Every number here is a strong default **[D]** for an **adult unisex** garment in the middle of
 the size range (L). The shop's platen and the specific blank set the hard limits **[N]**. The
-zone names are the ones `tools/print-render.mjs --mockup <garment> --zone <zone>` understands,
+zone names are the ones `cgc print --mockup <garment> --zone <zone>` understands,
 and the flats in `assets/` carry these zones at true scale.
 
 ## Tee (front) — flat 22 × 29 in, `--mockup tee`

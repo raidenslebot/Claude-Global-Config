@@ -270,7 +270,7 @@ export function main(argv = process.argv.slice(2)) {
   if (args.help || !args._.length) {
     console.log(`print-lint — refuse a design that would not survive the press
 
-usage: print-lint <design.html|svg> [--size <preset> | --trim WxH<unit>] [--bleed <len>] [--method paper|screen|dtg|embroidery|htv] [--json]
+usage: cgc print-lint <design.html|svg> [--size <preset> | --trim WxH<unit>] [--bleed <len>] [--method paper|screen|dtg|embroidery|htv] [--json]
 exit:  0 clean · 1 a finding that would fail on press · 2 bad input`)
     return args.help ? 0 : 2
   }

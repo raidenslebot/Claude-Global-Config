@@ -1,5 +1,5 @@
 {
-  "_comment": "Garment flats at true scale. Units are inches from the top-left of the flat. `tools/print-render.mjs --mockup <garment> --zone <zone>` reads this file; `references/placement-and-sizing.md` explains every number. Zones are strong defaults for an adult unisex L; the shop's platen and blank are the hard limits.",
+  "_comment": "Garment flats at true scale. Units are inches from the top-left of the flat. `cgc print --mockup <garment> --zone <zone>` reads this file; `references/placement-and-sizing.md` explains every number. Zones are strong defaults for an adult unisex L; the shop's platen and blank are the hard limits.",
   "tee": {
     "file": "tee.svg",
     "width": 22,

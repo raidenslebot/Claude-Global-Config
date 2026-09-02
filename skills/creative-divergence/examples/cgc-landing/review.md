@@ -1,7 +1,7 @@
 # Review — the passes
 
-Rendered with `node tools/screen-render.mjs index.html --mobile` at 1440 × 900 and 390 × 844
-after every change; gated with `node tools/slop-lint.mjs index.html` (clean, 0 of 23, from the
+Rendered with `cgc render index.html --mobile` at 1440 × 900 and 390 × 844
+after every change; gated with `cgc lint index.html` (clean, 0 of 23, from the
 first pass — which proves only that it is not the template). The loop ran until a pass could
 name nothing a passionate professional would still change.
 
@@ -52,7 +52,7 @@ them, and a change without a named weakness is decoration. The loop ended here �
 
 ## Pass 4 — found by the audit, not the eye
 
-`node tools/page-audit.mjs index.html --mobile`, once it existed, named two things three passes
+`cgc audit index.html --mobile`, once it existed, named two things three passes
 of looking had missed. **The page scrolled sideways at 390 px**: 469 px wide in a 390 px
 viewport. A screenshot clips to the viewport, so every phone render had looked fine; the cause
 was a ledger row whose name and value were both `white-space: nowrap`, wider together than the

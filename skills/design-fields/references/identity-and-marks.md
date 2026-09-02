@@ -40,7 +40,7 @@ not one picture. **[C]** constraint · **[D]** strong default · **[N]** confirm
 - **The wordmark's type** — a chosen face with modified details beats a novel one. Customise:
   one terminal, the tail of the R or the Q, the width of one letter, the join between two.
   Convert to outlines; the delivered file must not depend on the font being installed [C] —
-  `node tools/outline-text.mjs --font "Archivo:wdth,wght@75,600" --text HARBOR --size 71
+  `cgc outline --font "Archivo:wdth,wght@75,600" --text HARBOR --size 71
   --tracking 0.14 --wdth 75 --wght 600 --out wordmark.svg` lays the text out with the font's own
   kerning and writes one `<path>`; customise the paths from there.
 - **Colour from the subject**, in the primary + one supporting, specified as Pantone for print
@@ -79,5 +79,5 @@ not one picture. **[C]** constraint · **[D]** strong default · **[N]** confirm
 ## Proof
 
 Render the SVG at the minimum size and at the favicon sizes with
-`node tools/screen-render.mjs mark.html --preset app-icon` (an HTML page that places the SVG
+`cgc render mark.html --preset app-icon` (an HTML page that places the SVG
 at each size on light and dark) and *look at the 16 px one*. Then `print-render` the sheet.

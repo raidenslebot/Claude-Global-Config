@@ -354,7 +354,7 @@ function parseArgs(argv) {
 }
 
 const HELP = `usage:
-  page-audit <page.html | url> [--mobile] [--viewport WxH] [--json]
+  cgc audit <page.html | url> [--mobile] [--viewport WxH] [--json]
 
 Renders the page and measures what a reader gets. FAIL: contrast under 4.5:1 (3:1 large), a
 face that fell back, text under 10px, sideways scroll on a phone, tap targets under 24px.

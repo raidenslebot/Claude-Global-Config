@@ -79,5 +79,5 @@ Nothing about it was decided. Swap the name and logo for a competitor's and it i
 Authored at trim + bleed (3.75 × 2.25 in for US), safe zone respected, type at 7–8 pt in a
 text face, black as 100K, backgrounds as rich black if solid, one PDF per side (or a two-page
 PDF), plus the spec sheet: stock, weight, finish, colours by name, sides, quantity, corners,
-special process. `node tools/print-render.mjs front.html --size business-card-us --marks --png 300`
-then `node tools/print-lint.mjs front.html --size business-card-us`.
+special process. `cgc print front.html --size business-card-us --marks --png 300`
+then `cgc print-lint front.html --size business-card-us`.

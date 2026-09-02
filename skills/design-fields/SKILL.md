@@ -17,10 +17,10 @@ and one discipline runs through all of them:
 3. Field spec this file: the canvas, the minimums, the delivery format for THIS field
 4. Moves      visual-design-mastery/references/signature-moves.md — one hero move
 5. Build      at the real size, in the real units, in a file the field accepts
-6. Render     tools/screen-render.mjs --preset <field> · tools/print-render.mjs for paper
+6. Render     cgc render --preset <field> · cgc print for paper
 7. Loop       look, name the weakest thing, fix, render again — until a passionate
               professional in that field would sign it (creative-divergence Step 4)
-8. Gate       tools/slop-lint.mjs and tools/page-audit.mjs for anything on a screen; print-lint for paper
+8. Gate       cgc lint and cgc audit for anything on a screen; print-lint for paper
 ```
 
 Read the reference for the field before the first line of markup. Facts are marked **[C]**
@@ -42,7 +42,7 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 
 - [`examples/harbor-swim-club-identity/`](examples/harbor-swim-club-identity/) — an identity
   system: directions first, the mark and its redrawn favicon, the wordmark **outlined to paths**
-  with `tools/outline-text.mjs`, both lockups and their reversed forms, the system's one
+  with `cgc outline`, both lockups and their reversed forms, the system's one
   variable, the icon master, a one-file brand sheet, the spec sheet, and the passes in
   `review.md`. Its stacked lockup is the tee's mark in the `apparel-design` example — one
   subject, two fields, one system.

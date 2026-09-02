@@ -68,7 +68,7 @@ do not blend them at this stage. An operator chooses the *structure*; the parame
 realise it — the faces, the settings, the palettes, the layout grammars, the materials, the
 motion laws — are in [`signature-moves.md`](../visual-design-mastery/references/signature-moves.md),
 with the numbers. A face or a palette is chosen by looking at it set, not by its name in a list:
-`node tools/specimen.mjs --display <face> --text <face> --palette <colours>` renders the pairing
+`cgc specimen --display <face> --text <face> --palette <colours>` renders the pairing
 at display and reading size, reversed, with every colour and its contrast.
 
 **1 · Material transplant.** Pick a physical material or process and obey its actual rules.
@@ -142,9 +142,9 @@ loop — and do not leave it on a count:
 
 Each pass:
 
-1. **Render it the way it will be seen.** `node tools/screen-render.mjs page.html --mobile`
+1. **Render it the way it will be seen.** `cgc render page.html --mobile`
    (desktop and phone; `--preset` for a social, slide, email or icon canvas);
-   `tools/print-render.mjs` for paper; the garment mockup for fabric. Look at the PNG — the
+   `cgc print` for paper; the garment mockup for fabric. Look at the PNG — the
    picture, not the code.
 2. **Name the weakest thing.** One, specifically: "the hierarchy collapses on the phone", "the
    display face is set at a text weight", "the signal colour appears four times", "the copy
@@ -153,7 +153,7 @@ Each pass:
 3. **Fix it, and extrapolate the fix.** What does it imply for the rest? A tighter measure
    implies a larger display size; a chosen material implies a different rule for hairlines; a
    moved placement implies a new reading order. Follow the implication through the piece.
-4. **Gate it.** `node tools/slop-lint.mjs page.html` clean, then `node tools/page-audit.mjs
+4. **Gate it.** `cgc lint page.html` clean, then `cgc audit
    page.html --mobile` with no failure — it measures the rendered page: the contrast of every
    text run on its real ground, faces that fell back, the measure, text too small, a widow in a
    heading, a page that scrolls sideways on a phone (no screenshot shows that), tap targets, a

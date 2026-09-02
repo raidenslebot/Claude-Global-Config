@@ -48,7 +48,7 @@ quarters; that lockup is the only variant, and it is used only when the tide is 
   *reads* as centred; the ring's outer edge overshoots the wordmark's cap line by the stroke
   width so the two read as one weight.
 - **The wordmark.** HARBOR in **Archivo** at `wdth 75, wght 600`, caps, tracked 0.14 em —
-  outlined to paths with `tools/outline-text.mjs`, so no file depends on the font. Medium
+  outlined to paths with `cgc outline`, so no file depends on the font. Medium
   weight, not bold: harbour signage, not a shout. "SWIM CLUB" only in the stacked lockup, at
   half the size, tracked 0.2 em.
 - **Lockups.** Horizontal (mark left, wordmark on the ring's centre line) and stacked (mark
