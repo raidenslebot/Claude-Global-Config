@@ -110,7 +110,13 @@ node tools/print-render.mjs card.html --size business-card-us --marks --png 300 
 node tools/print-render.mjs front.html back.html --size business-card-us --marks  # one two-page PDF
 node tools/print-lint.mjs   ./card --size business-card-us                        # every side; fails on what the press would reject
 node tools/print-render.mjs mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150 --presentation
+node tools/print-render.mjs poster.html --size poster-18x24 --distance 40ft,10ft,2ft   # the far read, proved
 ```
+
+`--distance` is the one proof a full-size render cannot give: a piece seen from *D* subtends what
+an image *d/D* its size does at *d*, so each PNG is rendered at 96 × *d*/*D* dots per inch and
+holding the screen at 12 in puts you at that distance. A poster judged at full size on a monitor
+was judged from two feet, which is the one distance a poster is never read from.
 
 Nine garment flats ship for mockups (tee front and back, long sleeve, hoodie, polo, jersey, cap,
 beanie, tote), and a hook reports any physical design written without a `directions.md` beside

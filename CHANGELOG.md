@@ -5,6 +5,20 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.8.0 — 2026-09-02
+
+- **The far read, proved.** `print-render --distance 40ft,10ft,2ft [--viewer 12in]` writes one
+  PNG per viewing distance at the angular size the eye actually gets: a piece seen from *D*
+  subtends what an image *d/D* its size does at *d*, so each is rendered at 96 × *d*/*D* dpi and
+  holding the screen at the viewer distance puts you there. The poster example's far read is now
+  a measurement — at ten feet the word and the when-and-where read and the board is texture, as
+  its directions claimed. `ft` and `m` are lengths; the signage and print-taste references name
+  the command instead of describing the ratio.
+- **react-doctor scans the project it was told about.** It ran in the session's working
+  directory, so editing a file in one repository reported a different one — pages of warnings
+  about code the edit never touched. It now resolves the written file's own project (the nearest
+  `package.json`) and stays silent for a JavaScript file that belongs to none.
+
 ## 1.7.1 — 2026-09-02
 
 Two defects this session's own work exposed, both of the kind that trains a reader to ignore

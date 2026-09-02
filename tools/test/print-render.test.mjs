@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
-import { findPlaywright, parseSize, parseLength, defaultBleed, artSize, PRESETS } from '../print-render.mjs'
+import { findPlaywright, parseSize, parseLength, defaultBleed, artSize, distanceProof, PRESETS } from '../print-render.mjs'
 
 const TOOL = join(REPO, 'tools', 'print-render.mjs')
 const BROWSER = Boolean(findPlaywright())
@@ -51,6 +51,23 @@ test('units and presets parse the way the docs say', () => {
   assert.equal(defaultBleed(PRESETS['business-card-us']), 0.125)
   assert.equal(defaultBleed(PRESETS['poster-18x24']), 0.25, 'large format gets more bleed')
   assert.throws(() => parseSize('3.5x2'), /size must look like/)
+})
+
+test('the distance proof is the angular identity; feet and metres are lengths; a bare zero is one too', () => {
+  // A piece at D, seen on a screen held at d, must be rendered at 96 × d/D dots per inch.
+  const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} vs ${b}`)
+  near(distanceProof(120, 12).dpi, 9.6, '10 ft, screen at 12 in')
+  near(distanceProof(12, 12).dpi, 96, 'held at the same distance: full size')
+  near(distanceProof(240, 24).dpi, 9.6, 'twice as far, twice as far away: identical')
+  near(distanceProof(480, 12).scale, 0.025, '40 ft: a fortieth')
+  assert.throws(() => distanceProof(0, 12), /positive/)
+  assert.throws(() => distanceProof(120, 0), /positive/)
+  assert.equal(parseLength('10ft'), 120)
+  assert.equal(parseLength('1m').toFixed(2), '39.37')
+  near(parseLength('3mm'), 3 / 25.4, 'mm still wins over m')
+  // Zero is a real bleed — a deck, a screen proof, a piece trimmed flush; a unitless number is not.
+  assert.equal(parseLength('0'), 0)
+  assert.throws(() => parseLength('3'), /must look like/)
 })
 
 test('artSize reads physical SVG units, a viewBox ratio, and a PNG header', (t) => {

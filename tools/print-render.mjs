@@ -29,11 +29,12 @@ const REPO = resolve(HERE, '..')
 
 // ── units and presets ────────────────────────────────────────────────────────
 
-const IN = { in: 1, mm: 1 / 25.4, cm: 1 / 2.54, pt: 1 / 72, px: 1 / 96 }
+const IN = { in: 1, mm: 1 / 25.4, cm: 1 / 2.54, pt: 1 / 72, px: 1 / 96, ft: 12, m: 39.3701 }
+const UNITS = 'in|mm|cm|pt|px|ft|m' // longest first: mm and cm must win before m
 
 /** "3.5x2in" | "85x55mm" -> { w, h } in inches. */
 export function parseSize(s) {
-  const m = String(s).trim().match(/^([\d.]+)\s*[x×]\s*([\d.]+)\s*(in|mm|cm|pt|px)$/i)
+  const m = String(s).trim().match(new RegExp(`^([\\d.]+)\\s*[x×]\\s*([\\d.]+)\\s*(${UNITS})$`, 'i'))
   if (!m) throw new Error(`size must look like 3.5x2in or 85x55mm — got "${s}"`)
   const k = IN[m[3].toLowerCase()]
   return { w: Number(m[1]) * k, h: Number(m[2]) * k }
@@ -45,7 +46,7 @@ export function parseLength(s) {
   // and a unit on nothing is noise. Everything else must carry its unit.
   const t = String(s).trim()
   if (/^0(\.0+)?$/.test(t)) return 0
-  const m = t.match(/^([\d.]+)\s*(in|mm|cm|pt|px)$/i)
+  const m = t.match(new RegExp(`^([\\d.]+)\\s*(${UNITS})$`, 'i'))
   if (!m) throw new Error(`length must look like 0.125in or 3mm — got "${s}"`)
   return Number(m[1]) * IN[m[2].toLowerCase()]
 }
@@ -218,6 +219,20 @@ iframe { position: absolute; left: ${slug}in; top: ${slug}in; width: ${iw}in; he
 // ── art dimensions ───────────────────────────────────────────────────────────
 
 /** Intrinsic size of an SVG (physical units, or viewBox aspect) or PNG (pixels) as { w, h, unit }. */
+/**
+ * The proof a poster's far read actually needs. A piece of width W seen from D subtends the
+ * same angle as an image of width W × (d / D) seen from d — so rendering at 96 × d / D dots per
+ * inch and holding the screen at d reproduces, exactly, what the eye gets at D. Nothing else
+ * does: a full-size render on a monitor is the view from two feet, which is the one distance a
+ * poster is never read from.
+ * @returns {{ dpi: number, scale: number }} — scale is the fraction of full size.
+ */
+export function distanceProof(distanceInches, viewerInches = 12) {
+  if (!(distanceInches > 0) || !(viewerInches > 0)) throw new Error('distance and viewer must be positive lengths')
+  const scale = viewerInches / distanceInches
+  return { dpi: 96 * scale, scale }
+}
+
 export function artSize(file) {
   const ext = extname(file).toLowerCase()
   if (ext === '.svg') {
@@ -271,6 +286,9 @@ usage:
   print-render <design.html|svg> (--size <preset> | --trim WxH<unit>) [--bleed <len>] [--marks]
                [--png <dpi>] [--out <base>] [--json]
   print-render <front.html> <back.html> [...]  same flags — one multi-page PDF, one PNG per page
+  print-render <poster.html> --size <preset> --distance 40ft,10ft,2ft [--viewer 12in]
+               the far read, proved: one PNG per distance, each sized so that holding the screen
+               at --viewer (default 12in) subtends exactly what the eye gets at that distance
   print-render <art.svg|png> --mockup <garment> --zone <zone> [--garment <css colour>]
                [--art-width <len>] [--show-zones] [--presentation] [--png <dpi>] [--out <base>] [--json]
 
@@ -301,6 +319,15 @@ export async function main(argv = process.argv.slice(2)) {
   mkdirSync(dirname(outBase), { recursive: true })
   const dpi = args.png === true ? 300 : args.png ? Number(args.png) : 0
   if (args.png && !(dpi > 0)) { console.error('print-render: --png wants a dpi, e.g. --png 300'); return 1 }
+  let distances = [], viewerInches = 12
+  if (args.distance) {
+    try {
+      viewerInches = args.viewer ? parseLength(String(args.viewer)) : 12
+      distances = String(args.distance).split(',').map((s) => s.trim()).filter(Boolean)
+        .map((label) => ({ label, inches: parseLength(label) }))
+    } catch (e) { console.error(`print-render: ${e.message}`); return 1 }
+    if (!(viewerInches > 0)) { console.error('print-render: --viewer wants a positive length, e.g. 12in'); return 1 }
+  }
   const scratch = join(tmpdir(), `print-render-${process.pid}-${Date.now()}`)
   mkdirSync(scratch, { recursive: true })
 
@@ -356,6 +383,24 @@ export async function main(argv = process.argv.slice(2)) {
       outputs.pdf = pdf
       await page.close()
     }
+    // The far read, proved. One PNG per viewing distance, each at the angular size the eye
+    // actually gets — hold the screen at `viewer` and you are standing at that distance.
+    if (distances.length && summary.mode === 'print') {
+      outputs.distance = []
+      for (const d of distances) {
+        const { dpi: ddpi, scale } = distanceProof(d.inches, viewerInches)
+        const vw = Math.round(pageW * 96), vh = Math.round(pageH * 96)
+        const ctx = await browser.newContext({ deviceScaleFactor: Math.max(scale, 0.02), viewport: { width: vw, height: vh } })
+        const page = await ctx.newPage()
+        await page.emulateMedia({ media: 'print' })
+        await page.goto(pathToFileURL(wrapper).href, { waitUntil: 'load' })
+        await page.evaluate(() => document.fonts ? document.fonts.ready : null)
+        const png = `${outBase}-at-${d.label.replace(/[^\w.]+/g, '')}.png`
+        await page.screenshot({ path: png, type: 'png', clip: { x: 0, y: 0, width: vw, height: vh } })
+        outputs.distance.push({ at: d.label, png, dpi: +ddpi.toFixed(2), pixels: Math.round(pageW * ddpi) })
+        await ctx.close()
+      }
+    }
     if (dpi > 0) {
       const scale = dpi / 96
       const pages = summary.pages || 1
@@ -383,7 +428,13 @@ export async function main(argv = process.argv.slice(2)) {
     const result = { ...summary, pageInches: { w: +pageW.toFixed(4), h: +pageH.toFixed(4) }, dpi: dpi || null, ...outputs, browserFrom: pw.from }
     if (args.json) console.log(JSON.stringify(result, null, 2))
     else {
-      for (const v of Object.values(outputs).flat()) console.log(`  wrote ${v}  (${(statSync(v).size / 1024).toFixed(0)} KB)`)
+      for (const v of Object.values(outputs).flat()) {
+        if (typeof v !== 'string') continue
+        console.log(`  wrote ${v}  (${(statSync(v).size / 1024).toFixed(0)} KB)`)
+      }
+      for (const d of outputs.distance || []) {
+        console.log(`  wrote ${d.png}  — the view from ${d.at}: ${d.pixels}px wide, ${d.dpi}dpi. Hold the screen at ${viewerInches}in and that is what the eye gets.`)
+      }
       if (summary.mode === 'print') console.log(`  page ${result.pageInches.w} × ${result.pageInches.h} in · trim ${summary.trimInches.w} × ${summary.trimInches.h} · bleed ${summary.bleedInches} · ${summary.colourSpace}`)
       else console.log(`  ${summary.garment} / ${summary.zone} · art ${summary.artInches.w} × ${summary.artInches.h} in on ${summary.garmentColour}`)
     }

@@ -49,9 +49,11 @@ strong default · **[N]** confirm with the manufacturer, the sign shop, or the c
 - **Materials**: the sign shop's list — cut vinyl, dimensional letters, printed panel, back-lit
   film, painted. Each has minimum stroke widths (cut vinyl ≥ 0.1 in [N]) and a look. Choose
   for the building, then obey the material.
-- **Proof**: render at scale and view at the *real* distance ratio — a 24 in sign at 20 ft
-  subtends what a 1.2 in image does on a phone held at 12 in (2.4 in at arm's length).
-  `screen-render` at a size that reproduces that ratio, and look at it from there.
+- **Proof**: `node tools/print-render.mjs sign.html --trim 24x18in --distance 100ft,20ft,3ft`
+  writes one PNG per distance, each at the angular size the eye actually gets — hold the screen
+  at 12 in (or pass `--viewer`) and you are standing there. A 24 in sign at 20 ft subtends what a
+  1.2 in image does on a phone at 12 in, which is why a full-size render on a monitor proves
+  nothing: that is the view from two feet, the one distance a sign is never read from.
 
 ## Banners, trade-show, environments
 

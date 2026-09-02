@@ -7,6 +7,11 @@ screen has one surface; a printed piece has stock, weight, finish, two sides, ed
 Most of what makes physical work memorable happens in those places — and every one of them is
 invisible to a model that thinks a business card is a 3.5×2 rectangle of pixels.
 
+**Prove the far read, never assert it.** `node tools/print-render.mjs piece.html --size <preset>
+--distance 40ft,10ft,2ft` writes one PNG per viewing distance at the angular size the eye actually
+gets; hold the screen at 12 in (or pass `--viewer`) and you are standing there. A poster judged at
+full size on a monitor was judged from two feet — the one distance a poster is never read from.
+
 This file carries the taste. The craft — sizes, bleed, colour, print methods, placement, the
 render pipeline — lives in two technique skills: [`print-design`](../../print-design/SKILL.md)
 for anything a printer produces, [`apparel-design`](../../apparel-design/SKILL.md) for anything

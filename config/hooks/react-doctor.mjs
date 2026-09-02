@@ -43,6 +43,27 @@ const shouldScan = (input) => {
   return editsJs(input);
 };
 
+// The written file's own project — the nearest ancestor holding a package.json — not the
+// session's working directory. Editing a file in one repo used to scan whichever project the
+// session happened to be started in, so the report named code the edit never touched.
+const projectRootFor = (file) => {
+  let dir = file ? dirname(file) : '';
+  while (dir && dir !== dirname(dir)) {
+    if (existsSync(join(dir, 'package.json'))) return dir;
+    dir = dirname(dir);
+  }
+  return null;
+};
+
+const editedPath = (input) => {
+  const calls = Array.isArray(input.tool_calls) ? input.tool_calls : [input];
+  for (const call of calls) {
+    const p = pathOf(call);
+    if (p && JS_LIKE.test(p)) return p;
+  }
+  return '';
+};
+
 const runReactDoctor = (outputPath) => {
   // Each candidate is a single shell command string (not an args array):
   // `shell: true` is required to run the Windows `.cmd` shims, and an args
@@ -93,7 +114,9 @@ const main = () => {
     process.exit(0);
   }
 
-  const projectRoot = process.env.CLAUDE_PROJECT_DIR || join(__dirname, '../..');
+  const projectRoot = projectRootFor(editedPath(input)) || process.env.CLAUDE_PROJECT_DIR;
+  // A JavaScript file with no package.json above it is not a project react-doctor can read.
+  if (!projectRoot) process.exit(0);
   const outputPath = join(tmpdir(), `react-doctor-agent-hook-output-${process.pid}.txt`);
 
   try {

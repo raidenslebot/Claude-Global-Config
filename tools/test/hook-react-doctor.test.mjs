@@ -50,6 +50,14 @@ test('a batch is scanned only when one of its writes is a JS or TS file', (t) =>
   fire({ hook_event_name: 'PostToolBatch', tool_calls: [{ tool_name: 'Write', tool_input: { file_path: tsx } }] }, d)
 })
 
+test("a JS file with no package.json above it is not a project, and is not scanned", (t) => {
+  const d = scratch(t)
+  const f = join(d, 'loose.mjs'); writeFileSync(f, 'export const a = 1\n')
+  // The session's own directory is a real project; the hook must still not scan it for a file
+  // that belongs to no project — that is how a report ends up naming code the edit never touched.
+  assert.equal(fire({ tool_name: 'Write', tool_input: { file_path: f } }, REPO), '')
+})
+
 test('never crashes on a null, empty or malformed payload', (t) => {
   const d = scratch(t)
   for (const input of ['null', '', '{', '{}']) {
