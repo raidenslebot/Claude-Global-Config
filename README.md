@@ -155,8 +155,8 @@ motion laws — is `visual-design-mastery/references/signature-moves.md`; every 
 a page — identity, icons, illustration, diagrams, social, slides, email, packaging, signage — has
 its canvas, minimums and delivery format in `design-fields`. A page built through the loop, with
 its directions and the log of its passes, ships in `creative-divergence/examples/cgc-landing/`;
-an identity system, a feed series and an icon set, built the same way, ship in
-`design-fields/examples/` — seven worked pieces in all, every one held to its gates by the suite.
+an identity system, a feed series, an icon set and a slide deck, built the same way, ship in
+`design-fields/examples/` — eight worked pieces in all, every one held to its gates by the suite.
 The audit also checks the motion laws — linear easing on movement, layout properties animated,
 entrances that are waits, one constant for every event, garnish that never stops.
 

@@ -38,7 +38,7 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 | Motion graphics, title sequences, Lottie | `motion-and-animation.md`, `lottie-animation`, `svg-animation` | text sliding in from the left on a gradient |
 | Generative art, plotter, TUI, data-viz posters | `generative-creative-tui-dataviz.md` | unseeded noise; a rainbow palette |
 
-## Three pieces in exactly this form
+## Four pieces in exactly this form
 
 - [`examples/harbor-swim-club-identity/`](examples/harbor-swim-club-identity/) — an identity
   system: directions first, the mark and its redrawn favicon, the wordmark **outlined to paths**
@@ -53,6 +53,11 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
   drawing rule from the subject (the waterline through every icon), a 24-grid sprite in
   `currentColor`, one file per icon written by `split.mjs`, a contact sheet at 24 and 48 on
   both grounds without labels first — and a size deliberately *not* delivered, with the reason.
+- [`examples/harbor-swim-club-deck/`](examples/harbor-swim-club-deck/) — a slide deck: seven
+  slides at 1920 × 1080 through which the identity's waterline rises one step per slide, one
+  number each, a hand-drawn chart standing on the waterline, the tide table as the ledger, the
+  flag at high water; the passes in `review.md` are four defects the audit passed and the eye
+  caught, which is the argument for the loop.
 
 Read them for the shape; do not copy their designs.
 

@@ -5,6 +5,19 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.7.1 — 2026-09-02
+
+Two defects this session's own work exposed, both of the kind that trains a reader to ignore
+a check:
+
+- **react-doctor scanned on writes it cannot read.** Editing a Markdown file ran it over the
+  whole project and reported forty pre-existing warnings about code the turn never touched.
+  It now scans only when a JavaScript or TypeScript file was written; an event that names no
+  file still scans, as before. Four tests hold the gate.
+- **`--bleed 0` was rejected.** A bare zero is a real answer — a slide deck, a screen-only
+  proof, a piece trimmed flush — and the renderer demanded a unit on nothing. Zero parses; a
+  number without a unit still does not. The seven-slide deck renders as one 7-page PDF.
+
 ## 1.7.0 — 2026-09-02
 
 A third adversarial review, over the hooks and the remaining tools; fourteen findings, the

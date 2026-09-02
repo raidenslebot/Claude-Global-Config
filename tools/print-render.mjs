@@ -41,7 +41,11 @@ export function parseSize(s) {
 
 /** "0.125in" | "3mm" -> inches. */
 export function parseLength(s) {
-  const m = String(s).trim().match(/^([\d.]+)\s*(in|mm|cm|pt|px)$/i)
+  // Bare zero is a real answer — a deck, a screen-only proof, a piece the shop trims flush —
+  // and a unit on nothing is noise. Everything else must carry its unit.
+  const t = String(s).trim()
+  if (/^0(\.0+)?$/.test(t)) return 0
+  const m = t.match(/^([\d.]+)\s*(in|mm|cm|pt|px)$/i)
   if (!m) throw new Error(`length must look like 0.125in or 3mm — got "${s}"`)
   return Number(m[1]) * IN[m[2].toLowerCase()]
 }

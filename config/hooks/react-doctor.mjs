@@ -20,14 +20,27 @@ const readFileOrEmpty = (source) => {
   }
 };
 
+// react-doctor reads JavaScript and TypeScript. A write to a markdown file, an SVG, a stylesheet
+// or a JSON config told it nothing about that file and reported the whole project — pages of
+// pre-existing warnings about code the turn never touched, which is how a check gets switched
+// off. So the gate is the written file's extension, and an event that names no file (a batch
+// with no paths) still scans, as it did before.
+const JS_LIKE = /\.(m?[jt]sx?|cjs|cts|mts)$/i;
+const pathOf = (call) => String((call && (call.tool_input?.file_path || call.file_path || call.path)) || '');
+const editsJs = (call) => {
+  const p = pathOf(call);
+  return p ? JS_LIKE.test(p) : true; // no path in the payload: cannot rule it out, so scan
+};
+
 const shouldScan = (input) => {
   const eventName = input.hook_event_name || input.eventName || input.event_name;
   if (eventName === 'PostToolBatch') {
     const toolCalls = Array.isArray(input.tool_calls) ? input.tool_calls : [];
-    return toolCalls.some((toolCall) => EDIT_TOOL_NAMES.has(toolCall.tool_name));
+    return toolCalls.some((toolCall) => EDIT_TOOL_NAMES.has(toolCall.tool_name) && editsJs(toolCall));
   }
   const toolName = input.tool_name || input.toolName || input.tool;
-  return !toolName || EDIT_TOOL_NAMES.has(toolName);
+  if (toolName && !EDIT_TOOL_NAMES.has(toolName)) return false;
+  return editsJs(input);
 };
 
 const runReactDoctor = (outputPath) => {

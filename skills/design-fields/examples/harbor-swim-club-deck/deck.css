@@ -1,6 +1,8 @@
 /* Harbor Swim Club — the annual-meeting deck. One stylesheet; each slide is one 1920 × 1080 file.
    The waterline rises through the deck: each slide sets --water (a percentage of the height).
    Render: node tools/screen-render.mjs slide-01.html --preset slide     (one PNG per slide)
+   Deck:   node tools/print-render.mjs slide-01.html … slide-07.html --trim 20x11.25in --bleed 0
+           (one seven-page PDF at 16:9, for the projector and the members' inbox)
    Gate:   node tools/slop-lint.mjs .   ·   node tools/page-audit.mjs slide-03.html --viewport 1920x1080
    Directions and the passes: directions.md, review.md */
 
