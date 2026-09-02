@@ -143,6 +143,31 @@ function snapshot(root) {
   return out
 }
 
+test('--yes restores the copy install moved aside under our skill\'s name, and removes the state directory', (t) => {
+  const home = scratch(t, 'uninstall-restore-')
+  const { cfg, skills } = seedInstall(home)
+  // What install.mjs leaves when it finds a foreign directory under one of our names.
+  const name = OWNED_SKILLS[0]
+  const aside = join(cfg, '.cgc-replaced', `${name}-1700000000000`)
+  mkdirSync(aside, { recursive: true })
+  writeFileSync(join(aside, 'SKILL.md'), '# the user\'s own copy, moved aside at install\n', 'utf8')
+  mkdirSync(join(cfg, '.cgc', 'fonts'), { recursive: true })
+  writeFileSync(join(cfg, '.cgc', 'selftest.json'), '{}', 'utf8')
+
+  const dry = runUninstall([], home)
+  assert.equal(dry.status, 0, dry.plain)
+  assert.ok(existsSync(join(cfg, '.cgc', 'selftest.json')), 'a dry run removes nothing')
+  assert.ok(existsSync(aside), 'a dry run restores nothing')
+
+  const r = runUninstall(['--yes'], home)
+  assert.equal(r.status, 0, r.plain)
+  assert.match(r.plain, /is back in its place/)
+  assert.ok(!lstatSync(join(skills, name)).isSymbolicLink(), 'our link is gone')
+  assert.equal(readFileSync(join(skills, name, 'SKILL.md'), 'utf8'), '# the user\'s own copy, moved aside at install\n', 'the replaced copy is restored')
+  assert.ok(!existsSync(aside), 'the aside copy moved, not duplicated')
+  assert.ok(!existsSync(join(cfg, '.cgc')), 'the state directory is removed')
+})
+
 test('the fixture has what it needs from the repo', () => {
   assert.ok(OWNED_HOOKS.length >= 2, 'need two hooks in config/hooks')
   assert.ok(OWNED_SKILLS.length >= 2, 'need two skills with a SKILL.md in skills/')

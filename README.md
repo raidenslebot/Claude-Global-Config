@@ -46,7 +46,7 @@ node tools/doctor.mjs
 ```
 
 Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-npm`,
-`--only=config|skills|hooks|npm|mcp|library|argo` (several, comma-separated).
+`--only=config|skills|hooks|deps|npm|mcp|library|argo` (several, comma-separated).
 
 From then on the install looks after itself. Every session start runs one hook that follows
 `main` (fast-forward when behind, re-applying config, hooks and skills), runs the doctor and
@@ -75,6 +75,7 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
+| **Dependencies** | the repo's one runtime dependency, `fontkit` (the font parser behind `outline-text`), installed into the repo's own `node_modules` from its lockfile, only when absent |
 | **Library** | 12 skill repos cloned and indexed; 2 rejected on the record |
 
 ---

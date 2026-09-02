@@ -261,6 +261,16 @@ The first line of every session is `session-start-cgc.js`'s report. Read it as a
   `settings.json` pins it. `node tools/doctor.mjs` says which; `node tools/install.mjs
   --only=hooks` repairs it.
 
+## outline-text says "fontkit not found" or "Google Fonts answered 400"
+
+`fontkit` is the repo's one runtime dependency, installed into the repo's own `node_modules`
+by `node tools/install.mjs --only=deps` (or `npm i` in the repo). The session hook re-applies
+that phase, so it is missing only on a clone that never ran install. A 400 from Google Fonts
+means the family name or the axis spec is wrong: the name is case-sensitive and spaces become
+`+` in the URL; an axis spec must list axes alphabetically (`ital,opsz,wght`) and every
+requested value must exist in the face. Offline, a face already fetched works from the cache
+under `~/.claude/.cgc/fonts`; a new one does not, and the error says so.
+
 ## page-audit says a face "is not available"
 
 The page rendered in a fallback, so the design that was judged is not the one that ships. The

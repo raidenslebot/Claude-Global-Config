@@ -5,6 +5,25 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.4.0 — 2026-09-02
+
+- **The override, reversed.** `uninstall` puts back the copy that install moved aside under
+  one of this package's skill names, and removes the state directory (update stamps, the
+  self-test cache, the font cache). Tested on the isolated fixture.
+- **Every example gated by the suite.** A new test holds all six worked examples to their
+  form: directions on disk with the swap test and a commitment, a review or spec beside the
+  artwork, every screen file clean of the template, every physical file passing print-lint
+  for its stated method or size, every outlined file free of live text.
+- **screen-render tested**, and fixed: a preset with `--full` captured the whole page instead
+  of its exact canvas. The presets, the viewport sizes, the full-page capture and the
+  failed-face report are all held by tests that read the PNG header.
+- **The identity example ships its generator**, so the wordmark, lockups, icon master and
+  brand sheet regenerate byte-for-byte from `directions.md` and the outline tool on any clone.
+- **The line, always.** CLAUDE.md now says what to do when a host never surfaces the session
+  hook's output: run the installed hook and open with its line. Never invented, never omitted.
+- Docs: the "built-ins only" claim states its one exception; the README lists the `deps`
+  phase; troubleshooting covers outline-text.
+
 ## 1.3.0 — 2026-09-02
 
 - **Text as paths.** `tools/outline-text.mjs` takes a local font or a Google Fonts family with

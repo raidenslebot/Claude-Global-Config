@@ -21,7 +21,7 @@
 // directories, config/hooks.json, library/sources.json, argo's marketplace manifest — so it
 // cannot drift into a guess, and it can never widen into "wipe ~/.claude".
 
-import {
+import { renameSync,
   readFileSync, writeFileSync, existsSync, readdirSync, statSync, lstatSync,
   rmSync, rmdirSync, mkdirSync, copyFileSync,
 } from 'node:fs'
@@ -278,9 +278,29 @@ phase('Skills')
         continue
       }
       gone(`skills/${name} (link removed, target repo untouched)`)
+      // install.mjs moves a foreign directory it found under this name to .cgc-replaced and
+      // links ours in its place. The override is reversible: the newest copy goes back.
+      const aside = join(CONFIG_ROOT, '.cgc-replaced')
+      if (existsSync(aside)) {
+        const prev = readdirSync(aside).filter((d) => d.startsWith(`${name}-`)).sort().pop()
+        if (prev) {
+          if (!DRY) renameSync(join(aside, prev), p)
+          gone(`skills/${name}: the copy install replaced (${prev}) is back in its place`)
+        }
+      }
     }
     if (!DRY && existsSync(skillsDir) && !readdirSync(skillsDir).length) { rmdirSync(skillsDir); gone('skills/ (directory, now empty)') }
   }
+}
+
+// ── 4b. State this config kept beside itself ─────────────────────────────────
+phase('State')
+{
+  const state = join(CONFIG_ROOT, '.cgc')
+  if (!existsSync(state)) skip('.cgc (update stamps, self-test cache, font cache) not present')
+  else { if (!DRY) rmSync(state, { recursive: true, force: true }); gone('.cgc (update stamps, self-test cache, font cache)') }
+  const aside = join(CONFIG_ROOT, '.cgc-replaced')
+  if (existsSync(aside) && readdirSync(aside).length === 0) { if (!DRY) rmdirSync(aside); gone('.cgc-replaced/ (empty)') }
 }
 
 // ── 5. argo — plugin, marketplace, global CLI link ──────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "claude-global-config",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Claude Code global config — installer, doctor, secret scanner and their tests.",
   "//type": "Deliberately NOT \"module\": config/hooks/*.js are CommonJS and are loaded by basename. A root type:module would reinterpret them as ESM and break every hook run from inside the repo. Tests are .mjs, so they are ESM regardless.",

@@ -287,7 +287,10 @@ animated, entrances over 1.5 s, one constant for every event, more than three th
 ## What is deliberately not here
 
 - **No dependency on a package registry at runtime.** argo has zero dependencies; the tools use
-  node built-ins only. A fresh machine needs Node and git, nothing else.
+  node built-ins, with one declared exception — `fontkit`, the font parser behind
+  `outline-text`, installed once from the lockfile by the `deps` phase and checked by the
+  doctor. Nothing fetches from a registry while a tool runs. A fresh machine needs Node and
+  git, nothing else.
 - **No `Date.now()` in generated files.** A timestamp that changes every run churns the git diff
   and trains everyone to ignore the file. Freshness is derived from file mtimes instead.
 - **No auto-repair in `doctor.mjs`.** It checks and reports; `install.mjs` is the only writer.

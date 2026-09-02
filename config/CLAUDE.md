@@ -11,7 +11,11 @@ line to the user and to the session:
 `CGC v<version> enabled · <n>/<n> checks · <n>/<n> tests · up to date (<commit>)` — the hook
 supplies the real numbers.
 
-Open the first reply of a session with the line the hook produced, verbatim, then proceed. Every mandate in
+Open the first reply of a session with the line the hook produced, verbatim, then proceed. If no
+`CGC STATUS` context reached the session — some hosts do not surface SessionStart output — produce
+it before the first reply: run the installed hook with `{"source":"resume"}` on stdin
+(`echo {"source":"resume"} | node "{{CONFIG_ROOT:url}}/hooks/session-start-cgc.js"`) and open with
+its `systemMessage` line. The line is never invented and never omitted. Every mandate in
 this file — the design stack and the loop, the React and security stacks, model routing for
 every agent, subagent and workflow, graph engineering — is enforced by hooks that are verified
 present at every start. None is advisory; none can be silently removed; a skill or plugin that

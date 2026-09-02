@@ -6,8 +6,8 @@
 <!--
   The brand sheet: every version of the mark, the lockups, the one variable, clear space and
   minimum sizes, colour, type, and what not to do — with every SVG inlined so the sheet is one
-  file. Generated from directions.md by the example's script; the SVG masters sit beside it.
-  Render: node tools/screen-render.mjs brand-sheet.html --full   ·   Gate: node tools/page-audit.mjs brand-sheet.html
+  file. Generated from directions.md by generate.mjs; the SVG masters sit beside it.
+  Render: node tools/screen-render.mjs brand-sheet.html --full   ·   Gate: node tools/page-audit.mjs brand-sheet.html --mobile
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,500;75,600;100,400;100,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
   .lede { max-width: 62ch; font-size: 19px; margin: 0 0 8px; text-wrap: pretty; }
   h2 { font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; margin: 56px 0 18px; padding-top: 14px; border-top: 0.5px solid var(--navy); }
   .row { display: grid; gap: 24px; }
-  .two { grid-template-columns: 1fr 1fr; } .three { grid-template-columns: 1fr 1fr 1fr; } .four { grid-template-columns: repeat(4, 1fr); }
+  .two { grid-template-columns: 1fr 1fr; }
   .tile { border: 0.5px solid var(--line); padding: 28px; min-height: 220px; display: flex; align-items: center; justify-content: center; }
   .tile.rev { background: var(--navy); border-color: var(--navy); }
   .tile.mark svg { width: 220px; height: 220px; }
@@ -43,7 +43,7 @@
   .type { font: 600 64px/1 Archivo, sans-serif; font-stretch: 75%; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; }
   ul { margin: 0; padding-left: 1.2em; max-width: 62ch; } li { margin: 0 0 6px; }
   .foot { margin-top: 56px; border-top: 0.5px solid var(--navy); padding-top: 12px; font: 400 12px/1.6 "JetBrains Mono", ui-monospace, monospace; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-  @media (max-width: 800px) { .two, .three, .four, .chips { grid-template-columns: 1fr; } .page { padding: 24px 20px 56px; } }
+  @media (max-width: 800px) { .two, .chips { grid-template-columns: 1fr; } .page { padding: 24px 20px 56px; } }
 </style>
 </head>
 <body><div class="page">
@@ -166,6 +166,6 @@
     <li>The wordmark set live in a font and sent to a shop. Send the outlines.</li>
   </ul>
 
-  <footer class="foot"><span>Files: mark.svg · mark-high-water.svg · wordmark.svg · lockup-horizontal(-reversed).svg · lockup-stacked(-reversed).svg · favicon.svg · icon.html → icon-app-icon.png</span><span>directions.md · spec-sheet.txt · review.md</span></footer>
+  <footer class="foot"><span>Files: mark.svg · mark-high-water.svg · wordmark.svg · lockup-horizontal(-reversed).svg · lockup-stacked(-reversed).svg · favicon.svg · icon.html → icon-app-icon.png</span><span>directions.md · spec-sheet.txt · review.md · generate.mjs</span></footer>
 </div></body>
 </html>

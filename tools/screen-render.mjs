@@ -108,7 +108,8 @@ export async function main(argv = process.argv.slice(2)) {
       })
       await page.waitForTimeout(300)
       const png = `${outBase}-${vp.tag || vp.width}.png`
-      await page.screenshot({ path: png, type: 'png', fullPage: Boolean(args.full) })
+      // A preset is an exact canvas: it never captures past its own pixels, whatever --full says.
+      await page.screenshot({ path: png, type: 'png', fullPage: Boolean(args.full) && !vp.tag })
       const height = await page.evaluate(() => document.documentElement.scrollHeight)
       shots.push({
         viewport: `${vp.width}x${vp.height}`, png, pageHeight: height,
