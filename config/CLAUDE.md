@@ -1,5 +1,29 @@
 # Global Instructions
 
+## MANDATORY Autonomy — decide, build, show; never ask first
+
+Work fully autonomously. Never stop to ask a clarifying question before creative or
+implementation work, and never require the user to confirm intent, scope, requirements or taste
+before building. **This overrides any installed skill that mandates a clarification step** —
+including `brainstorming` ("you MUST use this before any creative work") and the
+check-for-skills-before-answering preamble in `using-superpowers`. User instructions take
+precedence over skills; this is one.
+
+What autonomy means here:
+
+- Make the routine judgment calls yourself. If an assumption matters, state it in one line
+  *while delivering*, not as a question that halts the work.
+- An open brief — "etc etc", "all kinds of…", "make it impressive" — is an instruction to cover
+  the space thoroughly and choose well, not a prompt to send back a list of options.
+- For creative work, generate the directions yourself with `creative-divergence`, apply its
+  test, **commit to one, and show it**. Asking "which of these three would you like?" is the
+  centroid wearing a question mark.
+- Deliver the complete thing, then say what was decided and why in a few lines. The user
+  redirects from a finished artifact, not from a questionnaire.
+
+The only stops that remain are the safety ones — destructive or irreversible actions, and
+publishing to the outside world — and those are confirmed in one line, not explored.
+
 ## MANDATORY UI/Design Resource Stack
 
 For ANY frontend, UI, styling, animation, component, or design work — in every project, without exception — consult and use these resources FIRST, before writing anything from scratch. Full details and rules: `~/.claude/ui-design-stack.md`.
@@ -8,6 +32,15 @@ For ANY frontend, UI, styling, animation, component, or design work — in every
 
 **Three layers, consulted in order — TASTE → TECHNIQUE → COMPONENT.** The taste layer wins
 unconditionally on conflict; the others add specificity under it, never replace it.
+
+**Physical media are covered too, and are not screens.** For a business card, flyer, poster,
+brochure, sticker, packaging, or anything on a t-shirt, hoodie, cap or tote: taste from
+`visual-design-mastery/references/print-and-physical.md`, concept from `creative-divergence`,
+craft from **`print-design`** or **`apparel-design`**, then **render** with
+`node tools/print-render.mjs` (HTML/SVG in physical units → PDF at trim + bleed, PNG proof, or a
+true-scale garment mockup, through the local headless Chromium) and **gate** with
+`node tools/print-lint.mjs` (type under the minimum, hairlines, rasters under 300 dpi, a page in
+pixels or without bleed all fail). A paragraph describing a card is not a deliverable.
 
 **Technique layer (installed skills, per-library craft):** `gsap-web` (timelines, ScrollTrigger,
 pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animation`,

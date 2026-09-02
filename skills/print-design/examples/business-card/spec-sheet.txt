@@ -1,0 +1,14 @@
+PIECE:        Ash & Ember Letterpress business card, front + back
+TRIM:         3.5 x 2 in            BLEED: 0.125 in        SAFE: 0.125 in
+STOCK:        600 gsm 100% cotton, natural white (e.g. Crane Lettra Pearl White, or shop equivalent)
+PROCESS:      letterpress. FRONT: blind deboss (no ink), deep impression — the ampersand only.
+              BACK: 1 colour, deep impression.
+INK:          back only — Pantone Black 6 U (warm black on uncoated stock)
+FINISH:       none (uncoated)      CORNERS: square
+SIDES:        2 — front: blind ampersand; back: name, role, three contact lines
+QUANTITY:     250
+FILES:        front.pdf, back.pdf (RGB, trim + bleed, crop marks in a 0.25 in slug, fonts embedded)
+              front.png, back.png (300 dpi proofs)
+              Colour intent: the cream background is the STOCK, not printed — please do not print it.
+NOTES:        Impression to be visibly deep on the mark and the name; contact lines lighter.
+              Please send a proof before the run.

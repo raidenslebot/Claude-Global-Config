@@ -285,6 +285,9 @@ if (JSON_OUT) {
   console.log(JSON.stringify({
     healthy: failures === 0, counts, contextTokens: tokens,
     configRoot: CONFIG_ROOT, repo: REPO, results,
+    // The text report shows the five worst; a machine acting on this needs every one, with
+    // the skills that claim it — that is how a new description finds the word it tipped over.
+    contention: contention.map(([word, skills]) => ({ word, skills })),
   }, null, 2))
 } else {
   say(`\n\x1b[1m── Summary ${'─'.repeat(52)}\x1b[0m`)

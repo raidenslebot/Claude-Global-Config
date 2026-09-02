@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22in" height="29in" viewBox="0 0 22 29" data-garment="tee" data-view="back">
+  <!-- Adult unisex tee, back, flat at true scale (inches). The back neck sits higher than the front. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.32px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <path class="body" d="
+      M 6.6 0.9  C 8.2 0.4 13.8 0.4 15.4 0.9
+      L 21.2 4.2  L 19.4 9.0  L 16.8 8.2
+      L 16.8 28.6  L 5.2 28.6  L 5.2 8.2
+      L 2.6 9.0  L 0.8 4.2  Z" />
+    <!-- back neck: shallow -->
+    <path class="body" d="M 8.2 0.75 C 9.2 1.7 12.8 1.7 13.8 0.75 C 12.6 0.45 9.4 0.45 8.2 0.75 Z" />
+    <path class="seam" d="M 8.0 1.1 C 9.2 2.2 12.8 2.2 14.0 1.1" />
+    <path class="seam" d="M 5.2 8.2 L 5.2 28.6 M 16.8 8.2 L 16.8 28.6" />
+    <path class="seam" d="M 2.6 9.0 L 5.2 8.2 M 19.4 9.0 L 16.8 8.2" />
+    <path class="seam" d="M 5.2 28.0 L 16.8 28.0" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="4.5" y="7" width="13" height="14" /><text class="zone-label" x="4.65" y="7.45">full-back</text>
+    <rect class="zone" x="6" y="5" width="10" height="2.5" /><text class="zone-label" x="6.15" y="5.4">yoke</text>
+    <rect class="zone" x="9.75" y="8" width="2.5" height="16" /><text class="zone-label" x="9.9" y="8.45">spine</text>
+    <rect class="zone" x="9.5" y="3.2" width="3" height="3" /><text class="zone-label" x="9.65" y="3.6">tag</text>
+  </g>
+</svg>

@@ -1,0 +1,64 @@
+{
+  "_comment": "Garment flats at true scale. Units are inches from the top-left of the flat. `tools/print-render.mjs --mockup <garment> --zone <zone>` reads this file; `references/placement-and-sizing.md` explains every number. Zones are strong defaults for an adult unisex L; the shop's platen and blank are the hard limits.",
+  "tee": {
+    "file": "tee.svg",
+    "width": 22,
+    "height": 29,
+    "collarSeamY": 3.6,
+    "zones": {
+      "full-front":   { "x": 5,    "y": 7,    "w": 12,  "h": 14 },
+      "left-chest":   { "x": 12.5, "y": 7,    "w": 4,   "h": 4 },
+      "right-chest":  { "x": 5.5,  "y": 7,    "w": 4,   "h": 4 },
+      "sleeve-left":  { "x": 18.2, "y": 6,    "w": 3,   "h": 3 },
+      "sleeve-right": { "x": 0.8,  "y": 6,    "w": 3,   "h": 3 },
+      "hem-left":     { "x": 13,   "y": 24.5, "w": 4,   "h": 2.5 },
+      "hem-right":    { "x": 5,    "y": 24.5, "w": 4,   "h": 2.5 },
+      "pocket":       { "x": 12.5, "y": 8,    "w": 4,   "h": 4 }
+    }
+  },
+  "tee-back": {
+    "file": "tee-back.svg",
+    "width": 22,
+    "height": 29,
+    "collarSeamY": 2.2,
+    "zones": {
+      "full-back": { "x": 4.5,  "y": 7,   "w": 13, "h": 14 },
+      "yoke":      { "x": 6,    "y": 5,   "w": 10, "h": 2.5 },
+      "spine":     { "x": 9.75, "y": 8,   "w": 2.5, "h": 16 },
+      "tag":       { "x": 9.5,  "y": 3.2, "w": 3,  "h": 3 }
+    }
+  },
+  "hoodie": {
+    "file": "hoodie.svg",
+    "width": 24,
+    "height": 28,
+    "collarSeamY": 5,
+    "zones": {
+      "front":      { "x": 7,    "y": 8.5, "w": 10,  "h": 8 },
+      "left-chest": { "x": 13.5, "y": 8.5, "w": 4,   "h": 4 },
+      "hood":       { "x": 9,    "y": 0.8, "w": 6,   "h": 4.5 },
+      "sleeve":     { "x": 19.5, "y": 8,   "w": 3,   "h": 3 },
+      "pocket":     { "x": 13,   "y": 20.5, "w": 3.5, "h": 2.5 },
+      "full-back":  { "x": 5.5,  "y": 8,   "w": 13,  "h": 14 }
+    }
+  },
+  "cap": {
+    "file": "cap.svg",
+    "width": 8,
+    "height": 6,
+    "zones": {
+      "cap-front": { "x": 2,   "y": 1.6, "w": 4,   "h": 2.25 },
+      "cap-side":  { "x": 5.8, "y": 2.4, "w": 2,   "h": 1 },
+      "cap-back":  { "x": 2.75, "y": 4.2, "w": 2.5, "h": 1 }
+    }
+  },
+  "tote": {
+    "file": "tote.svg",
+    "width": 15,
+    "height": 16,
+    "zones": {
+      "front":  { "x": 1.5, "y": 3,  "w": 12, "h": 12 },
+      "corner": { "x": 10.5, "y": 12, "w": 3, "h": 3 }
+    }
+  }
+}

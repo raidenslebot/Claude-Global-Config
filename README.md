@@ -57,7 +57,8 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
 | **Hooks** | 16 hooks merged into `settings.json`, each pinned to an absolute Node path |
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
-| **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills |
+| **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills |
+| **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -79,6 +80,25 @@ TECHNIQUE   gsap-web, svg-animation,   How do I do it well in THIS library?
 COMPONENT   21st.dev, Magic UI,        Has someone already built it?
             Aceternity, React Bits
 ```
+
+### Print and apparel — physical media, with a real output
+
+A business card, a flyer, a poster, a t-shirt: the model's default answer is a screen layout
+scaled to the size, described in a paragraph. This config treats them as objects. The taste
+layer gains a print-and-physical reference (the stock is a value; boldness can be spent on the
+edge, the finish, or the back; hierarchy is measured in feet). Two technique skills carry the
+craft — `print-design` (trim, bleed, safe zone, resolution, CMYK and spot colour, stock, finish,
+folds, die-cuts) and `apparel-design` (screen print / DTG / embroidery / HTV constraints, placement
+zones in inches, garment colour as artwork, SVG garment flats). And the output is a file:
+
+```bash
+node tools/print-render.mjs card.html --size business-card-us --marks --png 300   # PDF at trim+bleed, PNG proof
+node tools/print-lint.mjs   card.html --size business-card-us                     # fails on what the press would reject
+node tools/print-render.mjs mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150
+```
+
+The renderer drives the headless Chromium already installed for the Playwright MCP — nothing
+new to install, no account. It writes RGB and says so; the skill says what to hand an offset shop.
 
 ### The tiering, and why it exists
 

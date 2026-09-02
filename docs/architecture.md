@@ -124,6 +124,31 @@ any MCP server addressed by URL, in every scope including the project-scoped map
 and a test plants one to prove the report fires. Host-application connectors are outside
 `.claude.json` and therefore outside this check; that limit is stated rather than covered.
 
+## Decision: physical media go through the browser, and the browser is checked
+
+Asked for a business card, the model produced the centroid of every card it had seen and
+delivered it as a paragraph or a screenshot. Two failures, one cause each: no taste or craft for
+the medium, and no output a printer could take.
+
+The output path was chosen for what was already on the machine. The Playwright MCP server
+installs a headless Chromium; Chromium renders HTML and SVG at physical units and writes a PDF
+with an exact page size. So `tools/print-render.mjs` finds `playwright-core` beside the live MCP
+registration (never by a named path), wraps the design in an `<iframe>` at trim + bleed inside a
+page that carries the slug and crop marks, and emits the PDF and a PNG proof at a real dpi. For
+apparel it composites artwork onto an SVG garment flat drawn in inches, so placement is judged
+on a body before anyone orders a hundred shirts. Nothing is fetched and nothing needs an account.
+
+What the browser cannot do is stated, not hidden: it writes RGB. Online printers convert; an
+offset shop wants CMYK or PDF/X, and the skill says to ship a spec sheet naming the intent or to
+convert with Ghostscript if it happens to be present. Claiming a CMYK file the tool did not make
+would be exactly the confident-wrong output this repo exists to prevent.
+
+The gate is `tools/print-lint.mjs`, static and dependency-free so it runs wherever node does:
+type under the method's minimum, hairlines, rasters under 300 dpi at their placed size, a page
+in pixels or at exactly trim size (bleed forgotten — the most common real mistake) all fail. It
+is the same shape as every other gate here: a design that looks finished and would not survive
+the press does not leave the machine.
+
 ## Decision: two dispatch paths, both routed, one vocabulary
 
 Spawned agents reach a model by two different paths, and only one of them passes through the

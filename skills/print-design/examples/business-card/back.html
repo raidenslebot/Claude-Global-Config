@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Ash & Ember Letterpress — card back</title>
+<!--
+  The back carries everything the front refused. One typeface at two sizes; a rule; three
+  contact lines, not seven. Text is 100% K (letterpress prints one ink — the spec sheet names it).
+  Render:  node tools/print-render.mjs back.html --size business-card-us --marks --png 300
+  Gate:    node tools/print-lint.mjs   back.html --size business-card-us
+-->
+<style>
+  @page { size: 3.75in 2.25in; margin: 0; }
+  html, body { margin: 0; }
+  .sheet { width: 3.75in; height: 2.25in; background: #f4efe4; color: #1d1a17; position: relative; overflow: hidden;
+           font-family: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif; }
+  .safe  { position: absolute; inset: 0.25in; display: flex; flex-direction: column; justify-content: space-between; }
+  .name  { font-size: 15pt; line-height: 1.05; font-weight: 500; letter-spacing: -0.01em; margin: 0; }
+  .name em { font-style: italic; font-weight: 400; }
+  .role  { font-size: 7.5pt; line-height: 1.4; margin: 0.06in 0 0; letter-spacing: 0.12em; text-transform: uppercase; }
+  .rule  { border-top: 0.5pt solid #1d1a17; width: 0.5in; margin: 0.09in 0 0; }
+  .lines { font-size: 7.5pt; line-height: 1.5; margin: 0; font-variant-numeric: tabular-nums; }
+  .lines span { display: block; }
+</style>
+<div class="sheet"><div class="safe">
+  <div>
+    <p class="name">Ash <em>&amp;</em> Ember</p>
+    <p class="role">Letterpress · Edition printing</p>
+    <div class="rule"></div>
+  </div>
+  <p class="lines">
+    <span>Mira Okafor, printer</span>
+    <span>hello@ashandember.example</span>
+    <span>+1 555 010 2260</span>
+  </p>
+</div></div>

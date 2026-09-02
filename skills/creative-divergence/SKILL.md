@@ -72,6 +72,11 @@ A CRT has scanlines, bloom, and phosphor persistence. Risograph misregisters and
 multiply. Woven textile has a grid you cannot escape. Obeying the material's *limitations* is
 what produces form you would not otherwise reach.
 
+When the output *is* physical — a card, a poster, a shirt — this operator stops being a
+transplant and becomes the medium: the stock, the ink count, the thread, the placement on a body
+are the constraints to obey, and each has moves the screen never offers. `print-design` and
+`apparel-design` carry those; run this protocol first, then theirs.
+
 **2 · Diegetic framing.** The interface is an **object inside the product's world**, not a
 website about it. Not "a dark UI with gold accents" — an Orokin console the Tenno actually
 operates, with its symmetry laws, its ceremonial pacing, its refusal to show a scrollbar.

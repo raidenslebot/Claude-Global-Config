@@ -113,6 +113,10 @@ The current "AI made this" signature — recognise it and refuse it, in every me
 - **Generative/TUI/dataviz:** `Math.random()` with no seed and no composition; a rainbow
   16-colour ANSI palette; a chart with a default legend, no emphasized series, and axes
   that lie.
+- **Print and apparel:** a screen layout scaled to a business card — white, logo top-left,
+  four contact lines, one accent, on default gloss; a poster that is a big flyer; a logo
+  centred on the chest of a white tee; neon RGB chosen for a CMYK press; a grain overlay
+  mistaken for craft.
 
 When you catch yourself reaching for one of these, that is the signal to stop and choose.
 
@@ -130,6 +134,7 @@ writing code — it has the real APIs, real values, and real snippets.
 | **Games** — C#/MonoGame (SpriteBatch), Unity, Godot, game-feel/juice, particles | [`games-and-engines.md`](references/games-and-engines.md) |
 | **Native / mobile** — SwiftUI, Jetpack Compose, Flutter, desktop UI | [`native-and-mobile.md`](references/native-and-mobile.md) |
 | **Generative art / TUI / data-viz** — p5/Processing, terminal UIs, charts | [`generative-creative-tui-dataviz.md`](references/generative-creative-tui-dataviz.md) |
+| **Print and physical** — business cards, flyers, posters, brochures, stickers, packaging; t-shirts, hoodies, caps, merch | [`print-and-physical.md`](references/print-and-physical.md) — the taste; then `print-design` or `apparel-design` for the craft and the render pipeline |
 
 ## How this composes with what's already here
 

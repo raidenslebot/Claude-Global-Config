@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="15in" height="16in" viewBox="0 0 15 16" data-garment="tote" data-view="front">
+  <!-- Canvas tote, front, flat at true scale (inches): 15 × 16 bag, handles drawn folded above. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.32px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <!-- handles (cut off at the top of the flat) -->
+    <path class="body" d="M 3.2 2.2 L 3.2 0 L 4.4 0 L 4.4 2.2 Z M 10.6 2.2 L 10.6 0 L 11.8 0 L 11.8 2.2 Z" />
+    <!-- bag body -->
+    <rect class="body" x="0.4" y="2.2" width="14.2" height="13.4" rx="0.15" />
+    <!-- top hem and bottom seam -->
+    <path class="seam" d="M 0.4 2.9 L 14.6 2.9 M 0.4 15.0 L 14.6 15.0" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="1.5" y="3" width="12" height="12" /><text class="zone-label" x="1.65" y="3.45">front</text>
+    <rect class="zone" x="10.5" y="12" width="3" height="3" /><text class="zone-label" x="10.65" y="12.45">corner</text>
+  </g>
+</svg>

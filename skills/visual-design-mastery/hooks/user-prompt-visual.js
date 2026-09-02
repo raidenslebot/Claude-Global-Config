@@ -38,6 +38,34 @@ const VISUAL = new RegExp(
     // dataviz / terminal
     '\\bchart\\b', 'graph', 'plot', 'data ?vis', 'visuali[sz]ation', '\\btui\\b',
     'terminal (ui|art|colou?r)', 'ascii art',
+    // print and physical
+    'business card', 'flyer', 'poster', 'brochure', 'postcard', 'sticker', 'packaging',
+    'invitation', 'letterhead', 'menu design', 'print-?ready', '\\bbleed\\b', '\\bcmyk\\b',
+    'pantone', 'letterpress', 'die-?cut',
+    // apparel
+    't-?shirt', '\\btee\\b', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote',
+    '\\bmerch', 'jersey', 'screen ?print', '\\bdtg\\b', 'embroider', 'heat transfer',
+    'apparel', 'garment',
+  ].join('|'),
+  'i'
+)
+
+// The physical media have their own technique skills and a real render pipeline; a prompt
+// that matches here gets routed to them, because the failure mode is specific — a screen
+// layout at card size, delivered as a paragraph or a screenshot, never as a print file.
+const PHYSICAL = new RegExp(
+  [
+    'business card', 'flyer', 'poster', 'brochure', 'postcard', 'sticker', 'packaging',
+    'invitation', 'letterhead', 'menu design', 'print-?ready', '\\bbleed\\b', '\\bcmyk\\b',
+    'pantone', 'letterpress', 'die-?cut', 'print(ed|ing)? (piece|design|collateral)',
+  ].join('|'),
+  'i'
+)
+const APPAREL = new RegExp(
+  [
+    't-?shirt', '\\btee\\b', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote',
+    '\\bmerch', 'jersey', 'screen ?print', '\\bdtg\\b', 'embroider', 'heat transfer',
+    'apparel', 'garment',
   ].join('|'),
   'i'
 )
@@ -65,6 +93,26 @@ function main() {
   const prompt = String(payload.prompt ?? '')
   if (!VISUAL.test(prompt)) return
 
+  let physical = ''
+  if (PHYSICAL.test(prompt) || APPAREL.test(prompt)) {
+    const which = APPAREL.test(prompt) && !PHYSICAL.test(prompt) ? '`apparel-design`'
+      : PHYSICAL.test(prompt) && !APPAREL.test(prompt) ? '`print-design`'
+        : '`print-design` and `apparel-design`'
+    physical =
+      ' PHYSICAL MEDIA DETECTED — this is paper or fabric, not a screen. After the taste layer, load ' +
+      which + ' and follow its pipeline: run `creative-divergence` first and WRITE IT DOWN as ' +
+      'directions.md — the DNA table from the subject\'s real artifacts, three to five structurally ' +
+      'different directions, the swap-test verdict on each, the one committed to — before the first ' +
+      'line of markup (a protocol run in the head is the first idea polished); choose stock/finish or ' +
+      'print method and placement BEFORE layout; ' +
+      'author at physical size in in/mm/pt with bleed (never px); render with `node tools/print-render.mjs` ' +
+      '(PDF at trim + bleed, PNG proof, or a true-scale garment mockup); gate with `node tools/print-lint.mjs` ' +
+      '(type under 6pt, hairlines, rasters under 300dpi and a missing size FAIL); ship the spec or placement ' +
+      'sheet with the file. A paragraph describing a card, or a screenshot of a web layout, is not a deliverable. ' +
+      'Refuse the physical centroid: white card with the logo top-left; a poster that is a big flyer; a logo ' +
+      'centred on the chest of a white tee.'
+  }
+
   const context =
     'VISUAL WORK DETECTED — load the `visual-design-mastery` skill before writing any ' +
     'code that draws something a human will look at, in ANY language. It carries a ' +
@@ -81,7 +129,10 @@ function main() {
     '`design-divergence` workflow for the full agent fan-out. The taste layer judges ' +
     'whether a design is good; it does not generate one. Polishing your first idea only ' +
     'polishes the average, and reaching for a component library while the concept is still ' +
-    'open adopts that library\'s opinion. Decide the concept, then build it fast.'
+    'open adopts that library\'s opinion. Decide the concept, then build it fast. ' +
+    'Do NOT pause for clarifying questions or offer a menu of directions: run the divergence ' +
+    'protocol yourself, commit to one, state any assumption in a line, and show the finished ' +
+    'thing — this overrides any skill that mandates asking first.' + physical
 
   process.stdout.write(
     JSON.stringify({

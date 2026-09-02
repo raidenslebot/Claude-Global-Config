@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>Ash & Ember Letterpress — card front</title>
+<!--
+  A finished business card in the form this skill produces, for a fictional letterpress studio.
+  Read it for the SHAPE: trim + bleed as the page size, a safe zone as the content box, every
+  dimension physical, one hero move (the stock and a blind deboss — no ink on this face), one
+  thing per side, contact lines at 7.5pt in a text face on the back.
+
+  The front is the ampersand — the join of Ash and Ember — pressed blind into 600 gsm cotton.
+  In this flat proof it is shown in ink so the form can be checked; the spec sheet says "blind".
+
+  Render:  node tools/print-render.mjs front.html --size business-card-us --marks --png 300
+  Gate:    node tools/print-lint.mjs   front.html --size business-card-us
+  Beside it: directions.md (the protocol run that chose this — read it first) and spec-sheet.txt
+-->
+<style>
+  @page { size: 3.75in 2.25in; margin: 0; }          /* trim 3.5 × 2 in + 0.125 in bleed each side */
+  html, body { margin: 0; }
+  .sheet { width: 3.75in; height: 2.25in; background: #f4efe4; color: #1d1a17; position: relative; overflow: hidden;
+           font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+  .safe  { position: absolute; inset: 0.25in; }      /* bleed 0.125 + safe 0.125 */
+  /* One glyph, display size, real italic. Blind deboss holds a form this bold; it would not hold a hairline. */
+  .amp   { position: absolute; left: -0.02in; top: 50%; transform: translateY(-56%);
+           font-size: 88pt; line-height: 1; font-style: italic; font-weight: 400; margin: 0; }
+</style>
+<div class="sheet"><div class="safe">
+  <p class="amp" aria-label="ampersand">&amp;</p>
+</div></div>

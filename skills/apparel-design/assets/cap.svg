@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="8in" height="6in" viewBox="0 0 8 6" data-garment="cap" data-view="front">
+  <!-- Six-panel structured cap, front view, flat at true scale (inches). The front two panels carry the embroidery. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.28px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <!-- crown -->
+    <path class="body" d="M 1.2 4.1 C 1.2 1.2 6.8 1.2 6.8 4.1 Z" />
+    <!-- centre seam and panel seams -->
+    <path class="seam" d="M 4 1.1 L 4 4.1 M 2.4 1.6 C 2.8 2.6 2.9 3.4 2.9 4.1 M 5.6 1.6 C 5.2 2.6 5.1 3.4 5.1 4.1" />
+    <!-- visor -->
+    <path class="body" d="M 0.7 4.1 C 0.9 5.6 7.1 5.6 7.3 4.1 C 6.6 4.5 1.4 4.5 0.7 4.1 Z" />
+    <!-- button -->
+    <circle class="body" cx="4" cy="1.15" r="0.14" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="2" y="1.6" width="4" height="2.25" /><text class="zone-label" x="2.12" y="1.95">cap-front (4 × 2.25 max)</text>
+    <rect class="zone" x="5.8" y="2.4" width="2" height="1" /><text class="zone-label" x="5.9" y="2.72">side</text>
+  </g>
+</svg>
