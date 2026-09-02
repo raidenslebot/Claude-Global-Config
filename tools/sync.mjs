@@ -103,9 +103,12 @@ if (existsSync(settingsPath)) {
   // machine-specific hook path as though it were portable — the same Windows-only
   // assumption as the bug this very function was written to fix.
   const ABS_SCRIPT = /"(?:[A-Za-z]:|)[\\/][^"]*[\\/]([\w.-]+\.(?:js|mjs|cjs))"/g
+  // Normalise the script path BEFORE tokens replace its root: a hook registered from under
+  // HOME, the repo or the library would otherwise keep its tokenised backslash path and be a
+  // dead hook on every POSIX install — the failure this whole function exists to prevent.
   const normalise = (cmd) =>
-    templatize(String(cmd), vars)
-      .replace(ABS_SCRIPT, (_m, base) => `"{{CONFIG_ROOT:url}}/hooks/${base}"`)
+    templatize(String(cmd).replace(ABS_SCRIPT, (_m, base) => `"{{CONFIG_ROOT:url}}/hooks/${base}"`), vars)
+      .replace(/\{\{[A-Z0-9_]+(?::url)?\}\}[\\/][^"]*[\\/]hooks[\\/]+([\w.-]+\.(?:js|mjs|cjs))/g, '{{CONFIG_ROOT:url}}/hooks/$1')
       .replace(/\{\{CONFIG_ROOT\}\}[\\/]+hooks[\\/]+/g, '{{CONFIG_ROOT:url}}/hooks/')
 
   const hooks = {}

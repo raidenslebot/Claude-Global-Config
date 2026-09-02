@@ -309,6 +309,23 @@ test('a planted credential in the tree fails the scan and exits 1', (t) => {
   assert.deepEqual(report.findings.filter((f) => f.file === 'notes.md'), [])
 })
 
+test('a JSON-quoted secret key is a key: the .claude.json shape is caught, hex value and all', (t) => {
+  // "client_secret": "…" never matched the assignment rule while the key had to be bare, and a
+  // hex value was then skipped by the entropy sweep as a digest — the exact shape of an OAuth
+  // token cache. The YAML twin (unquoted key) was always caught; the JSON one is now.
+  const root = fixtureTree(t, 'cgc-scan-json-', {
+    'cache.json': '{ "client_secret": "0123456789abcdef0123456789abcdef01234567" }\n', // scan-secrets:allow — the fixture this test plants
+    'tokens.json': '{ "auth_token": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" }\n', // scan-secrets:allow — the fixture this test plants
+    'notes.md': CLEAN_NOTES,
+  })
+  const r = scan(root)
+  assert.equal(r.status, 1, `scan passed a JSON tree containing secrets:\n${r.stdout}`)
+  const report = JSON.parse(r.stdout)
+  assert.ok(report.findings.some((x) => x.file === 'cache.json'), `no finding for cache.json:\n${r.stdout}`)
+  assert.ok(report.findings.some((x) => x.file === 'tokens.json'), `no finding for tokens.json:\n${r.stdout}`)
+  assert.deepEqual(report.findings.filter((x) => x.file === 'notes.md'), [])
+})
+
 test('the same digest IS flagged once nothing on the line explains it', (t) => {
   // Teeth for the negative control above: the entropy sweep really would catch that
   // string, so "sha512- lines are ignored" is doing work rather than describing a

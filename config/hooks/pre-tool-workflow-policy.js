@@ -100,6 +100,12 @@ const SIGNAL_SOURCES = {
     '\\brun (the )?(tests?|test suite|lint|linter|build|command)\\b',
     '\\b(rename|reformat|reindent|sort|deduplicate) (all|every|the)\\b',
   ],
+  // A mutating verb beside a mechanical one — "run the tests and fix any failures", "grep for
+  // TODO and remove each one" — means the agent decides what to change. This vetoes only the
+  // haiku downgrade; it routes nothing upward on its own.
+  MUTATE: [
+    '\\b(fix|fixes|fixing|repair|repairs|resolve|resolves|remove|delete|replace|rewrite|refactor|migrate|correct)\\b',
+  ],
   /** Agent types whose job is fixed by their definition, regardless of prompt wording. */
   TYPE_VERIFY: 'review|verif|audit|critic|security|adversar|scan-verifier|patch-verifier',
   TYPE_SEARCH: '^(explore|.*:explore)$',

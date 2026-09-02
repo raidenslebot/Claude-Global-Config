@@ -73,6 +73,7 @@ const NOT_PROSE = {
   'too short to be policy': 'Do not call the AgentTool.',
   'no verb anywhere': 'Red green blue yellow orange purple magenta cyan turquoise indigo violet',
   'template literal fragment': 'the file ${path} could not be read because ${reason} happened here',
+  // scan-secrets:allow — a prose fixture whose key happens to end in 'token'
   'starts mid-token': 'ition-image-pairview-transition-transition-group and then some more words here',
   'mostly punctuation': 'a. b, c; d: e! f? g. h, i; j: k! l? m. n, o; p: q! r? s. t, u; v: w! x?',
 }

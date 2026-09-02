@@ -5,6 +5,35 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.7.0 — 2026-09-02
+
+A third adversarial review, over the hooks and the remaining tools; fourteen findings, the
+real ones fixed and held by tests. And a worked slide deck.
+
+- **The secret scanner sees JSON.** `"client_secret": "…"` — the very shape of `.claude.json`
+  — never matched the assignment rule because the key was quoted; a hex secret in a JSON file
+  was then skipped by the entropy sweep too. Quoted keys match now.
+- **The visual prompt hook stops firing on code.** `tween` in "between", `easing` in
+  "increasing", `graph` in "GraphQL", `card` in "discard", `tee` the command, "story points",
+  "slide the window", "npm packaging" — all fired the design context, some of them the paper
+  or field routing. Every generic term is now a whole word, and a word that is visual only in
+  a design sentence fires only beside a word that says the prompt is about something seen.
+  Twelve silent cases and ten firing cases are held by a test.
+- **The syntax check catches a broken ES module in a .js file**, which `node --check` on Node
+  24 accepts; JSONC (VS Code, devcontainer, `.eslintrc.json`) is no longer "invalid JSON"; a
+  `$USER` path and a single-letter regex literal are no longer "hardcoded machine paths".
+- **The Stop hook** no longer hands deleted files to the linter, and emits its context in the
+  shape the Stop event reads. **react-doctor** emits the recognised shape on every write and
+  bounds its spawn. **Model routing** treats "fix", "repair" and "failures" as judgment, so
+  "run the tests and fix any failures" is no longer routed to the smallest model — and
+  CLAUDE.md now states the hook's real contract: it is authoritative and corrects a passed
+  model rather than deferring to it. **sync** normalises a hook's script path before its root
+  is tokenised, so a hook registered from under HOME, the repo or the library no longer
+  round-trips as a dead backslash path on POSIX. Hooks tolerate a `null` payload.
+- **A slide deck, worked.** `design-fields/examples/harbor-swim-club-deck/`: seven slides at
+  1920 × 1080 through which the identity's waterline rises, one number per slide, a hand-drawn
+  bar chart standing on the waterline, the tide table as the ledger, the flag at high water.
+
 ## 1.6.1 — 2026-09-02
 
 A fact-check of the five references written this session, every typeface probed against the

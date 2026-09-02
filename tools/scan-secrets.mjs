@@ -86,7 +86,8 @@ const AWS_SECRET = /\b(?:aws|amazon)[A-Za-z0-9_\- ]{0,24}(?:secret|access)[A-Za-
 // value guards below are what keep this from firing on `token: string` and on every prose
 // sentence containing the word "password".
 const SECRET_ASSIGN =
-  /\b([A-Za-z0-9_.\-]*(?:secret|token|password|passwd|api[_\-]?key|apikey|client[_\-]?secret|access[_\-]?key|auth[_\-]?token|credential|private[_\-]?key)[A-Za-z0-9_.\-]*)\s*[:=]\s*(?:['"`]([^'"`\n]{12,})['"`]|([^\s'"`,;()\[\]{}<>=&|]{12,}))/gi
+  // The key may be quoted, as every JSON key is: `"client_secret": "…"` is the .claude.json shape.
+  /(?<![A-Za-z0-9_.\-])['"]?([A-Za-z0-9_.\-]*(?:secret|token|password|passwd|api[_\-]?key|apikey|client[_\-]?secret|access[_\-]?key|auth[_\-]?token|credential|private[_\-]?key)[A-Za-z0-9_.\-]*)['"]?\s*[:=]\s*(?:['"`]([^'"`\n]{12,})['"`]|([^\s'"`,;()\[\]{}<>=&|]{12,}))/gi
 
 // Values that look secret-shaped but are not: templates, env indirection, URLs, obvious
 // samples. Anchored forms first, then substrings that disqualify a value anywhere in it.

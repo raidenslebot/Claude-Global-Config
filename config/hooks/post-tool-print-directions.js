@@ -31,7 +31,7 @@ function readStdin() {
 
 function main() {
   let payload = {}
-  try { payload = JSON.parse(readStdin() || '{}') } catch { return }
+  try { payload = JSON.parse(readStdin() || '{}') || {} } catch { return }
 
   const tool = String(payload.tool_name || payload.toolName || payload.tool || '')
   if (!/^(Write|Edit|MultiEdit)$/.test(tool)) return

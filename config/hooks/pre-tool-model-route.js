@@ -125,6 +125,12 @@ const SIGNAL_SOURCES = {
     '\\brun (the )?(tests?|test suite|lint|linter|build|command)\\b',
     '\\b(rename|reformat|reindent|sort|deduplicate) (all|every|the)\\b',
   ],
+  // A mutating verb beside a mechanical one — "run the tests and fix any failures", "grep for
+  // TODO and remove each one" — means the agent decides what to change. This vetoes only the
+  // haiku downgrade; it routes nothing upward on its own.
+  MUTATE: [
+    '\\b(fix|fixes|fixing|repair|repairs|resolve|resolves|remove|delete|replace|rewrite|refactor|migrate|correct)\\b',
+  ],
   /** Agent types whose job is fixed by their definition, regardless of prompt wording. */
   TYPE_VERIFY: 'review|verif|audit|critic|security|adversar|scan-verifier|patch-verifier',
   TYPE_SEARCH: '^(explore|.*:explore)$',
@@ -137,6 +143,7 @@ const JUDGMENT = rx(SIGNAL_SOURCES.JUDGMENT)
 const VERIFY = rx(SIGNAL_SOURCES.VERIFY)
 const SPECIFIED = rx(SIGNAL_SOURCES.SPECIFIED)
 const MECHANICAL = rx(SIGNAL_SOURCES.MECHANICAL)
+const MUTATE = rx(SIGNAL_SOURCES.MUTATE)
 const TYPE_VERIFY = rx(SIGNAL_SOURCES.TYPE_VERIFY)
 const TYPE_SEARCH = rx(SIGNAL_SOURCES.TYPE_SEARCH)
 
@@ -170,7 +177,7 @@ function decide(input) {
   if (SPECIFIED.test(text)) return 'sonnet'
 
   // 6. Pure retrieval and mechanical transformation.
-  if (MECHANICAL.test(text)) return 'haiku'
+  if (MECHANICAL.test(text) && !MUTATE.test(text)) return 'haiku'
 
   // 7. Unrecognised. Inherit: the safe direction, by construction.
   return INHERIT

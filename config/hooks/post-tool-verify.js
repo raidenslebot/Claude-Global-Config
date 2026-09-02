@@ -72,7 +72,7 @@ function readPayload() {
   }
   if (!raw.trim()) return null
   try {
-    return JSON.parse(raw)
+    return JSON.parse(raw) || null
   } catch {
     return null
   }
@@ -167,15 +167,17 @@ function nodeCheck(args, input) {
 }
 
 function checkJsSyntax(file, src, out) {
-  const cjs = nodeCheck(['--check', file], null)
-  if (!cjs) return
-  // Retry as an ES module. `node --check <file>` parses by extension, and older releases parse
-  // every .js as CommonJS — an ES module in a .js file would be reported as broken when it is
-  // fine. Only a file that fails BOTH grammars is a genuine syntax error.
+  // A .js that holds ESM syntax is parsed as CommonJS by older releases and ACCEPTED when
+  // broken by newer ones (`node --check` on 24 exits 0 for an ESM-detected .js with a syntax
+  // error). So a file that looks like a module is checked as one, unconditionally; a file that
+  // does not is checked both ways, and only a failure in both grammars is reported.
+  const looksEsm = /^\s*(import\s|export\s)/m.test(src) && !/\.cjs$/i.test(file)
+  const cjs = looksEsm ? null : nodeCheck(['--check', file], null)
+  if (!looksEsm && !cjs) return
   const esm = nodeCheck(['--check', '--input-type=module'], src)
   if (!esm) return
 
-  const reported = /import|export|await/.test(cjs) && !/import|export|await/.test(esm) ? esm : cjs
+  const reported = looksEsm ? esm : (/import|export|await/.test(cjs) && !/import|export|await/.test(esm) ? esm : cjs)
   const header = /^(?:.*):(\d+)$/m.exec(reported)
   const message = (/^(SyntaxError:.*)$/m.exec(reported) || [null, 'SyntaxError'])[1]
   out.push({
@@ -218,8 +220,10 @@ function firstBadOffset(text) {
 
 function checkJson(file, src, out) {
   const base = path.basename(file).toLowerCase()
-  // Formats that permit comments or are not a single document are not strict JSON.
-  if (/^(ts|js)config(\..+)?\.json$/.test(base)) return
+  // Formats that permit comments or are not a single document are not strict JSON: tsconfig,
+  // VS Code and devcontainer files, .eslintrc.json, appsettings, and anything .jsonc.
+  if (/^(ts|js)config(\..+)?\.json$|^(settings|launch|tasks|extensions|devcontainer|appsettings(\..+)?)\.json$|^\.eslintrc\.json$|\.jsonc$/.test(base)) return
+  if (/[\\/]\.(vscode|devcontainer)[\\/]/.test(file)) return
   if (/^\s*(\/\/|\/\*)/.test(src)) return
   const text = src.replace(/^\uFEFF/, '') // a BOM is an editor artefact, not a defect
   try {
@@ -346,8 +350,10 @@ const TEST_FILE = /(^|[\\/])(tests?|__tests__|spec|fixtures?|__fixtures__|e2e)[\
 // regex character class or a URL scheme, and a path must have at least one real segment.
 // `\\{1,2}` matters: inside a string literal the separator is usually already doubled, which
 // is correct escaping and still a hardcoded machine path.
-const ABS_WINDOWS = /(?:^|[\s'"`(,=:/[])([A-Za-z]:(?:\\{1,2}|\/)[A-Za-z0-9_$][^\s'"`)<>|*?]*)/
-const ABS_POSIX = /(?:^|[\s'"`(,=:[])(\/(?:home|Users)\/[A-Za-z0-9_.$-]+\/[^\s'"`)<>|*?]*)/
+// A drive letter followed by a regex escape (`/v:\S+/`) is a regex literal, not a path; a home
+// segment beginning with `$` (`/home/$USER/…`) is derived at runtime, not hardcoded.
+const ABS_WINDOWS = /(?:^|[\s'"`(,=:/[])([A-Za-z]:(?:\\{1,2}|\/)(?![sSdDwWbB](?![A-Za-z0-9_]))[A-Za-z0-9_$][^\s'"`)<>|*?]*)/
+const ABS_POSIX = /(?:^|[\s'"`(,=:[])(\/(?:home|Users)\/[A-Za-z0-9_.-]+\/[^\s'"`)<>|*?]*)/
 
 // JSON inside a dot-directory (.cache/, .vscode/, .terraform/, .idea/ …) is tool state or
 // per-machine settings — a recorded path there is data, not a defect. Authored config in the

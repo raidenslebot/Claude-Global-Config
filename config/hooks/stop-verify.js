@@ -257,12 +257,12 @@ function evidence(out) {
 }
 
 // `systemMessage` is the common field every hook event supports and is surfaced to the
-// reader; `additionalContext` carries the same text to the model. Neither can block, and
-// `decision` is deliberately absent. Unrecognised fields are dropped rather than
-// rejected, so emitting both is safe across Claude Code versions.
+// reader; `hookSpecificOutput.additionalContext` carries the same text to the model (a
+// top-level additionalContext is not read for the Stop event). Neither can block, and
+// `decision` is deliberately absent.
 function emit(message) {
   try {
-    writeSync(1, JSON.stringify({ systemMessage: message, additionalContext: message }) + '\n')
+    writeSync(1, JSON.stringify({ systemMessage: message, hookSpecificOutput: { hookEventName: 'Stop', additionalContext: message } }) + '\n')
   } catch { /* stdout closed */ }
 }
 
@@ -294,6 +294,8 @@ function main() {
 
   // Porcelain paths are relative to the repository root, whatever directory git ran in.
   const changed = porcelain.split(/\r?\n/).map((line) => {
+    // A deleted file has no path to lint; handing it over produces "No files matching".
+    if (/D/.test(line.slice(0, 2))) return ''
     const p = line.slice(3).trim()
     const renamed = p.includes(' -> ') ? p.slice(p.indexOf(' -> ') + 4) : p
     return renamed ? path.join(root, renamed.replace(/^"|"$/g, '')) : ''

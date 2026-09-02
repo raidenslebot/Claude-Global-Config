@@ -192,7 +192,9 @@ width multiplies whichever you choose, so this matters most when there are many 
   a reviewer/verifier agent type or verification language gets `opus`; pure retrieval with no
   decision verb gets `haiku`; work explicitly scoped to a stated spec gets `sonnet`. Anything
   ambiguous is left unset, which means inherit.
-- An explicit choice you made is always respected; the hook only fills a blank.
+- The hook is authoritative: it recomputes the model from the task even when one was passed,
+  and corrects an over-assignment rather than accepting it — otherwise the rule would be
+  advisory again, which is what it was before and what did not work.
 
 The bias is deliberate: a wrong downgrade yields confident, plausible, wrong output that nobody
 notices, while an unnecessary inherit only costs money. So ambiguity always resolves upward. The

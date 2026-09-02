@@ -51,7 +51,7 @@ const runReactDoctor = (outputPath) => {
   ];
 
   for (const command of commands) {
-    const result = spawnSync(command, { encoding: 'utf8', shell: true, maxBuffer: SPAWN_MAX_BUFFER_BYTES });
+    const result = spawnSync(command, { encoding: 'utf8', shell: true, maxBuffer: SPAWN_MAX_BUFFER_BYTES, timeout: 40000 });
     if (result.error?.code === 'ENOENT' || result.status === 127 || result.status === 9009) continue;
     try {
       writeFileSync(outputPath, (result.stdout || '') + (result.stderr || ''));
@@ -71,7 +71,7 @@ const cleanup = (...paths) => {
 const main = () => {
   let input;
   try {
-    input = JSON.parse(readFileOrEmpty(0) || '{}');
+    input = JSON.parse(readFileOrEmpty(0) || '{}') || {};
   } catch {
     input = {};
   }
@@ -109,7 +109,7 @@ const main = () => {
   if (input.hook_event_name === 'PostToolBatch') {
     console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: message } }));
   } else {
-    console.log(JSON.stringify({ additional_context: message }));
+    console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: message } }));
   }
 };
 

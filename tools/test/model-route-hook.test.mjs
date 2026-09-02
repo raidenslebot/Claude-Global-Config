@@ -90,6 +90,13 @@ test('open-ended design inherits rather than being routed anywhere', (t) => {
   assert.equal(run('claude-opus-5', { prompt: 'Design the data model for this feature.' }, t), null)
 })
 
+test('a mechanical verb with a fix in it is judgment, not retrieval', (t) => {
+  for (const prompt of ['Run the tests and fix any failures.', 'Run the linter and fix all the errors it reports.', 'grep for TODO and remove each one you find']) {
+    const u = run('claude-fable-5', { prompt }, t)
+    assert.ok(!u || u.model !== 'haiku', `${prompt} → ${u && u.model}`)
+  }
+})
+
 test('a model the caller passed is OVERRIDDEN — the hook is authoritative', (t) => {
   // The whole point of moving this into a hook is that the caller cannot spawn an agent on a
   // model the policy did not choose. Deferring to a passed value would make the rule advisory

@@ -1,124 +1,107 @@
-// UserPromptSubmit hook: put the visual-design-mastery mandate in front of the
-// model whenever a prompt is about drawing something a human will look at — in
-// ANY language, not just React.
+// UserPromptSubmit hook: put the visual-design-mastery mandate in front of the model whenever
+// a prompt is about drawing something a human will look at — in ANY language, not just React —
+// and route paper, fabric and the other fields to their own skills.
 //
-// The existing user-prompt-ui-stack hook covers the React/Tailwind component
-// libraries. This one is broader and language-agnostic: it fires on games,
-// shaders, native UI, generative art, terminals, and data-viz too, and points
-// at the skill that carries the per-stack craft.
-//
-// Deliberately conditional. A hook that fires on every prompt is noise; this one
-// stays silent unless the prompt is actually about something visual.
+// Deliberately conditional, and deliberately careful about it: a hook that fires on "between
+// the two functions" (tween), "increasing the timeout" (easing), "GraphQL" (graph), "discard"
+// (card) or "pipe it through tee" (tee) gets deleted within a day, and then it fires on nothing.
+// So a term fires on its own only when it cannot be part of an ordinary sentence about code;
+// a word that is visual in a design sentence and ordinary everywhere else fires only beside a
+// word that says the prompt is about something seen.
 
 const path = require('node:path')
 
-// Broad visual-work intent across every medium. Kept as one regex so the check
-// is a single pass; ordered roughly by how strongly each term implies visual work.
-const VISUAL = new RegExp(
-  [
-    // general design / UI
-    '\\bui\\b', 'user interface', '\\bux\\b', 'design', 'redesign', 'styl(e|ing)',
-    'theme', 'palette', 'colou?r', 'typograph', '\\bfont\\b', 'layout', 'visual',
-    'aesthetic', 'polish the look', 'make it (look|beautiful|pretty|nicer)', 'mock-?up',
-    'landing page', 'dashboard', 'component', 'button', 'card', 'navbar', 'hero section',
-    'frontend', 'front-end',
-    // motion
-    'animat', 'transition', '\\bmotion\\b', 'micro-?interaction', 'easing', 'tween',
-    'parallax', 'scroll(-| )?(driven|trigger)', 'keyframe',
-    // art / gpu
-    '\\bart\\b', 'shader', '\\bglsl\\b', '\\bhlsl\\b', 'webgl', 'webgpu', 'three\\.?js',
-    'particle', 'generative', 'procedural (art|visual)', 'creative coding', 'p5\\.?js',
-    'processing sketch', 'raymarch', 'noise field', 'flow field',
-    // games
-    'sprite', 'spritebatch', 'monogame', '\\bunity\\b', '\\bgodot\\b', 'game feel',
-    '\\bjuice\\b', 'screen ?shake', 'render(er|ing)? ', 'draw(ing)? (a|the|it|to)',
-    'pixel art', 'tilemap',
-    // native / mobile
-    'swiftui', 'jetpack compose', '\\bflutter\\b', '\\bwinui\\b', '\\bwpf\\b',
-    // dataviz / terminal
-    '\\bchart\\b', 'graph', 'plot', 'data ?vis', 'visuali[sz]ation', '\\btui\\b',
-    'terminal (ui|art|colou?r)', 'ascii art',
-    // print and physical
-    'business card', 'flyer', 'poster', 'brochure', 'postcard', 'sticker', 'packaging',
-    'invitation', 'letterhead', 'menu design', 'print-?ready', '\\bbleed\\b', '\\bcmyk\\b',
-    'pantone', 'letterpress', 'die-?cut',
-    // apparel
-    't-?shirt', '\\btee\\b', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote',
-    '\\bmerch', 'jersey', 'screen ?print', '\\bdtg\\b', 'embroider', 'heat transfer',
-    'apparel', 'garment',
-    // the other fields
-    '\\blogo\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', '\\bicons?\\b',
-    'illustration', 'diagram', 'infographic', 'social (post|media)', 'instagram', '\\bstory\\b',
-    'thumbnail', 'youtube', 'open graph', '\\bog image', 'slide', '\\bdeck\\b', 'presentation',
-    'email template', 'newsletter', 'packaging', 'label design', 'signage', 'wayfinding', 'banner',
-    'book cover', 'album (art|cover)', '\\bpattern\\b', 'textile', 'motion graphics', 'title sequence',
-  ].join('|'),
-  'i'
-)
+const rx = (terms) => new RegExp(terms.join('|'), 'i')
 
-// Fields with a canvas, minimums and a delivery format of their own — design-fields carries
-// them. The failure mode is designing a logo at 800px, a slide as a document, an email as a
-// web page.
-const FIELDS = new RegExp(
-  [
-    '\\blogo\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', 'illustration',
-    'diagram', 'infographic', 'social (post|media)', 'instagram', '\\bstory\\b', 'thumbnail', 'youtube',
-    'open graph', '\\bog image', 'slide', '\\bdeck\\b', 'presentation', 'email template', 'newsletter',
-    'packaging', 'label design', 'signage', 'wayfinding', 'banner', 'book cover', 'album (art|cover)',
-    'textile', 'motion graphics', 'title sequence',
-  ].join('|'),
-  'i'
-)
+// Fires alone. Every generic word is anchored to a whole word.
+const STRONG = rx([
+  // general design / UI
+  'user interface', '\\bux\\b', '\\bui\\b', '\\bdesign\\b', 'redesign', '\\bstyl(e|ing)\\b', '\\btheme\\b', '\\bpalette\\b',
+  'colou?r scheme', 'typograph', '\\bfonts?\\b', '\\blayout\\b', '\\baesthetic', 'polish the look',
+  'make it (look|beautiful|pretty|nicer)', 'mock-?ups?', 'landing page', 'dashboard', 'hero section', 'front-?end', 'navbar',
+  // motion
+  'animat', 'micro-?interaction', 'parallax', 'scroll(-| )?(driven|trigger)', 'keyframe',
+  // art / gpu
+  'shader', '\\bglsl\\b', '\\bhlsl\\b', 'webgl', 'webgpu', 'three\\.?js', 'particle (system|effect)', 'creative coding',
+  'p5\\.?js', 'processing sketch', 'raymarch', 'noise field', 'flow field', 'generative (art|visual|design)',
+  // games
+  'spritebatch', 'monogame', '\\bgodot\\b', 'game feel', '\\bjuice\\b', 'screen ?shake', 'pixel art', 'tilemap', '\\bsprites?\\b',
+  // native / mobile
+  'swiftui', 'jetpack compose', '\\bflutter\\b', '\\bwinui\\b', '\\bwpf\\b',
+  // dataviz / terminal
+  '\\bcharts?\\b(?! of accounts)', 'data ?vis', 'visuali[sz]ation', '\\btui\\b', 'terminal (ui|art|colou?r)', 'ascii art',
+  // print
+  'business card', '\\bflyers?\\b', '\\bposters?\\b', 'brochure', 'postcard', '\\bstickers?\\b', 'letterhead', 'menu design',
+  'print-?ready', '\\bbleed\\b', '\\bcmyk\\b', 'pantone', 'letterpress', 'die-?cut',
+  // apparel
+  't-?shirts?', 'tee shirt', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote bag', '\\bmerch\\b', 'screen ?print',
+  '\\bdtg\\b', 'embroider', 'heat transfer', 'apparel', 'garment',
+  // the other fields
+  '\\blogos?\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', 'infographic', 'social (post|media)',
+  'instagram', 'thumbnail', 'youtube', 'open graph', '\\bog image', 'slide deck', 'pitch deck', 'presentation',
+  'email template', 'newsletter design', 'label design', 'signage', 'wayfinding', 'book cover', 'album (art|cover)',
+  'motion graphics', 'title sequence',
+])
 
-// The physical media have their own technique skills and a real render pipeline; a prompt
-// that matches here gets routed to them, because the failure mode is specific — a screen
-// layout at card size, delivered as a paragraph or a screenshot, never as a print file.
-const PHYSICAL = new RegExp(
-  [
-    'business card', 'flyer', 'poster', 'brochure', 'postcard', 'sticker', 'packaging',
-    'invitation', 'letterhead', 'menu design', 'print-?ready', '\\bbleed\\b', '\\bcmyk\\b',
-    'pantone', 'letterpress', 'die-?cut', 'print(ed|ing)? (piece|design|collateral)',
-  ].join('|'),
-  'i'
-)
-const APPAREL = new RegExp(
-  [
-    't-?shirt', '\\btee\\b', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote',
-    '\\bmerch', 'jersey', 'screen ?print', '\\bdtg\\b', 'embroider', 'heat transfer',
-    'apparel', 'garment',
-  ].join('|'),
-  'i'
-)
+// Fires only with CONTEXT: visual in a design sentence, ordinary everywhere else.
+const WEAK = rx([
+  '\\bvisuals?\\b(?! studio)', '\\bgraphs?\\b', '\\bcards?\\b', '\\bbuttons?\\b', '\\bcomponents?\\b', '\\bplots?\\b',
+  '\\btransitions?\\b', '\\btween\\b', '\\beasing\\b', '\\bmotion\\b', '\\bart\\b', '\\bdraw(ing)? (a|the|it|to)\\b',
+  '\\brender(er|ing)?\\b', '\\bpatterns?\\b', '\\bslides?\\b', '\\bicons?\\b', '\\billustrations?\\b', '\\bdiagrams?\\b',
+  '\\bstory\\b', '\\bstories\\b', '\\bpackaging\\b', '\\binvitations?\\b', '\\bbanners?\\b', '\\btee\\b', '\\bjersey\\b',
+  '\\bmenu\\b', '\\bmaps?\\b', '\\btextile\\b', '\\bunity\\b', '\\bcolou?rs?\\b', '\\bsketch\\b',
+])
+// The company a weak word needs.
+const CONTEXT = rx([
+  '\\bvisual\\b(?! studio)', '\\blook\\b', '\\bbeautiful\\b', '\\bpretty\\b', '\\bstyle[ds]?\\b', '\\blayout\\b', '\\bbrand(ing)?\\b',
+  '\\bartwork\\b', '\\bgraphics?\\b', 'mock-?up', '\\bdraw\\b', '\\banimat', '\\bui\\b', '\\bux\\b', '\\bscreen\\b',
+  '\\bprint', '\\blogo', '\\bicon', '\\bfont', 'typograph', '\\bcolou?r', '\\bpalette\\b', '\\btheme\\b', '\\baesthetic',
+  '\\bhero\\b', '\\bdeck\\b', '\\bpresentation\\b', '\\binstagram\\b', '\\bsocial\\b', '\\bmerch\\b', '\\bshirt', '\\bgarment',
+  '\\bposter', '\\bpage\\b', '\\bdesign',
+])
 
-// If the prompt is clearly about something NON-visual that happens to match a weak
-// term (e.g. "chart of accounts", "button up the API contract"), the specific
-// visual terms above still dominate; we accept a few false positives because a
-// silent miss on real visual work is the worse failure.
+// Paper. The failure mode is a screen layout at card size, delivered as a paragraph.
+const PHYSICAL = rx([
+  'business card', '\\bflyers?\\b', '\\bposters?\\b', 'brochure', 'postcard', '\\bstickers?\\b', 'letterhead', 'menu design',
+  'print-?ready', '\\bbleed\\b', '\\bcmyk\\b', 'pantone', 'letterpress', 'die-?cut', 'print(ed|ing)? (piece|design|collateral)',
+])
+// Packaging has its own field reference; it routes to design-fields, not to paper.
+const PHYSICAL_WEAK = rx(['\\binvitations?\\b', '\\bmenu\\b'])
+// Fabric.
+const APPAREL = rx([
+  't-?shirts?', 'tee shirt', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote bag', '\\bmerch\\b', 'screen ?print',
+  '\\bdtg\\b', 'embroider', 'heat transfer', 'apparel', 'garment',
+])
+const APPAREL_WEAK = rx(['\\btee\\b', '\\bjersey\\b'])
+// The fields with a canvas, minimums and a delivery format of their own.
+const FIELDS = rx([
+  '\\blogos?\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', 'infographic', 'social (post|media)',
+  'instagram', 'thumbnail', 'youtube', 'open graph', '\\bog image', 'slide deck', 'pitch deck', 'presentation',
+  'email template', 'newsletter design', 'label design', 'signage', 'wayfinding', 'book cover', 'album (art|cover)',
+  'motion graphics', 'title sequence', '(instagram|social|ig)\\s+stor(y|ies)',
+])
+const FIELDS_WEAK = rx(['\\billustrations?\\b', '\\bdiagrams?\\b', '\\bicons?\\b', '\\bslides?\\b', '\\bbanners?\\b', '\\bpackaging\\b', '\\btextile\\b'])
 
 function readStdin() {
-  try {
-    return require('node:fs').readFileSync(0, 'utf8')
-  } catch {
-    return ''
-  }
+  try { return require('node:fs').readFileSync(0, 'utf8') } catch { return '' }
 }
 
 function main() {
   let payload = {}
-  try {
-    payload = JSON.parse(readStdin() || '{}')
-  } catch {
-    return
-  }
+  try { payload = JSON.parse(readStdin() || '{}') || {} } catch { return }
   const prompt = String(payload.prompt ?? '')
-  if (!VISUAL.test(prompt)) return
+  const ctx = CONTEXT.test(prompt)
+  const visual = STRONG.test(prompt) || (WEAK.test(prompt) && ctx)
+  if (!visual) return
 
-  let physical = ''
-  if (PHYSICAL.test(prompt) || APPAREL.test(prompt)) {
-    const which = APPAREL.test(prompt) && !PHYSICAL.test(prompt) ? '`apparel-design`'
-      : PHYSICAL.test(prompt) && !APPAREL.test(prompt) ? '`print-design`'
-        : '`print-design` and `apparel-design`'
-    physical =
+  const physical = PHYSICAL.test(prompt) || (PHYSICAL_WEAK.test(prompt) && ctx)
+  const apparel = APPAREL.test(prompt) || (APPAREL_WEAK.test(prompt) && ctx)
+  const field = FIELDS.test(prompt) || (FIELDS_WEAK.test(prompt) && ctx)
+
+  let routed = ''
+  if (physical || apparel) {
+    const which = apparel && !physical ? '`apparel-design`' : physical && !apparel ? '`print-design`' : '`print-design` and `apparel-design`'
+    routed =
       ' PHYSICAL MEDIA DETECTED — this is paper or fabric, not a screen. After the taste layer, load ' +
       which + ' and follow its pipeline: run `creative-divergence` first and WRITE IT DOWN as ' +
       'directions.md — the DNA table from the subject\'s real artifacts, three to five structurally ' +
@@ -131,8 +114,8 @@ function main() {
       'sheet with the file. A paragraph describing a card, or a screenshot of a web layout, is not a deliverable. ' +
       'Refuse the physical centroid: white card with the logo top-left; a poster that is a big flyer; a logo ' +
       'centred on the chest of a white tee.'
-  } else if (FIELDS.test(prompt)) {
-    physical =
+  } else if (field) {
+    routed =
       ' FIELD DETECTED — this is a logo, icon, illustration, diagram, social, slide, email, packaging or signage piece, ' +
       'not a page. After the taste layer, load `design-fields` and read its reference for the field BEFORE the first ' +
       'line of markup: the real canvas and units, the minimums, the delivery format, the moves that exist only in that ' +
@@ -170,7 +153,7 @@ function main() {
     'equivalent of a passionate human professional\'s work in the field. The first render is never the one shown. The ' +
     'professional\'s questions that end the loop are in creative-divergence Step 4; the vocabulary with its parameters — ' +
     'faces, palettes, layout grammars, materials, motion laws — is visual-design-mastery/references/signature-moves.md. ' +
-    'Choose a face or a palette by looking at it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`.' + physical
+    'Choose a face or a palette by looking at it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`.' + routed
 
   process.stdout.write(
     JSON.stringify({
