@@ -8,6 +8,12 @@ import { fileURLToPath } from 'node:url'
 const ROOT = process.env.LIBRARY_ROOT || join(dirname(fileURLToPath(import.meta.url)), "repos")
 const SKIP = new Set(['.git', 'node_modules', '_index', 'dist', 'build'])
 
+// Path fragments this index deliberately does not carry. The library on disk is third-party
+// and may hold material this repo does not want to surface or name; skipping it here rather
+// than hand-editing INDEX.md is what makes the omission survive the next regeneration.
+// Each entry is matched against the skill's path relative to the library root.
+const EXCLUDE = [`discord-com${sep}`]
+
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (SKIP.has(e.name)) continue
@@ -36,6 +42,7 @@ for (const f of walk(ROOT)) {
   const fm = frontmatter(f)
   if (!fm) continue
   const rel = relative(ROOT, f)
+  if (EXCLUDE.some((frag) => rel.includes(frag))) continue
   rows.push({ repo: rel.split(sep)[0], name: fm.name, desc: (fm.description || '').replace(/\s+/g, ' ').slice(0, 300), path: rel })
 }
 rows.sort((a, b) => a.repo.localeCompare(b.repo) || a.name.localeCompare(b.name))

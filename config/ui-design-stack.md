@@ -52,7 +52,8 @@ Per-library animation craft. These are installed skills; just use them.
 
 `{{LIBRARY_ROOT}}\` holds 12 cloned repos. Only the 13 skills above are resident (~1,508 tokens);
 installing all 815 would cost **~57,674 tokens every session** and thrash skill dispatch, so the
-rest is kept as a **searchable library**:
+rest is kept as a **searchable library** of 814 indexed entries (`build-index.mjs` holds an
+`EXCLUDE` list for what this repo chooses not to surface):
 
 ```
 grep -i "<topic>" {{LIBRARY_ROOT}}\_index\INDEX.md     # find it
@@ -62,8 +63,8 @@ node {{LIBRARY_ROOT}}\_index\build-index.mjs           # regenerate after a git 
 
 Worth pulling by hand: `animation-principles/skills/09-by-tool-framework/` (After Effects, Rive,
 Motion One, Popmotion specifics), `.../12-by-problem-type/` (motion sickness, timing calibration),
-`design-extract/website/public/gallery/` (24 **real** measured design systems — cal.com, clerk,
-coinbase, discord, duolingo), `pixel-plugin/skills/pixel-art-professional/` (Bayer matrices,
+`design-extract/website/public/gallery/` (23 **real** measured design systems — cal.com, clerk,
+coinbase, duolingo, raycast), `pixel-plugin/skills/pixel-art-professional/` (Bayer matrices,
 Floyd–Steinberg weights — engine-agnostic, transfers straight to MonoGame/shaders).
 
 ## Component libraries (React/Tailwind)
@@ -84,7 +85,7 @@ Floyd–Steinberg weights — engine-agnostic, transfers straight to MonoGame/sh
 - **awesome-claude-design** — 68 `DESIGN.md` briefs describing real product design systems
   (Linear, Vercel, Raycast, Supabase, Stripe…), indexed by industry. Links live at
   `https://getdesign.md/<product>/design-md`; the catalogue is `{{LIBRARY_ROOT}}\awesome-claude-design\README.md`.
-- **design-extract gallery** — 24 *measured* design systems as actual token files, not prose:
+- **design-extract gallery** — 23 *measured* design systems as actual token files, not prose:
   `{{LIBRARY_ROOT}}\design-extract\website\public\gallery\<site>\.claude\skills\designlang\`.
 
 ## Precedence — one answer per question

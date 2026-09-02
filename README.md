@@ -82,9 +82,10 @@ COMPONENT   21st.dev, Magic UI,        Has someone already built it?
 
 ### The tiering, and why it exists
 
-The skill library holds **815 skills**. Installing them all would load **~57,674 tokens of skill
-descriptions into every session** and make every animation request match a hundred competing
-triggers. More skills would make Claude measurably worse.
+The skill library holds **815 skills** on disk, 814 of them indexed — `build-index.mjs` carries an
+`EXCLUDE` list for material this repo chooses not to surface. Installing them all would load
+**~57,674 tokens of skill descriptions into every session** and make every animation request match
+a hundred competing triggers. More skills would make Claude measurably worse.
 
 | Tier | Cost | Rule |
 |---|---|---|

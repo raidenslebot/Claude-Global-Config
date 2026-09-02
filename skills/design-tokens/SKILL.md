@@ -111,7 +111,7 @@ Two honest notes:
 
 ## Worked examples already on disk
 
-24 real design systems, measured — not described — live under the Tier-3 library:
+23 real design systems, measured — not described — live under the Tier-3 library:
 
 Find them by searching the library index rather than by a fixed path — the library lives
 wherever this config was installed, which differs per machine:
@@ -125,7 +125,7 @@ is only a short summary. Read the JSON for structure, **not** for palette values
 those files use literal `#000000` / `#ffffff` neutral ramps, which is exactly the hueless
 default this skill exists to avoid.
 
-`<site>` is hyphenated: `cal-com  clerk-com  coinbase-com  discord-com  duolingo-com  framer-com
+`<site>` is hyphenated: `cal-com  clerk-com  coinbase-com  duolingo-com  framer-com
 loom-com  mintlify-com  netflix-com  perplexity-ai  planetscale-com  posthog-com  postman-com
 railway-app  ramp-com  raycast-com  render-com  replit-com  resend-com  retool-com  sentry-io
 supabase-com  v0-dev  webflow-com`.
@@ -135,8 +135,8 @@ Read these for the *shape* of a finished extraction. Two caveats, both load-bear
 - Each `designlang/SKILL.md` is a ~26-line summary. The actual data is the sibling file
   `gallery/<site>/<site>-design-tokens.json` — full DTCG, with `primitive.*` and `semantic.*`
   layers. That is the file to imitate. `<site>-intent.json`, `-motion-tokens.json` and
-  `-form-states.json` are there too, and the gallery has 38 sites total even though only 24
-  carry the skill wrapper.
+  `-form-states.json` are there too, and the gallery has 38 site directories even though only
+  23 are indexed here.
 - **They are sRGB hex, not OKLCH.** Useful as structure, not as output. Convert before use, and
   expect their neutral ramps to contain literal `#000000` / `#ffffff` / dead greys — exactly the
   thing `web-and-css.md` names as slop. Do not copy that part.
