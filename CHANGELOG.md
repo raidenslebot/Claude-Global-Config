@@ -5,6 +5,25 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.6.1 — 2026-09-02
+
+A fact-check of the five references written this session, every typeface probed against the
+live Google Fonts API and every palette converted to linear sRGB: five errors and nine
+overclaims, all corrected, about eighty claims confirmed.
+
+- Errors: the signage viewing-distance arithmetic was off by two; two palette signals sat
+  outside sRGB and would have rendered as colours nobody chose; Instagram's tallest feed
+  image is 3:4 since 2025 (an `ig-34` preset joins `ig-post`); YouTube's thumbnail limits are
+  a decade newer than stated; Fraunces' SOFT axis did nothing unless the font URL requested
+  it — the specimen example and the CSS comment say so now.
+- Overclaims: house conventions marked as constraints are defaults again (icon stroke at 16
+  px, SVG hygiene, diagram type minimums, a stroke minimum that differs by press); the
+  app-icon mask rule names the platforms and the macOS versions it does not hold for; the
+  email rules distinguish classic Outlook from the new one, name Gmail, and add the 102 KB
+  clip; stories accept more than 9:16; the delivery-format bundle splits its constraint from
+  its default. The floor the audit holds — WCAG contrast, large-text and tap-target numbers —
+  is now stated where the moves are.
+
 ## 1.6.0 — 2026-09-02
 
 A second adversarial review, over the older tools and the installer, twelve findings reproduced

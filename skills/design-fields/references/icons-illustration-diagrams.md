@@ -9,7 +9,7 @@ An icon set is one drawing rule applied thirty times. The rule is what makes it 
 subject of each icon is almost irrelevant.
 
 - **Grid: 24 px, live area 20 px** (2 px padding on every side) [D]. Sizes 16 / 20 / 24 / 32 /
-  48 are *redrawn*, not scaled: at 16 px the stroke stays 1.5–2 px and detail is removed [C].
+  48 are *redrawn*, not scaled: at 16 px the stroke stays 1.5–2 px and detail is removed [D].
 - **Stroke: 2 px** (the Lucide/Feather convention) or 1.5 px for a lighter set; **one weight in
   the whole set** [D]. `stroke-linecap="round" stroke-linejoin="round"` or square — pick one,
   never mix [D].
@@ -20,9 +20,10 @@ subject of each icon is almost irrelevant.
   landscape 20 × 16, portrait 16 × 20) are the correction [D].
 - **Metaphor discipline.** One metaphor per concept across the set (a trash can *or* an X for
   delete, not both). Test the icon without its label; if it needs the label, it is decoration.
-- **SVG hygiene** [C]: `viewBox="0 0 24 24"`, `fill="none" stroke="currentColor"`, no
+- **SVG hygiene** [D]: `viewBox="0 0 24 24"`, `fill="none" stroke="currentColor"`, no
   transforms, no groups, no ids, no embedded styles, paths merged where possible, decimals ≤ 2.
-  `currentColor` is what lets one file serve every theme.
+  `currentColor` is what lets one file serve every theme — when the SVG is inline or a
+  `<use>`; an SVG placed through `<img src>` cannot see the page's colour.
 - **Delivery**: individual SVGs named `kebab-case.svg`, a sprite (`<symbol>`), and a contact
   sheet rendering every icon at 16 and 24 on light and dark [D].
 
@@ -53,7 +54,7 @@ An illustration *system* is a set of constraints that make ten drawings look lik
 - **Alignment is the whole craft.** Boxes on a grid, connectors orthogonal or all-curved, equal
   gaps, one arrowhead style. A diagram with sloppy alignment reads as sloppy thinking [D].
 - **Type in a diagram**: one size for labels, one for the title, tabular figures; ≥ 11 px on
-  screen, ≥ 7 pt on paper [C].
+  screen, ≥ 7 pt on paper [D].
 - **Infographics lie easily.** Areas scale with the value, not the radius; a truncated axis is
   declared; icons-as-units are the same size; the source is cited on the piece [C].
 - **Colour means one thing** in a diagram — a category, a state, or an emphasis, never all

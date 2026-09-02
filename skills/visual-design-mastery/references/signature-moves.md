@@ -9,10 +9,11 @@ fight. Five is a template with effects on it.
 Every face named here is free (Google Fonts unless marked *Fontshare*), so there is never a
 reason to fall back to Inter. Load with `<link href="https://fonts.googleapis.com/css2?family=…&display=swap">`
 or self-host; `tools/screen-render.mjs` names any @font-face that failed to load. See a pairing and a
-palette set for real before choosing: `node tools/specimen.mjs --display "Fraunces:ital,opsz,wght@1,9..144,300"
+palette set for real before choosing: `node tools/specimen.mjs --display "Fraunces:ital,opsz,wght,SOFT,WONK@1,9..144,300,0..100,0..1"
 --text Archivo --mono "JetBrains Mono" --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"`
 renders the display line, the text at reading size, the pairing reversed, and every colour with its contrast
-against the surface and the ink.
+against the surface and the ink. Google Fonts serves only the axes the URL requests — an axis left out
+of the request is pinned at its default, and `font-variation-settings` for it does nothing.
 
 **The ambition floor:** a finished piece carries at least one move from *Layout*, *Material*
 or *Motion* — not type and colour alone. Type and colour dress a structure; they do not make one.
@@ -28,7 +29,7 @@ or *Motion* — not type and colour alone. Type and colour dress a structure; th
 | Editorial, warm | **Fraunces** (opsz 9–144, SOFT, WONK axes) | italic at `wght 300`, `opsz 144`, huge. The most characterful free serif. |
 | Modern review | **Instrument Serif** (one weight + italic) | display only, at ≥ 48px; pair with Instrument Sans |
 | Literary | **Newsreader** (opsz) | body at 18–20px with `opsz` auto; display italic |
-| High contrast, fashion | **Bodoni Moda** (opsz 6–96) | `wght 900` at `opsz 96`, tight leading, one word |
+| High contrast, fashion | **Bodoni Moda** (opsz 6–96); **Abril Fatface** (a Didone fat face) | `wght 900` at `opsz 96`, tight leading, one word |
 | Light, archival | **Cormorant Garamond** | `wght 300` at 8–12vw; never for body |
 | Loud serif | **Young Serif**, **Gloock**, **DM Serif Display** | one line, one size |
 | Grotesque with wobble | **Bricolage Grotesque** (opsz, wdth 75–100) | `wght 800 wdth 75` display; the wobble is in the opsz |
@@ -36,9 +37,9 @@ or *Motion* — not type and colour alone. Type and colour dress a structure; th
 | Whole family in one file | **Archivo** (wdth 62–125, wght 100–900) | narrow display + regular text from ONE face |
 | Width as the instrument | **Anybody** (wdth 50–150) | animate or step `wdth` per line |
 | Clean text | **Instrument Sans**, **Hanken Grotesk**, **Onest**, **Schibsted Grotesk**, **Familjen Grotesk**, **Geist** | body; never as the only face on the page |
-| Signage, industrial | **Big Shoulders Display** (wght 100–900) | `wght 900` condensed caps at extreme size |
+| Signage, industrial | **Big Shoulders Display** (wght 100–900; the newer consolidated **Big Shoulders** adds opsz 10–72) | `wght 900` condensed caps at extreme size |
 | Mono with character | **JetBrains Mono**, **IBM Plex Mono**, **Azeret Mono** (wght 100–900), **Martian Mono** (wdth), **Fragment Mono**, **Geist Mono** | values, ledgers, labels; a mono as *display* is a move only when the subject is code or machinery |
-| Slab, poster | **Alfa Slab One**, **Ultra**, **Abril Fatface**, **Chango** | one word; never below 64px |
+| Slab, poster | **Alfa Slab One**, **Ultra**, **Chango** | one word; never below 64px |
 | Shaded / display oddities | **Bungee** (+ Bungee Shade), **Rubik Mono One**, **Monoton** | a wordmark, never running text |
 | *Fontshare* | **Satoshi**, **General Sans**, **Clash Display**, **Cabinet Grotesk**, **Zodiak** | contemporary; Clash Display for the big word |
 
@@ -67,9 +68,9 @@ Inter-on-Inter.
   line-height: 0.88;                         /* 0.82–0.95 at display; never 1.2 */
   letter-spacing: -0.035em;                  /* -0.02 to -0.05em above 64px */
   font-optical-sizing: auto;
-  font-variation-settings: "opsz" 144, "SOFT" 40;   /* Fraunces */
+  font-variation-settings: "opsz" 144, "SOFT" 40;   /* Fraunces — SOFT and WONK act only if the font URL requested them */
   text-wrap: balance;
-  hanging-punctuation: first;                /* Safari; harmless elsewhere */
+  hanging-punctuation: first;                /* Safari only as of 2026; harmless elsewhere */
 }
 /* Caps labels: small, tracked wide, never bold. */
 .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 500; }
@@ -121,10 +122,14 @@ to L≈0.20–0.24, lower every chroma by a third, and make hairlines translucen
 |---|---|---|---|---|
 | **Ink on paper** | `oklch(0.97 0.012 80)` | `oklch(0.22 0.02 60)` | `oklch(0.55 0.17 25)` | signal only on the correction, the price, the one word |
 | **Ultramarine & chalk** | `oklch(0.30 0.12 265)` | `oklch(0.96 0.01 80)` | `oklch(0.80 0.16 75)` | dark that is *blue*, not black; amber once |
-| **Riso** | `oklch(0.94 0.02 85)` | `oklch(0.35 0.10 265)` | `oklch(0.70 0.20 40)` | two inks, `mix-blend-mode: multiply` where they cross, nothing else |
+| **Riso** | `oklch(0.94 0.02 85)` | `oklch(0.35 0.10 265)` | `oklch(0.70 0.19 40)` | two inks, `mix-blend-mode: multiply` where they cross, nothing else |
 | **Bottle & brass** | `oklch(0.30 0.06 160)` | `oklch(0.93 0.015 90)` | `oklch(0.76 0.10 85)` | brass as hairlines only |
 | **Clay** | `oklch(0.93 0.025 70)` | `oklch(0.35 0.05 40)` | `oklch(0.62 0.12 45)` | everything within 40° of one hue |
-| **Slate & saffron** | `oklch(0.93 0.01 250)` | `oklch(0.24 0.02 250)` | `oklch(0.80 0.17 85)` | saffron on the number, never on text |
+| **Slate & saffron** | `oklch(0.93 0.01 250)` | `oklch(0.24 0.02 250)` | `oklch(0.80 0.16 85)` | saffron on the number, never on text |
+
+Every value above sits inside sRGB (a chroma past the gamut is silently mapped by the browser to
+a colour you did not choose — at L 0.70, h 40 the ceiling is about 0.197; at L 0.80, h 85 about
+0.163). `specimen` shows the colour that will actually render.
 | **Blackboard** | `oklch(0.24 0.03 150)` | `oklch(0.93 0.01 90)` | `oklch(0.82 0.13 80)` | chalk textures welcome; no glow |
 
 ```css
@@ -145,7 +150,7 @@ purple→pink gradient, the acid accent on `#0a0a0a`, four pure greys, glass.
 
 - **The editorial split.** 12 columns; content at 7/5 or 8/4, *never* 6/6. The narrow column
   holds the label, the date, the caption; the wide one the matter. `grid-template-columns:
-  repeat(12, 1fr); .main { grid-column: 2 / 9 } .aside { grid-column: 10 / 13 }`.
+  repeat(12, 1fr); .main { grid-column: 1 / 9 } .aside { grid-column: 9 / 13 }` (8/4).
 - **The ledger.** Rows of `name · dotted leader · value`, tabular figures right-aligned, a
   0.5px rule under each. From price boards and audit reports; states a lot in little space.
   `.l { flex: 1; border-bottom: 1px dotted currentColor; transform: translateY(-0.3em) }`.
@@ -241,5 +246,9 @@ purple→pink gradient, the acid accent on `#0a0a0a`, four pure greys, glass.
   report typeset as a printed ledger, with the thesis copy-edited in red".
 - **Ambition floor** — name the structural move (layout, material or motion). If the only
   moves are a font and a colour, the structure is still the default.
+- **The floor** — the numbers `tools/page-audit.mjs` holds, which are not taste: contrast 4.5:1
+  for text, 3:1 for large text (≥ 24 px, or ≥ 18.66 px bold) — WCAG 1.4.3; tap targets ≥ 24 CSS px
+  (WCAG 2.5.8; Apple's guideline is 44 pt), with a link inside running text exempt; reduced motion
+  respected. A page that fails these is not finished, whatever it looks like.
 - **The look** — `node tools/screen-render.mjs page.html --mobile`, desktop and phone, at
   least twice. The first render is never the one to show.

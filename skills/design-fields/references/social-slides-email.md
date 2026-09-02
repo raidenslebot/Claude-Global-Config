@@ -11,15 +11,15 @@ Render each with `node tools/screen-render.mjs post.html --preset <name>` for th
 
 | Preset | Size | Notes |
 |---|---|---|
-| `ig-post` | 1080 × 1350 | 4:5 [D], the tallest feed image and the one that fills a phone; the square is 1080 × 1080 (`ig-square`) |
-| `story` | 1080 × 1920 | 9:16 [C]; keep type 250 px from the top and 340 px from the bottom — the UI overlays those [D] |
+| `ig-post` | 1080 × 1350 | 4:5 [D], safe everywhere including schedulers; since 2025 the feed and the grid tile are 3:4 (`ig-34`, 1080 × 1440), now the tallest feed image — confirm your scheduler takes it [N]; the square is 1080 × 1080 (`ig-square`) |
+| `story` | 1080 × 1920 | 9:16 [D] — the ratio that fills the phone (stories accept 1.91:1 to 9:16); keep type 250 px from the top and 340 px from the bottom (250 for the organic UI, 340 with an ad CTA) [D] |
 | `x-post` | 1600 × 900 | 16:9 [D]; in the timeline it is small — one idea, big |
-| `yt-thumb` | 1280 × 720 | 16:9, < 2 MB [C]; it is *chosen* at 168 px wide in a sidebar — test it at that size |
+| `yt-thumb` | 1280 × 720 | 16:9 [C]; design at 1280 × 720 or 3840 × 2160 (YouTube's 2026 recommendation), minimum width 640 [N]; ≤ 2 MB is the safe ceiling (the mobile upload limit; desktop accepts 50 MB as of 2026) [D]; it is *chosen* at about 168 px wide in the watch-page sidebar — test it at that size |
 | `linkedin` | 1200 × 627 | ~1.91:1 [D] |
 | `og` | 1200 × 630 | Open Graph link preview [D]; often cropped to a square on mobile, so the subject sits centred |
 | `pinterest` | 1000 × 1500 | 2:3 [D] |
 | `slide` | 1920 × 1080 | 16:9 [D]; title-safe inset 5% — projectors overscan and rooms have heads in the way |
-| `app-icon` | 1024 × 1024 | the master; every platform masks it, keep the mark within the central 80% [C] |
+| `app-icon` | 1024 × 1024 | the master; iOS, Android and maskable web icons each apply their own mask — keep the mark inside a centred circle of 80% diameter (the maskable-icon safe zone) and inside about 61% for Android's adaptive layer [D] |
 
 ## Social — one idea, read in a second, from a thumb's distance
 
@@ -59,12 +59,14 @@ Render each with `node tools/screen-render.mjs post.html --preset <name>` for th
 ## Email — designed for the worst client in the list
 
 - **Canvas 600–640 px wide** [D], single column below 480 px, everything in nested tables
-  [C] — flexbox and grid are not reliable across clients.
-- **Web fonts do not load in Outlook desktop** (the Word rendering engine) and several
-  others; the design must be *good in the fallback stack* — choose one and design in it
-  (Georgia, Arial, Trebuchet, Verdana are the honest options) [C].
-- **Images**: ≤ 1 MB total, 2× resolution at the slot size, `alt` text that reads as design
-  because images are off by default in many clients [C]. Never type as an image.
+  [D] — classic Outlook for Windows (the Word rendering engine, still common through about
+  2029) ignores flexbox and grid; the new Outlook renders like Outlook on the web.
+- **Web fonts do not load in classic Outlook desktop** (the Word engine) or in Gmail [C as of
+  2026]; the design must be *good in the fallback stack* — choose one and design in it
+  (Georgia, Arial, Trebuchet, Verdana are the honest options).
+- **Images**: ≤ 1 MB total, 2× resolution at the slot size [D]; `alt` text that reads as design
+  because Outlook desktop and some corporate clients block images by default [D]. Never type as
+  an image. Keep the HTML itself under about 100 KB — Gmail clips a message past 102 KB [C].
 - **Dark mode** inverts or partially inverts in some clients; test both, use a `<meta
   name="color-scheme" content="light dark">` and avoid pure white-on-black assumptions [D].
 - **No background images** without the VML fallback; no video; no forms; no JS [C].

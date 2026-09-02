@@ -69,8 +69,8 @@ What changes is step 3, and it is found, not guessed:
    will be: 1 in of cap height per 10 ft is the rule of thumb for comfortable reading of
    signage [D]; a phone is at 12 in; a slide is at the back of the room.
 3. **The delivery format the field accepts** — vector for anything cut, printed at scale or
-   embroidered; a raster at 2× for anything on a screen; a dieline or a template from the
-   vendor for anything manufactured [C].
+   embroidered, and a dieline or template from the vendor for anything manufactured [C]; a
+   raster at 2×, or SVG, for anything on a screen [D].
 4. **The moves that exist only because of this field's material.** A book has a spine and
    a gutter; a map has a legend and a scale; a pattern has a repeat; a ticket has a stub. The
    hero move comes from that, never from the screen.

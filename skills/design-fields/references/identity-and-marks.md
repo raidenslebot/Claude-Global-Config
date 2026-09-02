@@ -32,7 +32,8 @@ not one picture. **[C]** constraint · **[D]** strong default · **[N]** confirm
   verticals; the crossbar sits above the mathematical middle; a perfectly geometric mark looks
   wrong precisely because it is perfect. Correct by eye, then measure.
 - **Stroke discipline.** One stroke weight in a line mark, or two in a fixed ratio (1 : 1.6).
-  At the minimum size the stroke must still be ≥ 1 px on screen / 0.25 pt in print [C].
+  At the minimum size the stroke must still be ≥ 1 px on screen; in print ≥ 0.25 pt for
+  offset, ≥ 0.5 pt for flexo or screen print, and whatever the embroiderer states [D].
 - **Counter and gap sizes** ≥ the stroke width, or they fill at small sizes [D].
 - **No gradients, no shadows, no effects in the primary mark** [D]. They fail in one colour,
   in embroidery and in a die-cut. A gradient may be a *version* for a specific screen surface.
@@ -52,10 +53,14 @@ not one picture. **[C]** constraint · **[D]** strong default · **[N]** confirm
 - **PDF** (vector) for print vendors; **PNG @1×/@2×/@3×** on transparent for screen users who
   cannot handle SVG; **EPS only if a vendor asks** [N].
 - **Favicons and app icons** are a set, not a resize: `favicon.svg` (with a dark-mode
-  `prefers-color-scheme` rule inside), `favicon.ico` 16 + 32, `apple-touch-icon.png` 180,
-  `icon-192.png` and `icon-512.png` (PWA / Android, maskable: keep the mark within the central
-  80% — platforms mask the outer ring) [D]. An app icon master is 1024 × 1024 with *no* rounded
-  corners — the platform applies its own mask [C].
+  `prefers-color-scheme` rule inside — honoured by Chromium and Firefox, and by Safari only
+  from Safari 26 in 2025, so the `.ico` and the touch icon are what older Safari shows),
+  `favicon.ico` 16 + 32, `apple-touch-icon.png` 180, `icon-192.png` and `icon-512.png` (PWA /
+  Android; maskable: keep the mark inside a centred circle of 80% diameter, and inside about
+  61% for Android's adaptive layer) [D]. An app icon master is 1024 × 1024 with *no* rounded
+  corners for iOS, Google Play and macOS 26 and later — the platform applies the mask [C];
+  macOS 15 and earlier render the icon file literally and want the rounded rectangle drawn
+  in, so ship a second `.icns` if you target them [N].
 - **The brand sheet** with every mark: versions, clear space diagram, minimum sizes, colours in
   every space, the one-colour and reversed forms, and what NOT to do (stretch, recolour,
   outline, rotate, put on a busy photograph).

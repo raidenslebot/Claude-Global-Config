@@ -24,11 +24,12 @@ export const MOBILE = { width: 390, height: 844 }
 // platforms move their specs; the numbers are the widely published ones as of 2026 and the
 // safe zones are conservative. A preset captures exactly the viewport, never the full page.
 export const PRESETS = {
-  'ig-post': { width: 1080, height: 1350, note: '4:5, the tallest feed image' },
+  'ig-post': { width: 1080, height: 1350, note: '4:5 — safe everywhere; the feed and grid tile are 3:4 since 2025' },
+  'ig-34': { width: 1080, height: 1440, note: '3:4 — the tallest feed image and the grid tile since 2025; confirm the scheduler takes it' },
   'ig-square': { width: 1080, height: 1080 },
   'story': { width: 1080, height: 1920, note: '9:16 — keep text 250px from the top and 340px from the bottom' },
   'x-post': { width: 1600, height: 900, note: '16:9' },
-  'yt-thumb': { width: 1280, height: 720, note: 'under 2MB; reads at 168px wide in the sidebar' },
+  'yt-thumb': { width: 1280, height: 720, note: '16:9; YouTube now recommends 3840×2160, minimum width 640; 2MB is the safe ceiling; it is chosen at ~168px wide in the sidebar' },
   'linkedin': { width: 1200, height: 627 },
   'og': { width: 1200, height: 630, note: 'link previews everywhere' },
   'pinterest': { width: 1000, height: 1500, note: '2:3' },

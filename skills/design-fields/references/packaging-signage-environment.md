@@ -49,9 +49,9 @@ strong default · **[N]** confirm with the manufacturer, the sign shop, or the c
 - **Materials**: the sign shop's list — cut vinyl, dimensional letters, printed panel, back-lit
   film, painted. Each has minimum stroke widths (cut vinyl ≥ 0.1 in [N]) and a look. Choose
   for the building, then obey the material.
-- **Proof**: render at scale and view at the *real* distance ratio — a 24 in sign at 20 ft is
-  a 1.2 in image at arm's length. `screen-render` at a size that reproduces that ratio on a
-  phone held at 12 in.
+- **Proof**: render at scale and view at the *real* distance ratio — a 24 in sign at 20 ft
+  subtends what a 1.2 in image does on a phone held at 12 in (2.4 in at arm's length).
+  `screen-render` at a size that reproduces that ratio, and look at it from there.
 
 ## Banners, trade-show, environments
 
