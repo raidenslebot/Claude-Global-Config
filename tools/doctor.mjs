@@ -99,15 +99,43 @@ phase('MCP servers')
     let cfg = null
     try { cfg = readJson(cfgPath); ok('~/.claude.json parses') }
     catch (e) { fail(`~/.claude.json is not valid JSON: ${e.message}`) }
-    const servers = Object.entries(cfg?.mcpServers || {})
-    if (cfg && !servers.length) warn('no MCP servers registered')
-    for (const [name, s] of servers) {
-      const entry = (s.args || [])[0]
-      if (!resolveExe(String(s.command || ''))) fail(`${name}: command not found — ${s.command}`)
-      else if (!entry) warn(`${name}: no entry point in args`)
-      else if (!existsSync(entry)) fail(`${name}: server entry missing — ${entry}`)
-      else ok(`${name} · ${basename(entry)}`)
+    // Every scope a server can hide in. `install.mjs` writes the global map, and this
+    // check used to read only that one — so a project-scoped server was invisible here
+    // while being perfectly live in the session. Same blind spot the skills check already
+    // learned about plugins: what you enumerate has to match what actually loads.
+    const scopes = [['', cfg?.mcpServers]]
+    for (const [proj, v] of Object.entries(cfg?.projects || {})) {
+      const m = v && typeof v === 'object' ? v.mcpServers : null
+      if (m && Object.keys(m).length) scopes.push([` (project ${basename(String(proj))})`, m])
     }
+    const servers = scopes.flatMap(([where, map]) =>
+      Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {} })))
+
+    if (cfg && !servers.length) warn('no MCP servers registered')
+    for (const { name, where, s } of servers) {
+      // THE MANDATE, checked rather than assumed: this package is subscription-only.
+      // A server addressed by URL is somebody else's service over the network, and every
+      // one of those ends at a login prompt. install.mjs only ever writes `command`
+      // servers (its phase is literally titled "MCP servers — local only"), so anything
+      // with a url arrived by another route. Reported as the policy break it is — the old
+      // check called it "command not found", which reads as a broken install and sends
+      // you off to fix the wrong thing.
+      const url = s.url || s.serverUrl || s.httpUrl
+      const remoteType = /^(sse|http|https|ws|wss|streamable-http)$/i.test(String(s.type || ''))
+      if (url || remoteType) {
+        fail(`${name}${where}: external service (${url || s.type}) — this config is ` +
+          `subscription-only. Remove it, or replace it with a locally installed server.`)
+        continue
+      }
+      const entry = (s.args || [])[0]
+      if (!resolveExe(String(s.command || ''))) fail(`${name}${where}: command not found — ${s.command}`)
+      else if (!entry) warn(`${name}${where}: no entry point in args`)
+      else if (!existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
+      else ok(`${name}${where} · ${basename(entry)}`)
+    }
+    // Stated because it is a real limit, not a covered case: connectors provided by the
+    // host application do not appear in this file at all, so nothing here can see them.
+    // Those are managed in the app's own connector settings.
   }
 }
 

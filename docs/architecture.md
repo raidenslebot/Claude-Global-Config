@@ -118,6 +118,12 @@ Slack, Intercom and S&P Global have no local analogue that benefits Claude, and 
 What remains — `playwright`, `context7`, `strix`, `T3MP3ST` — is local or routes through a bridge
 backed by the Claude subscription.
 
+The removals were done by hand and recorded in a table, which made this the repo's largest
+unchecked claim — the exact shape it refuses elsewhere. It is a gate now: `doctor.mjs` fails on
+any MCP server addressed by URL, in every scope including the project-scoped map it used to skip,
+and a test plants one to prove the report fires. Host-application connectors are outside
+`.claude.json` and therefore outside this check; that limit is stated rather than covered.
+
 ## Decision: two dispatch paths, both routed, one vocabulary
 
 Spawned agents reach a model by two different paths, and only one of them passes through the

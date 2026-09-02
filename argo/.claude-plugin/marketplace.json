@@ -1,8 +1,7 @@
 {
   "name": "argonaut-local",
   "owner": {
-    "name": "argonaut",
-    "email": "aqwmaster21212@gmail.com"
+    "name": "argonaut"
   },
   "metadata": {
     "description": "Graph Engineering for Claude Code — decide which agents may talk to which before you pay for a fleet.",

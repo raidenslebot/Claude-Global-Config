@@ -185,6 +185,15 @@ What remains is local-only: `playwright` (bundled browser), `context7` (keyless)
 `strix` + `T3MP3ST`, both of which route through a local bridge backed by your Claude
 subscription rather than any vendor API.
 
+**This is checked, not just claimed.** `doctor.mjs` classifies every registered MCP server and
+**fails** on any addressed by URL — someone else's service over the network, which is where a
+login prompt comes from — and it reads every scope a server can hide in, including the
+project-scoped map it previously never looked at. `tools/test/no-external-auth.test.mjs` holds
+both halves: that `install.mjs` can only ever register a local `command` server, and that doctor
+actually reports a planted remote one. The limit worth stating: connectors provided by the host
+application never appear in `.claude.json`, so nothing here can see them — those live in the
+app's own connector settings.
+
 ---
 
 ## Security
