@@ -201,6 +201,64 @@ not assumed**: a workflow that spawns nothing and returns its own `args` receive
 through the real dispatch path. That contract belongs to the harness, not this repo, so the
 probe ships as a named workflow to be re-run after upgrades.
 
+## Decision: the install follows main and verifies itself at every start
+
+A configuration that has to be updated by hand is updated by the one person who wrote it. The
+requirement was the opposite: a friend clones the repo, installs once, and from then on runs
+exactly what `main` runs, with nothing to remember. So one SessionStart hook
+(`config/hooks/session-start-cgc.js`) does three things in one process, because hooks in a
+group run in parallel and the status line has to be composed by whoever did the work:
+
+1. **Update.** Fetch the origin's default branch (read from `origin/HEAD`, not hard-coded);
+   fast-forward only when the clone is strictly behind; then `install.mjs
+   --only=config,hooks,skills` so the live config matches the commit. Everything that is not a
+   clean fast-forward — a dirty tree, another branch, unpushed local commits, a diverged
+   history — is named in the line and left alone. History is never rewritten and work is never
+   discarded; the author's machine, which is usually ahead, sees `ahead of origin` and nothing
+   happens. Offline is a word. Nothing prompts: `GIT_TERMINAL_PROMPT=0`.
+2. **Verify and repair.** `doctor.mjs --json` every start (a fifth of a second). Any FAIL —
+   a hook removed from `settings.json`, a skill directory replaced by another package — triggers
+   the same re-apply and a second doctor run, and the line says `repaired`. This is what makes
+   "not optional once installed" true rather than asserted: the mandates are enforced by hooks,
+   and the hooks are verified present before the session begins.
+3. **Self-test.** `run-tests.mjs` once per commit and at most once a day, cached in
+   `~/.claude/.cgc/selftest.json`. The suite takes six seconds; running it on every start would be
+   the kind of invasiveness the user asked not to have, and re-running it on the same commit
+   proves nothing the cache does not already say.
+
+The result is one line — `CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date
+(d971142)` — emitted as `systemMessage` (shown to the user) and `additionalContext` (with the
+instruction to open the first reply with it). The version is `package.json`'s; `CHANGELOG.md`
+must lead with the same number, held by a test, so a bump and its entry cannot separate.
+
+**This config wins** is implemented at install, reversibly: a same-named skill that does not
+resolve to our repo is moved to `.cgc-replaced/` and replaced by the link; plugins known to
+shadow shipped skills are set to `false` in `enabledPlugins`; hook registrations merge by script
+basename. `CLAUDE_CONFIG_DIR` is honoured because Claude Code honours it — an install that
+ignored it would write to a directory the running Claude never reads.
+
+## Decision: the centroid is detected mechanically, and the loop has no count
+
+The taste layer names the templated look and asks the model to refuse it. That is advisory, and
+the repo's own rule is that a standard nobody checks is a preference. `tools/slop-lint.mjs` is
+the check: sixteen fingerprint families (the default face, the purple gradient, the glass card,
+the three-card grid, the centred hero, emoji icons, the acid accent on near-black, the blurred
+blob, the stock copy, …), each a regex or a small parser, each reported with its line and what a
+decision would look like instead, weighted so one strong tell or two weak ones report and four
+points is the centroid. A PostToolUse hook runs it on every screen file written. Its limit is
+stated on every clean result: the absence of fingerprints is not the presence of design.
+
+The presence of design is the loop's job, and the loop deliberately has no pass count. The user
+rejected "a minimum of two passes" in favour of *fix and refine and improve and evolve and
+extrapolate in a loop until it achieves, at minimum, the equivalent of a passionate human
+professional*. A count is a preference; the exit is a list of questions a professional in the
+field would ask (two seconds, the sentence, the swap, structure, type, colour, grid, copy,
+motion, the phone, the states, the field's craft), every one a yes or another pass, with the
+passes logged in `review.md` beside the file. `tools/screen-render.mjs` exists so the loop
+looks at the picture and not the code, at the sizes people use and at the exact pixels of the
+social, slide, email and icon canvases; it names any web font that failed to load, which is the
+commonest way a designed page ships looking like the default.
+
 ## What is deliberately not here
 
 - **No dependency on a package registry at runtime.** argo has zero dependencies; the tools use

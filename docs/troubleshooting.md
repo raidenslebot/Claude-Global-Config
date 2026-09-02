@@ -237,6 +237,30 @@ phase.
 
 ---
 
+## The session line says DEGRADED, blocked, or "not a git clone"
+
+The first line of every session is `session-start-cgc.js`'s report. Read it as a sentence:
+
+- **`DEGRADED · 33/34 checks (1 failed: …)`** — the doctor found something the re-apply could not
+  put back. Run `node tools/doctor.mjs` and fix what it names; the usual cause is a mandate file
+  with an unresolved token or a hook that no longer parses.
+- **`update blocked: local changes`** — the clone has uncommitted edits to tracked files. The repo
+  is the source of truth; commit them (`node tools/sync.mjs` if the edits were made in
+  `~/.claude`), or discard them, then `git pull --ff-only origin main`. Nothing is overwritten
+  until you do.
+- **`update blocked: diverged from origin`** — local commits that are not on `main`. Rebase them
+  (`git rebase origin/main`) or push them if they belong there.
+- **`ahead of origin`** — the author's machine with unpushed work; expected.
+- **`on <branch>, main not followed`** — a feature branch is checked out; expected while working.
+- **`offline, at <sha>`** — the fetch failed within ten seconds; nothing else changes.
+- **`not a git clone`** — the directory was downloaded as an archive. Clone it with git and run
+  `node tools/install.mjs` from the clone; auto-update needs a `.git`.
+- **`tests timed out`** or **`(N failed)`** — run `npm test` in the repo; the suite is six seconds
+  and names the case.
+- **The line does not appear at all** — the hook is not registered or Node is not where
+  `settings.json` pins it. `node tools/doctor.mjs` says which; `node tools/install.mjs
+  --only=hooks` repairs it.
+
 ## Escape hatch: revert everything
 
 `tools/uninstall.mjs` undoes what `tools/install.mjs` did, and nothing else.

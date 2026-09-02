@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude-Global-Config — an audit</title>
+<!--
+  A finished page in the form this skill produces, built through the loop in Step 4. Read it
+  for the SHAPE: one direction committed to in directions.md (the audit ledger), one hero move
+  (the thesis copy-edited — a struck word and a proof-reader's insertion), one signal colour used
+  once, two faces, the editorial 8/4 split, a ledger of the repository's REAL checks, and one
+  motion law (the correction is made, then stillness). The figures are those of v1.1.0.
+
+  Render:  node tools/screen-render.mjs index.html --mobile
+  Gate:    node tools/slop-lint.mjs index.html
+  Beside it: directions.md (read first) and review.md (the passes)
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: oklch(0.97 0.012 80);
+    --ink: oklch(0.22 0.02 60);
+    --ink-2: oklch(0.46 0.02 60);
+    --line: oklch(0.22 0.02 60 / 0.22);
+    --line-2: oklch(0.22 0.02 60 / 0.45);
+    --signal: oklch(0.55 0.17 25);
+    --serif: Fraunces, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); color: var(--ink); }
+  body { margin: 0; font-family: var(--serif); font-optical-sizing: auto; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  /* Paper. One filter, once, over everything; 2.4 is paper, 0.9 is blotches. */
+  body::after { content: ""; position: fixed; inset: 0; filter: url(#grain); pointer-events: none; z-index: 9; }
+  .page { max-width: 1320px; margin: 0 auto; padding: clamp(1rem, 2.5vw, 2.5rem) clamp(1.1rem, 4vw, 4.5rem) 4rem; }
+
+  /* The running head: the caps line, once. */
+  .head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+          font: 500 0.7rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2);
+          border-bottom: 0.5px solid var(--line-2); padding-bottom: 0.9rem; }
+  .head a { color: inherit; text-decoration: none; }
+  .head a:hover, .head a:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 0.35em; outline: none; }
+
+  /* The thesis. Light italic at display size, tracked tight, balanced. */
+  .thesis { margin: clamp(2.4rem, 6.5vw, 5.5rem) 0 0; font-style: italic; font-weight: 300;
+            font-size: clamp(2.7rem, 10.9vw, 12rem); line-height: 0.9; letter-spacing: -0.035em;
+            font-variation-settings: "opsz" 144, "SOFT" 30; text-wrap: balance; max-width: 11.5ch; }
+  /* The correction: a drawn strike, and the replacement written in above, at an angle, in the one colour. */
+  .struck { position: relative; display: inline-block; }
+  .struck > svg { position: absolute; left: -1.5%; top: 54%; width: 103%; height: 0.1em; overflow: visible; }
+  .struck > svg path { stroke: var(--signal); stroke-width: 2.5px; vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round;
+                       stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw 700ms cubic-bezier(0.2, 0.7, 0.1, 1) 500ms forwards; }
+  .gate { position: absolute; left: 41%; top: -0.5em; display: inline-flex; align-items: flex-end; gap: 0.12em;
+          font: 500 0.2em/1 var(--mono); font-style: normal; letter-spacing: 0.02em; color: var(--signal); rotate: -4deg;
+          opacity: 0; animation: appear 260ms ease-out 1150ms forwards; white-space: nowrap; }
+  .gate svg { width: 0.9em; height: 0.6em; overflow: visible; }
+  .gate svg path { stroke: currentColor; stroke-width: 2px; vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes appear { to { opacity: 1; } }
+
+  /* One paragraph, in the text sizes of the same face; it opens the wide column so the split
+     begins directly under the thesis, and the first margin note hangs beside it. */
+  .lede { margin: 0 0 clamp(2.4rem, 4vw, 3.6rem); max-width: 58ch; font-size: clamp(1.05rem, 1.35vw, 1.3rem); line-height: 1.45;
+          font-variation-settings: "opsz" 18; text-wrap: pretty; }
+  .lede em { font-style: italic; }
+
+  /* The report: the editorial split, 8/4, both columns on one baseline grid. */
+  .report { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2rem; margin-top: clamp(1.8rem, 3.2vw, 2.8rem); }
+  .ledger { grid-column: 1 / 9; }
+  .notes  { grid-column: 10 / 13; position: sticky; top: 2rem; align-self: start; padding-top: 0.35rem; }
+
+  .phase { margin: 2.6rem 0 0.5rem; font: italic 300 clamp(1.5rem, 2.3vw, 2rem)/1.1 var(--serif); letter-spacing: -0.015em; font-variation-settings: "opsz" 40; }
+  .row { display: grid; grid-template-columns: auto 1fr auto 3ch; align-items: baseline; column-gap: 0.8rem;
+         font: 400 0.88rem/2.2 var(--mono); border-bottom: 0.5px solid var(--line); }
+  .row .n { white-space: nowrap; }
+  .row .l { border-bottom: 1px dotted var(--line-2); transform: translateY(-0.5em); }
+  .row .v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .row .k { color: var(--ink-2); text-align: right; }
+  .row.sum { border-bottom: 0.5px solid var(--line-2); border-top: 0.5px solid var(--line-2); margin-top: 1.6rem; font-weight: 500; }
+  .row.sum .l { border: 0; }
+
+  /* Margin notes: a glossary of the repository's own words, in the mono, hung beside the ledger. */
+  .notes p { margin: 0 0 1.1rem; font: 400 0.76rem/1.65 var(--mono); color: var(--ink-2); }
+  .notes b { font-weight: 500; color: var(--ink); }
+  .notes b::after { content: " —"; }
+
+  /* The running foot: the line the session prints, and the one command. */
+  .foot { margin-top: clamp(3rem, 6vw, 5.5rem); border-top: 0.5px solid var(--line-2); padding-top: 1rem;
+          display: flex; justify-content: space-between; gap: 1rem 2.5rem; flex-wrap: wrap; font: 500 0.76rem/1.7 var(--mono); }
+  .foot .status { letter-spacing: 0.01em; }
+  .foot code { font: inherit; color: var(--ink-2); }
+  .foot a { color: var(--ink); text-decoration: underline; text-underline-offset: 0.3em; text-decoration-color: var(--line-2); }
+  .foot a:hover, .foot a:focus-visible { text-decoration-color: var(--ink); outline: none; }
+
+  @media (max-width: 900px) {
+    .report { display: block; }
+    .notes { position: static; margin-top: 2.6rem; border-top: 0.5px solid var(--line-2); padding-top: 1.4rem; columns: 2; column-gap: 2rem; }
+    .notes p { break-inside: avoid; }
+  }
+  @media (max-width: 560px) {
+    /* The correction has to be legible at a thumb's distance: the thesis grows to three lines
+       and the insertion to eighteen pixels; the date leaves the running head. */
+    .thesis { font-size: 15.5vw; max-width: none; }
+    .gate { font-size: 0.3em; top: -0.62em; left: 34%; }
+    .head .date { display: none; }
+    .row { font-size: 0.78rem; column-gap: 0.5rem; }
+    .notes { columns: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .struck > svg path { animation: none; stroke-dashoffset: 0; }
+    .gate { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="2.4" numOctaves="3" stitchTiles="stitch"/>
+  <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.06 0"/></filter>
+</svg>
+<div class="page">
+
+  <header class="head">
+    <span><a href="https://github.com/raidenslebot/Claude-Global-Config">Claude-Global-Config</a></span>
+    <span>v1.1.0 · an audit</span>
+    <span class="date">2 September 2026</span>
+  </header>
+
+  <h1 class="thesis">A standard nobody checks is a
+    <span class="struck">preference<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path d="M0 5.5 C 22 2.5, 48 8, 70 4.5 S 92 6.5, 100 4"/></svg><span class="gate" aria-label="corrected to: gate"><svg viewBox="0 0 20 12" aria-hidden="true"><path d="M2 11 L10 2 L18 11"/></svg>gate</span></span>.
+  </h1>
+
+  <section class="report" aria-label="What the doctor checks">
+    <div class="ledger">
+      <p class="lede">Thirty-four checks, nineteen hooks and two hundred and six tests, run at every session start
+        and reported in one line. Every mandate in this configuration has a test behind it; a hook <em>reports</em>
+        what it finds and never vetoes; and when a check fails, the install re-applies itself before the session
+        begins — or the line says what broke.</p>
+
+      <h2 class="phase">Prerequisites</h2>
+      <div class="row"><span class="n">node</span><span class="l"></span><span class="v">24.19.0</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">git</span><span class="l"></span><span class="v">present</span><span class="k">ok</span></div>
+
+      <h2 class="phase">Mandates</h2>
+      <div class="row"><span class="n">CLAUDE.md</span><span class="l"></span><span class="v">every token resolved</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">ui-design-stack.md</span><span class="l"></span><span class="v">every token resolved</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">react-tooling-stack.md</span><span class="l"></span><span class="v">every token resolved</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">security-stack.md</span><span class="l"></span><span class="v">every token resolved</span><span class="k">ok</span></div>
+
+      <h2 class="phase">Hooks</h2>
+      <div class="row"><span class="n">registered in settings.json</span><span class="l"></span><span class="v">19 of 19</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">parse, and pin their own node</span><span class="l"></span><span class="v">19 of 19</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">model routing on Agent and Workflow</span><span class="l"></span><span class="v">both paths</span><span class="k">ok</span></div>
+
+      <h2 class="phase">Skills</h2>
+      <div class="row"><span class="n">authored here, linked</span><span class="l"></span><span class="v">12</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">resident, tier two</span><span class="l"></span><span class="v">13</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">in the library, on disk, in context</span><span class="l"></span><span class="v">815 · 0</span><span class="k">ok</span></div>
+
+      <h2 class="phase">MCP servers</h2>
+      <div class="row"><span class="n">playwright, local, keyless</span><span class="l"></span><span class="v">pinned</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">context7, local, keyless</span><span class="l"></span><span class="v">pinned</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">external, URL-addressed, any scope</span><span class="l"></span><span class="v">0</span><span class="k">ok</span></div>
+
+      <h2 class="phase">Cost</h2>
+      <div class="row"><span class="n">this package's skills, in context</span><span class="l"></span><span class="v">3,9xx of 4,000 tokens</span><span class="k">ok</span></div>
+      <div class="row"><span class="n">trigger contention, authored</span><span class="l"></span><span class="v">0 pairs</span><span class="k">ok</span></div>
+
+      <div class="row sum"><span class="n">Summary</span><span class="l"></span><span class="v">34 ok · 0 warnings · 0 failed</span><span class="k"></span></div>
+    </div>
+
+    <aside class="notes" aria-label="Glossary">
+      <p><b>Gate</b> a standard with a test behind it. The doctor runs thirty-four of them in a fifth of a second; the suite, two hundred and six.</p>
+      <p><b>Advisory</b> said of a rule nobody checks. See also: <i>preference</i>.</p>
+      <p><b>Report, never veto</b> every hook tells the session what it found. None stops a tool. A hook that vetoes gets deleted; one that reports gets read.</p>
+      <p><b>Repaired</b> what the line says when a check failed and the install put the missing thing back before you typed.</p>
+      <p><b>The swap test</b> put another product's name in a design. Still works? Then it was the category, not the thing.</p>
+      <p><b>The centroid</b> the average of every design the model has seen. Competent, and what everyone else gets.</p>
+    </aside>
+  </section>
+
+  <footer class="foot">
+    <span class="status">CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date (d971142)</span>
+    <span><code>git clone</code> <a href="https://github.com/raidenslebot/Claude-Global-Config">raidenslebot/Claude-Global-Config</a> <code>&amp;&amp; node tools/install.mjs</code></span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -46,7 +46,19 @@ node tools/doctor.mjs
 ```
 
 Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-npm`,
-`--only=config|skills|hooks|npm|mcp|library|argo`.
+`--only=config|skills|hooks|npm|mcp|library|argo` (several, comma-separated).
+
+From then on the install looks after itself. Every session start runs one hook that follows
+`main` (fast-forward when behind, re-applying config, hooks and skills), runs the doctor and
+**repairs** any failure by re-applying the install, runs this package's own tests once per
+commit, and prints one line to the user and to the session:
+
+```
+CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date (d971142)
+```
+
+Offline is a word in that line, never an error; a dirty checkout, another branch or unpushed
+local commits are named and left alone. See [Keeping it current](#keeping-it-current).
 
 ---
 
@@ -55,10 +67,11 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 | Phase | What |
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
-| **Hooks** | 17 hooks merged into `settings.json`, each pinned to an absolute Node path |
+| **Hooks** | 19 hooks merged into `settings.json`, each pinned to an absolute Node path — including the session-start check that updates, verifies and repairs the install |
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
-| **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills |
+| **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `design-fields`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills. A skill already present under one of these names is moved to `~/.claude/.cgc-replaced/` and replaced; a plugin known to shadow them (`open-design`) is disabled |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
+| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed) and `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -107,6 +120,32 @@ placement sheet, so the shape of a finished piece is on disk before the first on
 
 The renderer drives the headless Chromium already installed for the Playwright MCP — nothing
 new to install, no account. It writes RGB and says so; the skill says what to hand an offset shop.
+
+### Screens — the gate, the proof, and the loop
+
+The model's first design is the centroid of every design it has seen, and the centroid has a
+fingerprint: Inter alone, the purple-to-pink gradient, the glass card, three feature cards, the
+centred hero with two buttons, emoji for icons, a lone acid accent on near-black, the blurred
+blob, copy that says "seamless". None is wrong alone; four together is the template.
+`tools/slop-lint.mjs` finds them by pattern, names each with its line and what a decision would
+look like instead, and a hook reports the result on every screen file as it is written.
+
+```bash
+node tools/slop-lint.mjs page.html                  # verdict: clean / fingerprints / centroid (exit 1)
+node tools/screen-render.mjs page.html --mobile     # page-1440.png and page-390.png; names fonts that failed
+node tools/screen-render.mjs post.html --preset ig-post   # 1080×1350 exactly; story, yt-thumb, og, slide, email, app-icon…
+```
+
+The absence of fingerprints is not design, so the skills end in a loop rather than a verdict:
+render it, look at the picture, name the weakest thing, fix it and extrapolate the fix, gate it,
+render again — and *fix and refine and improve and evolve and extrapolate in that loop until it
+achieves, at minimum, the equivalent of a passionate human professional's work in the field*. The
+exit is a list of the professional's questions in `creative-divergence`, not a pass count. The
+vocabulary with its numbers — faces and their settings, palettes, layout grammars, materials,
+motion laws — is `visual-design-mastery/references/signature-moves.md`; every field that is not
+a page — identity, icons, illustration, diagrams, social, slides, email, packaging, signage — has
+its canvas, minimums and delivery format in `design-fields`. A page built through the loop, with
+its directions and the log of its passes, ships in `creative-divergence/examples/cgc-landing/`.
 
 ### The tiering, and why it exists
 
@@ -243,6 +282,32 @@ node tools/scan-secrets.mjs
 
 ## Keeping it current
 
+**The install follows `main` by itself.** `config/hooks/session-start-cgc.js` runs at every
+session start and resume (on clear and compact the fetch is throttled to once in five minutes):
+
+- `git fetch` the origin's default branch; if this clone is strictly behind, `pull --ff-only` and
+  re-run `install.mjs --only=config,hooks,skills` so the live config matches the new commit. A
+  dirty tree, a checkout on another branch, unpushed local commits (the author's machine) or a
+  diverged history are **named in the line and left alone**; offline is silent.
+- `doctor.mjs --json`; any FAIL triggers the same re-apply, then a second doctor run — a hook
+  removed from `settings.json` or a skill replaced by another package is back before the session
+  starts, and the line says `repaired`.
+- `run-tests.mjs`, once per commit and at most once a day, cached in `~/.claude/.cgc/`.
+- One line, to the user (`systemMessage`) and to the session (`additionalContext`), which
+  Claude opens its first reply with.
+
+**Versioning.** `package.json` carries the version; `CHANGELOG.md` leads with it (a test holds
+the two together); each release is tagged `vX.Y.Z` on `main`. A clone reports what it moved
+between, and which commits, when it updates. Release: bump the version, add the entry, commit,
+`git tag vX.Y.Z`, `git push --follow-tags`.
+
+**This config wins.** Install replaces a same-named skill directory that is not ours (kept under
+`~/.claude/.cgc-replaced/<name>-<time>`), disables plugins known to shadow shipped skills, merges
+its hook registrations by script name so they cannot be duplicated or dropped, and honours
+`CLAUDE_CONFIG_DIR`. It does not touch `.credentials.json`, permissions, or anything else in
+`settings.json`, and a user's own notes below `<!-- user-additions-below -->` in `CLAUDE.md`
+survive every update.
+
 The repo is the source of truth. After editing `~/.claude` by hand, pull the changes back:
 
 ```bash
@@ -267,8 +332,10 @@ workflows/    named workflows                     tools/doctor.mjs       verify
 argo/         graph-engineering toolkit           tools/uninstall.mjs    clean removal
 library/      index, caveats, sources             tools/scan-secrets.mjs pre-push gate
   repos/      cloned at install (gitignored)      tools/run-tests.mjs    explicit-path test runner
-docs/         architecture, troubleshooting,      tools/test/            the gates
-              the audits and their closures       .githooks/             pre-commit secret gate
+docs/         architecture, troubleshooting,      tools/print-render.mjs / print-lint.mjs   paper and fabric
+              the audits and their closures       tools/screen-render.mjs / slop-lint.mjs  screens
+CHANGELOG.md  what a machine gained between       tools/test/            the gates
+              two session starts                  .githooks/             pre-commit secret gate
 ```
 
 ## License

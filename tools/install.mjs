@@ -6,19 +6,25 @@
 //   node tools/install.mjs --skip-library  skip cloning the Tier-3 skill library (~200MB)
 //   node tools/install.mjs --skip-npm      skip global npm packages
 //   node tools/install.mjs --only=config   run one phase: config|skills|hooks|npm|mcp|library|argo
+//   node tools/install.mjs --only=config,hooks,skills   several (what the auto-update hook re-applies)
 //
 // Idempotent: re-running is safe and repairs drift. Never touches .credentials.json,
 // and merges settings.json rather than overwriting it.
+//
+// This config wins. A skill directory already present under a name this repo ships — an
+// older copy, a hand-made one, another package's — is moved aside (kept under
+// <config>/.cgc-replaced) and replaced by the link, and a plugin known to shadow what ships
+// here is disabled in settings.json. Both are reversible in one move; neither is silent.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync } from 'node:fs'
-import { join, dirname, relative } from 'node:path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync, realpathSync, renameSync } from 'node:fs'
+import { join, dirname, relative, basename } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, buildVars, realize, unresolved } from './paths.mjs'
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
 
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')
-const ONLY = (args.find((a) => a.startsWith('--only=')) || '').split('=')[1]
+const ONLY = new Set(((args.find((a) => a.startsWith('--only=')) || '').split('=')[1] || '').split(',').filter(Boolean))
 const SKIP = new Set(args.filter((a) => a.startsWith('--skip-')).map((a) => a.replace('--skip-', '')))
 const vars = buildVars()
 
@@ -31,7 +37,7 @@ const ok = (m) => { say(`  \x1b[32mok\x1b[0m    ${m}`); results.push(['ok', m]) 
 const skip = (m) => { say(`  \x1b[90mskip\x1b[0m  ${m}`); results.push(['skip', m]) }
 const warn = (m) => { say(`  \x1b[33mwarn\x1b[0m  ${m}`); results.push(['warn', m]) }
 const fail = (m) => { say(`  \x1b[31mFAIL\x1b[0m  ${m}`); results.push(['fail', m]); failures++ }
-const wants = (p) => !ONLY || ONLY === p
+const wants = (p) => !ONLY.size || ONLY.has(p)
 
 // Launch without a shell. On Windows a bare name like `npm` is really `npm.cmd`, and node
 // resolves only .com/.exe for a bare name — so `npm` gives ENOENT while `npm.cmd` gives
@@ -50,12 +56,20 @@ function run(cmd, argv, opts = {}) {
   return spawnSync(plan.file, plan.args, { encoding: 'utf8', timeout: opts.timeout ?? 300000, shell: false, ...opts })
 }
 
-/** Cross-platform directory link. Windows junctions need no admin rights; POSIX uses symlinks. */
+/** Cross-platform directory link. Windows junctions need no admin rights; POSIX uses symlinks.
+ *  An existing entry that does not resolve to `target` is a foreign copy under our name; it
+ *  would shadow the repo's version on every session, so it is moved aside and replaced. */
 function linkDir(target, linkPath) {
+  let replaced = ''
   if (existsSync(linkPath)) {
-    let cur = null
-    try { cur = lstatSync(linkPath).isSymbolicLink() || statSync(linkPath).isDirectory() } catch { /* noop */ }
-    if (cur) return 'exists'
+    let same = false
+    try { same = realpathSync(linkPath) === realpathSync(target) } catch { /* a dangling link: replace it */ }
+    if (same) return 'exists'
+    if (DRY) return 'would replace'
+    const aside = join(CONFIG_ROOT, '.cgc-replaced', `${basename(linkPath)}-${Date.now()}`)
+    mkdirSync(dirname(aside), { recursive: true })
+    try { renameSync(linkPath, aside) } catch { rmSync(linkPath, { recursive: true, force: true }) }
+    replaced = ` — replaced; the previous copy is at ${aside}`
   }
   if (DRY) return 'dry'
   mkdirSync(dirname(linkPath), { recursive: true })
@@ -66,12 +80,17 @@ function linkDir(target, linkPath) {
     } else {
       symlinkSync(target, linkPath, 'dir')
     }
-    return 'linked'
+    return 'linked' + replaced
   } catch (e) {
     // Fall back to a copy — a working config beats a clever one.
-    try { cpSync(target, linkPath, { recursive: true }); return 'copied' } catch { return `failed: ${e.message}` }
+    try { cpSync(target, linkPath, { recursive: true }); return 'copied' + replaced } catch { return `failed: ${e.message}` }
   }
 }
+
+// Plugins that shadow what this config ships. Disabled in settings.json, not uninstalled —
+// one key flips it back. open-design vendors stale copies of eleven official Anthropic skills
+// under the same names, so with it enabled the real ones never load.
+const SHADOWING_PLUGINS = ['open-design']
 
 say(`\n\x1b[1mClaude Global Config\x1b[0m`)
 say(`  repo   ${REPO}`)
@@ -219,8 +238,13 @@ if (wants('hooks')) {
       for (const event of Object.keys(settings.hooks)) {
         settings.hooks[event] = settings.hooks[event].filter((g) => (g.hooks || []).length > 0)
       }
+      const disabled = []
+      for (const [key, on] of Object.entries(settings.enabledPlugins || {})) {
+        if (on && SHADOWING_PLUGINS.includes(key.split('@')[0])) { settings.enabledPlugins[key] = false; disabled.push(key) }
+      }
       if (!DRY) writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8')
       ok(`settings.json merged — ${added} added, ${kept} updated, other settings untouched`)
+      if (disabled.length) ok(`disabled shadowing plugin(s): ${disabled.join(', ')} (set enabledPlugins back to true to undo)`)
     }
   }
 }

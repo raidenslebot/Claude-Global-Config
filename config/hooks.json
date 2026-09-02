@@ -25,6 +25,12 @@
             "type": "command",
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-graph.js\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-cgc.js\"",
+            "timeout": 300,
+            "statusMessage": "CGC: updating, verifying, repairing"
           }
         ]
       }
@@ -86,6 +92,12 @@
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-print-directions.js\"",
             "timeout": 10,
             "statusMessage": "Checking a physical design has written directions"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-slop.js\"",
+            "timeout": 15,
+            "statusMessage": "Checking a screen design for the templated look"
           }
         ]
       },

@@ -13,7 +13,9 @@ import { execFileSync } from 'node:child_process'
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const HOME = homedir()
 export const IS_WIN = platform() === 'win32'
-export const CONFIG_ROOT = join(HOME, '.claude')
+// Claude Code itself honours CLAUDE_CONFIG_DIR; an install that ignored it would write to a
+// directory the running Claude never reads. The tests use it to install into a scratch root.
+export const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude')
 
 /** Locate the node executable to hard-pin in hook commands.
  *  Pinning matters: a hook that relies on PATH silently dies when PATH differs

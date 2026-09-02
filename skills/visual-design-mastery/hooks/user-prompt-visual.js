@@ -46,6 +46,26 @@ const VISUAL = new RegExp(
     't-?shirt', '\\btee\\b', 'hoodie', 'sweatshirt', 'baseball cap', 'snapback', 'tote',
     '\\bmerch', 'jersey', 'screen ?print', '\\bdtg\\b', 'embroider', 'heat transfer',
     'apparel', 'garment',
+    // the other fields
+    '\\blogo\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', '\\bicons?\\b',
+    'illustration', 'diagram', 'infographic', 'social (post|media)', 'instagram', '\\bstory\\b',
+    'thumbnail', 'youtube', 'open graph', '\\bog image', 'slide', '\\bdeck\\b', 'presentation',
+    'email template', 'newsletter', 'packaging', 'label design', 'signage', 'wayfinding', 'banner',
+    'book cover', 'album (art|cover)', '\\bpattern\\b', 'textile', 'motion graphics', 'title sequence',
+  ].join('|'),
+  'i'
+)
+
+// Fields with a canvas, minimums and a delivery format of their own — design-fields carries
+// them. The failure mode is designing a logo at 800px, a slide as a document, an email as a
+// web page.
+const FIELDS = new RegExp(
+  [
+    '\\blogo\\b', 'wordmark', 'brand identity', 'favicon', 'app icon', 'icon set', 'illustration',
+    'diagram', 'infographic', 'social (post|media)', 'instagram', '\\bstory\\b', 'thumbnail', 'youtube',
+    'open graph', '\\bog image', 'slide', '\\bdeck\\b', 'presentation', 'email template', 'newsletter',
+    'packaging', 'label design', 'signage', 'wayfinding', 'banner', 'book cover', 'album (art|cover)',
+    'textile', 'motion graphics', 'title sequence',
   ].join('|'),
   'i'
 )
@@ -111,6 +131,14 @@ function main() {
       'sheet with the file. A paragraph describing a card, or a screenshot of a web layout, is not a deliverable. ' +
       'Refuse the physical centroid: white card with the logo top-left; a poster that is a big flyer; a logo ' +
       'centred on the chest of a white tee.'
+  } else if (FIELDS.test(prompt)) {
+    physical =
+      ' FIELD DETECTED — this is a logo, icon, illustration, diagram, social, slide, email, packaging or signage piece, ' +
+      'not a page. After the taste layer, load `design-fields` and read its reference for the field BEFORE the first ' +
+      'line of markup: the real canvas and units, the minimums, the delivery format, the moves that exist only in that ' +
+      'field. Write directions.md first (DNA from the subject\'s real artifacts, three to five structurally different ' +
+      'directions, the swap test on each). Render the exact pixels with `node tools/screen-render.mjs <file> --preset <field>` ' +
+      'and look at them at the size they will be seen — a favicon at 16px, a thumbnail at 168px, a slide from the back of the room.'
   }
 
   const context =
@@ -132,7 +160,14 @@ function main() {
     'open adopts that library\'s opinion. Decide the concept, then build it fast. ' +
     'Do NOT pause for clarifying questions or offer a menu of directions: run the divergence ' +
     'protocol yourself, commit to one, state any assumption in a line, and show the finished ' +
-    'thing — this overrides any skill that mandates asking first.' + physical
+    'thing — this overrides any skill that mandates asking first. ' +
+    'THEN THE LOOP, which is mandatory and has no pass count: render it (`node tools/screen-render.mjs page.html --mobile`, ' +
+    'or the print or garment render), look at the PNG, name the weakest thing, fix it and extrapolate the fix, gate it ' +
+    '(`node tools/slop-lint.mjs page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written), ' +
+    'render again — and fix and refine and improve and evolve and extrapolate in that loop until it achieves, at minimum, the ' +
+    'equivalent of a passionate human professional\'s work in the field. The first render is never the one shown. The ' +
+    'professional\'s questions that end the loop are in creative-divergence Step 4; the vocabulary with its parameters — ' +
+    'faces, palettes, layout grammars, materials, motion laws — is visual-design-mastery/references/signature-moves.md.' + physical
 
   process.stdout.write(
     JSON.stringify({

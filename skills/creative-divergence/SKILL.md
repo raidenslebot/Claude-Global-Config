@@ -64,7 +64,10 @@ materials of money and paper, ledger grammar, the tempo of a transaction.
 ## Step 2 — Generate with operators, not with taste
 
 Each operator is a **hard constraint that makes the centroid invalid**. Apply one deliberately;
-do not blend them at this stage.
+do not blend them at this stage. An operator chooses the *structure*; the parameters that
+realise it — the faces, the settings, the palettes, the layout grammars, the materials, the
+motion laws — are in [`signature-moves.md`](../visual-design-mastery/references/signature-moves.md),
+with the numbers.
 
 **1 · Material transplant.** Pick a physical material or process and obey its actual rules.
 Letterpress cannot do gradients — it does deep impression, tight registration, and ink spread.
@@ -127,6 +130,66 @@ most internal logic, keep that logic pure, and graft at most **one** element fro
 Then hand it to `visual-design-mastery` to judge whether the execution is good, and to the
 technique layer to build it. Divergence chooses *what*; the taste layer governs *how well*.
 
+## Step 4 — Build it, look at it, and loop until a professional would sign it
+
+The first render is never the one to show. Build the committed direction fast, then run this
+loop — and do not leave it on a count:
+
+> **Fix and refine and improve and evolve and extrapolate in a loop until it achieves, at
+> minimum, the equivalent of a passionate human professional's work in that field.**
+
+Each pass:
+
+1. **Render it the way it will be seen.** `node tools/screen-render.mjs page.html --mobile`
+   (desktop and phone; `--preset` for a social, slide, email or icon canvas);
+   `tools/print-render.mjs` for paper; the garment mockup for fabric. Look at the PNG — the
+   picture, not the code.
+2. **Name the weakest thing.** One, specifically: "the hierarchy collapses on the phone", "the
+   display face is set at a text weight", "the signal colour appears four times", "the copy
+   says nothing only this subject could say", "the hero move is decoration, not structure". If
+   nothing can be named, ask the professional's questions below until one can.
+3. **Fix it, and extrapolate the fix.** What does it imply for the rest? A tighter measure
+   implies a larger display size; a chosen material implies a different rule for hairlines; a
+   moved placement implies a new reading order. Follow the implication through the piece.
+4. **Gate it.** `node tools/slop-lint.mjs page.html` clean for anything on a screen;
+   `print-lint` for paper and fabric. The gate finds the average; it cannot see the good.
+5. **Render again and compare.** Keep the log in `review.md` beside the file: the pass, the
+   weakest thing, the change, the verdict. The log is what makes the loop honest.
+
+**Stop only when a pass answers every question below with yes and finds nothing a passionate
+professional in the field would still change.** The first passes always find something. A loop
+that stops after two passes because two was the number is the first idea polished; a loop
+that stops because there is nothing left to name is finished work.
+
+The professional's questions — each one a *yes*, or another pass:
+
+- **Two seconds.** Does a glance land where it was meant to, and learn the one thing?
+- **The sentence.** Can the design be described in one sentence that could not describe a
+  template? A design that passes has a sentence like *an audit report typeset as a printed
+  ledger, with the thesis copy-edited in red*.
+- **Swap.** With a competitor's name and copy in it, does it stop working?
+- **Structure.** Is there a hero move from *layout, material or motion* — not only a face and a
+  colour? (the ambition floor in `signature-moves.md`)
+- **Type.** A chosen display face with a text face that holds it; a real scale; negative
+  tracking at display size; measure 45–75 characters; no widow in a heading; tabular figures
+  wherever numbers stack.
+- **Colour.** Three roles; neutrals with a hue; the signal used once; contrast that passes.
+- **Grid and detail.** Everything on a grid the eye can feel; optical alignment where the
+  maths lies; hairlines rather than boxes; radius, shadow and spacing each doing one job.
+- **Copy.** In the subject's own vernacular, saying a specific thing; nothing stock.
+- **Motion.** One law, obeyed; exits faster than entrances; reduced motion respected. Or
+  stillness, chosen.
+- **The phone.** Does the hierarchy survive at 390 px, or is this a desktop design shrunk?
+- **The states.** Hover, focus, empty, loading, error — designed, or left to the browser?
+- **The field's own craft.** The minimums and delivery formats in `design-fields`,
+  `print-design` or `apparel-design` for this medium, met.
+
+*Would a passionate professional in this field sign it?* is the exit. Not *is it fine*.
+
+A page built through exactly this loop — directions first, then the passes logged in
+`review.md` — is in [`examples/cgc-landing/`](examples/cgc-landing/). Read it for the shape of
+the loop; do not copy its design.
+
 ## When NOT to use this
 
 Novelty is a cost. It is wrong for: a settings page, a checkout flow, a data table, an admin
@@ -156,7 +219,12 @@ than to execution.
 
 ```
 creative-divergence   →  WHAT is this, structurally? (this skill: operators, N directions, commit)
+                         then the LOOP: render, name the weakest thing, fix, extrapolate, gate,
+                         render again — until a passionate professional would sign it
 visual-design-mastery →  is the execution good? (taste; wins on conflict, always)
+signature-moves.md    →  the vocabulary with its parameters: faces, palettes, grammars, materials, motion
+design-fields         →  the canvas, minimums and delivery format of every field that is not a page
+screen-render / slop-lint →  the proof and the gate for anything on a screen
 technique skills      →  how do I build that in GSAP / three.js / SpriteBatch?
 component libraries   →  build the decided thing fast — never to decide it
 ```

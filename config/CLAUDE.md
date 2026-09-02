@@ -1,5 +1,21 @@
 # Global Instructions
 
+## CGC is not optional once installed
+
+Every session start runs `session-start-cgc.js`. It follows the repository's main branch —
+fast-forwarding when behind and re-applying config, hooks and skills — runs the doctor over
+every mandate, hook, skill, MCP registration and cost check and **repairs** any failure by
+re-applying the install, runs the package's own test suite once per commit, and reports one
+line to the user and to the session:
+
+`CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date (d971142)`
+
+Open the first reply of a session with that line, verbatim, then proceed. Every mandate in
+this file — the design stack and the loop, the React and security stacks, model routing for
+every agent, subagent and workflow, graph engineering — is enforced by hooks that are verified
+present at every start. None is advisory; none can be silently removed; a skill or plugin that
+shadows one of this package's is replaced or disabled at install, and said so.
+
 ## MANDATORY Autonomy — decide, build, show; never ask first
 
 Work fully autonomously. Never stop to ask a clarifying question before creative or
@@ -41,6 +57,26 @@ craft from **`print-design`** or **`apparel-design`**, then **render** with
 true-scale garment mockup, through the local headless Chromium) and **gate** with
 `node tools/print-lint.mjs` (type under the minimum, hairlines, rasters under 300 dpi, a page in
 pixels or without bleed all fail). A paragraph describing a card is not a deliverable.
+
+**Every other field is covered by `design-fields`** — logos and identity systems, favicons and
+app icons, icon sets, illustration systems, diagrams and infographics, social posts, stories
+and thumbnails, slide decks, email, packaging and labels, signage and wayfinding, banners and
+environments — with the real canvas, minimums and delivery format of each, its hero moves and
+its slop, and `node tools/screen-render.mjs <file> --preset <field>` for the exact pixels. A
+field with no reference follows the same eight steps; the skill says how to find its spec.
+
+**The loop is mandatory, in every field, and has no pass count.** The first render is never
+the one shown. Render it (`screen-render` for screens, `print-render` for paper and fabric),
+look at the picture, name the weakest thing, fix it and extrapolate the fix, gate it
+(`node tools/slop-lint.mjs` — the fingerprint of AI-made design: the default face, the purple
+gradient, the glass card, the three-card grid, the centred hero, emoji icons, the acid accent
+on near-black, the blurred blob, the stock copy — reported by a hook on every screen file
+written; `print-lint` for paper), render again — and **fix and refine and improve and evolve
+and extrapolate in that loop until it achieves, at minimum, the equivalent of a passionate
+human professional's work in that field.** `creative-divergence` Step 4 carries the
+professional's questions that end it; the vocabulary with its parameters — faces and settings,
+palettes, layout grammars, materials, motion laws, image treatments — is
+`visual-design-mastery/references/signature-moves.md`.
 
 **Technique layer (installed skills, per-library craft):** `gsap-web` (timelines, ScrollTrigger,
 pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animation`,
