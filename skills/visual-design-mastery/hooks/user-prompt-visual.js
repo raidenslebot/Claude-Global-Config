@@ -163,11 +163,14 @@ function main() {
     'thing — this overrides any skill that mandates asking first. ' +
     'THEN THE LOOP, which is mandatory and has no pass count: render it (`node tools/screen-render.mjs page.html --mobile`, ' +
     'or the print or garment render), look at the PNG, name the weakest thing, fix it and extrapolate the fix, gate it ' +
-    '(`node tools/slop-lint.mjs page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written), ' +
+    '(`node tools/slop-lint.mjs page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written; ' +
+    'then `node tools/page-audit.mjs page.html --mobile` — contrast on the real ground, faces that fell back, measure, tiny text, ' +
+    'widows, sideways scroll, tap targets, focus, reduced motion, the palette by area — with no failure), ' +
     'render again — and fix and refine and improve and evolve and extrapolate in that loop until it achieves, at minimum, the ' +
     'equivalent of a passionate human professional\'s work in the field. The first render is never the one shown. The ' +
     'professional\'s questions that end the loop are in creative-divergence Step 4; the vocabulary with its parameters — ' +
-    'faces, palettes, layout grammars, materials, motion laws — is visual-design-mastery/references/signature-moves.md.' + physical
+    'faces, palettes, layout grammars, materials, motion laws — is visual-design-mastery/references/signature-moves.md. ' +
+    'Choose a face or a palette by looking at it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`.' + physical
 
   process.stdout.write(
     JSON.stringify({

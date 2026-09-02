@@ -10,6 +10,7 @@ import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync } from '
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, unresolved } from './paths.mjs'
+import { findPlaywright } from './print-render.mjs'
 
 const JSON_OUT = process.argv.includes('--json')
 const results = []
@@ -140,6 +141,22 @@ phase('MCP servers')
 }
 
 // ── 5. Tier-2 skills ────────────────────────────────────────────────────────
+// ── Design tools ────────────────────────────────────────────────────────────
+// The render, lint, audit and specimen tools are what make the design skills' demands checkable.
+// A tool that does not parse fails silently from inside a skill's instructions, so it is
+// checked here; the browser they render through is named, or its absence and the fix are.
+phase('Design tools')
+{
+  const tools = ['print-render.mjs', 'print-lint.mjs', 'screen-render.mjs', 'slop-lint.mjs', 'page-audit.mjs', 'specimen.mjs']
+  const missing = tools.filter((t) => !existsSync(join(REPO, 'tools', t)))
+  const broken = tools.filter((t) => !missing.includes(t) && spawnSync(process.execPath, ['--check', join(REPO, 'tools', t)], { encoding: 'utf8', timeout: 20000 }).status !== 0)
+  if (missing.length || broken.length) fail(`design tools: ${[...missing.map((t) => `${t} missing`), ...broken.map((t) => `${t} does not parse`)].join(', ')}`)
+  else ok(`${tools.length} design tools present and parse (render, lint, audit, specimen)`)
+  const pw = findPlaywright()
+  if (pw) ok(`browser for render and audit: playwright-core from ${pw.from}`)
+  else warn('no browser — print-render, screen-render, page-audit and specimen cannot run; node tools/install.mjs --only=mcp installs the Playwright MCP that brings it')
+}
+
 phase('Tier-2 skills')
 {
   const srcFile = join(REPO, 'library', 'sources.json')

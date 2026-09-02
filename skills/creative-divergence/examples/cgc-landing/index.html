@@ -38,7 +38,7 @@
 
   /* The running head: the caps line, once. */
   .head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-          font: 500 0.7rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2);
+          font: 500 0.75rem/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2);
           border-bottom: 0.5px solid var(--line-2); padding-bottom: 0.9rem; }
   .head a { color: inherit; text-decoration: none; }
   .head a:hover, .head a:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 0.35em; outline: none; }
@@ -101,11 +101,15 @@
   }
   @media (max-width: 560px) {
     /* The correction has to be legible at a thumb's distance: the thesis grows to three lines
-       and the insertion to eighteen pixels; the date leaves the running head. */
+       and the insertion to eighteen pixels; the date leaves the running head. A ledger row's
+       name and value may wrap — two nowrap cells made the page scroll sideways at 390px, which
+       no screenshot showed and page-audit did. */
     .thesis { font-size: 15.5vw; max-width: none; }
     .gate { font-size: 0.3em; top: -0.62em; left: 34%; }
     .head .date { display: none; }
-    .row { font-size: 0.78rem; column-gap: 0.5rem; }
+    .row { font-size: 0.76rem; line-height: 1.7; column-gap: 0.4rem; padding: 0.3rem 0; }
+    .row .n, .row .v { white-space: normal; }
+    .row .l { min-width: 1.2rem; }
     .notes { columns: 1; }
   }
   @media (prefers-reduced-motion: reduce) {

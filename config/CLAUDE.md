@@ -8,9 +8,10 @@ every mandate, hook, skill, MCP registration and cost check and **repairs** any 
 re-applying the install, runs the package's own test suite once per commit, and reports one
 line to the user and to the session:
 
-`CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date (d971142)`
+`CGC v<version> enabled · <n>/<n> checks · <n>/<n> tests · up to date (<commit>)` — the hook
+supplies the real numbers.
 
-Open the first reply of a session with that line, verbatim, then proceed. Every mandate in
+Open the first reply of a session with the line the hook produced, verbatim, then proceed. Every mandate in
 this file — the design stack and the loop, the React and security stacks, model routing for
 every agent, subagent and workflow, graph engineering — is enforced by hooks that are verified
 present at every start. None is advisory; none can be silently removed; a skill or plugin that
@@ -71,12 +72,17 @@ look at the picture, name the weakest thing, fix it and extrapolate the fix, gat
 (`node tools/slop-lint.mjs` — the fingerprint of AI-made design: the default face, the purple
 gradient, the glass card, the three-card grid, the centred hero, emoji icons, the acid accent
 on near-black, the blurred blob, the stock copy — reported by a hook on every screen file
-written; `print-lint` for paper), render again — and **fix and refine and improve and evolve
+written; then `node tools/page-audit.mjs <file> --mobile`, which measures the rendered page —
+contrast on the real ground, faces that fell back, measure, text too small, widows, sideways
+scroll on a phone, tap targets, focus, reduced motion, the palette by area — and must show no
+failure; `print-lint` for paper), render again — and **fix and refine and improve and evolve
 and extrapolate in that loop until it achieves, at minimum, the equivalent of a passionate
 human professional's work in that field.** `creative-divergence` Step 4 carries the
 professional's questions that end it; the vocabulary with its parameters — faces and settings,
 palettes, layout grammars, materials, motion laws, image treatments — is
-`visual-design-mastery/references/signature-moves.md`.
+`visual-design-mastery/references/signature-moves.md`. A face or a palette is chosen by looking at
+it set, not by its name: `node tools/specimen.mjs --display <face> --text <face> --palette <colours>`
+renders the pairing at display and reading size, reversed, with every colour and its contrast.
 
 **Technique layer (installed skills, per-library craft):** `gsap-web` (timelines, ScrollTrigger,
 pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animation`,

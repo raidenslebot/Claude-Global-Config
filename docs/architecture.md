@@ -259,6 +259,21 @@ looks at the picture and not the code, at the sizes people use and at the exact 
 social, slide, email and icon canvases; it names any web font that failed to load, which is the
 commonest way a designed page ships looking like the default.
 
+Two more tools close the gap between the rubric and what a machine can check. `tools/page-audit.mjs`
+renders the page and measures it: the contrast of every text run against its real ground (every
+ancestor's background composited, colours converted through a canvas so `oklch()` and
+`color-mix()` are read correctly), faces that fell back (a face that is not available renders
+exactly as its fallback, so equal widths against three generics prove absence), the measure and
+leading of body text, text under 12px, a widow at the end of a heading (the last line's width
+against the last word's), a page wider than its viewport (a screenshot clips to the viewport and
+cannot show it — the shipped example scrolled sideways at 390px through three passes of looking),
+tap targets under 24 and 44px, a focus that changes nothing visible (judged with real Tab presses so
+`:focus-visible` applies), animations still running under `prefers-reduced-motion: reduce`, images
+without alt, and the palette by area — how many saturated hues, what share of the page, how many
+dead greys. `tools/specimen.mjs` sets a pairing and a palette for real — display and reading
+size, reversed, every colour with its contrast — because a face named in a catalogue is not a
+decision. Both are verified present and parsing by the doctor, along with the browser they run in.
+
 ## What is deliberately not here
 
 - **No dependency on a package registry at runtime.** argo has zero dependencies; the tools use

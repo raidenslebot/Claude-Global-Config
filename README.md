@@ -51,10 +51,10 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 From then on the install looks after itself. Every session start runs one hook that follows
 `main` (fast-forward when behind, re-applying config, hooks and skills), runs the doctor and
 **repairs** any failure by re-applying the install, runs this package's own tests once per
-commit, and prints one line to the user and to the session:
+commit, and prints one line to the user and to the session, for example:
 
 ```
-CGC v1.1.0 enabled · 34/34 checks · 206/206 tests · up to date (d971142)
+CGC v1.2.0 enabled · 38/38 checks · 216/216 tests · up to date (0116008)
 ```
 
 Offline is a word in that line, never an error; a dirty checkout, another branch or unpushed
@@ -71,7 +71,7 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
 | **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `design-fields`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills. A skill already present under one of these names is moved to `~/.claude/.cgc-replaced/` and replaced; a plugin known to shadow them (`open-design`) is disabled |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
-| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed) and `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written) |
+| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -134,7 +134,14 @@ look like instead, and a hook reports the result on every screen file as it is w
 node tools/slop-lint.mjs page.html                  # verdict: clean / fingerprints / centroid (exit 1)
 node tools/screen-render.mjs page.html --mobile     # page-1440.png and page-390.png; names fonts that failed
 node tools/screen-render.mjs post.html --preset ig-post   # 1080×1350 exactly; story, yt-thumb, og, slide, email, app-icon…
+node tools/page-audit.mjs page.html --mobile        # FAIL: contrast, a face that fell back, text under 10px, sideways scroll, tap targets under 24px
+node tools/specimen.mjs --display "Fraunces:ital,opsz,wght@1,9..144,300" --text Archivo --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"
 ```
+
+`page-audit` exists because a screenshot clips to the viewport: the example page below scrolled
+sideways at 390px through three passes of looking, and the audit named it in one. `specimen`
+exists because a face named in a catalogue is not a decision; a face set at display and reading
+size, reversed, beside its palette with the contrast ratios, is.
 
 The absence of fingerprints is not design, so the skills end in a loop rather than a verdict:
 render it, look at the picture, name the weakest thing, fix it and extrapolate the fix, gate it,

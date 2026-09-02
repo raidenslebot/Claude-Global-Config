@@ -5,6 +5,29 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.2.0 — 2026-09-02
+
+- **The rendered page, measured.** `tools/page-audit.mjs` renders a page at desktop and phone
+  widths and answers the questions of the loop's rubric that a machine can: contrast of every
+  text run on its real ground (FAIL under 4.5:1, 3:1 large), faces that fell back (FAIL), body
+  measure and leading, text under 12px (FAIL under 10), a widow in a heading, a page that
+  scrolls sideways on a phone (FAIL — a screenshot cannot show it), tap targets under 24px
+  (FAIL) and 44px, a focus that changes nothing visible (judged with real Tab presses),
+  animations still running under `prefers-reduced-motion`, images without alt, and the palette
+  by area — how many saturated hues, their share, dead greys. Colours are read through a
+  canvas, so `oklch()` and `color-mix()` are measured correctly.
+- **See it set before choosing.** `tools/specimen.mjs` writes and renders a specimen: the
+  display face at two sizes, the text face at reading size on a real measure, labels, figures
+  and glyphs, the pairing on the surface and reversed, and every palette colour as a swatch
+  with its contrast against the surface and the ink. Google Fonts by name, with axis specs.
+- **The loop uses both.** `creative-divergence` Step 4 gates on page-audit; the moves catalogue,
+  `design-fields`, the prompt hook and CLAUDE.md point at specimen before a face or palette is
+  chosen. The doctor checks that all six design tools parse and names the browser they run in.
+- **The example, fourth pass.** page-audit found the shipped page scrolling sideways at 390px —
+  two `nowrap` cells in a ledger row — and its running head under 12px. Both fixed; the log
+  says so.
+- The status line in CLAUDE.md is stated as a shape; the hook supplies the numbers.
+
 ## 1.1.0 — 2026-09-02
 
 - **The session line.** One SessionStart hook (`session-start-cgc.js`) now runs at every

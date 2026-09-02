@@ -261,6 +261,22 @@ The first line of every session is `session-start-cgc.js`'s report. Read it as a
   `settings.json` pins it. `node tools/doctor.mjs` says which; `node tools/install.mjs
   --only=hooks` repairs it.
 
+## page-audit says a face "is not available"
+
+The page rendered in a fallback, so the design that was judged is not the one that ships. The
+usual causes: the Google Fonts `<link>` is missing or misspelt (the family name must match
+exactly, with `+` for spaces in the URL); the machine is offline (`screen-render` lists the
+faces that loaded); or the face is local and not installed here — then either ship it as an
+`@font-face` or choose one the reader will have. `specimen` shows the face set for real before
+it is chosen.
+
+## page-audit says the page scrolls sideways at 390px
+
+A screenshot clips to the viewport and cannot show this; the audit measures
+`scrollWidth` against the viewport. The usual causes are two `white-space: nowrap` cells in one
+row, a fixed-width element, or an absolutely positioned decoration past the right edge. Let the
+cells wrap below a breakpoint, or clip the decoration with `overflow: hidden` on its section.
+
 ## Escape hatch: revert everything
 
 `tools/uninstall.mjs` undoes what `tools/install.mjs` did, and nothing else.

@@ -48,4 +48,19 @@ reduced motion; the hierarchy survives at 390 px; links have hover and focus sta
 
 **Considered and not made:** dropping the head's centre item for a purer two-item running line;
 a hairline between the value and the `ok` column. Both are preferences without a defect behind
-them, and a change without a named weakness is decoration. The loop ends here.
+them, and a change without a named weakness is decoration. The loop ended here — by eye.
+
+## Pass 4 — found by the audit, not the eye
+
+`node tools/page-audit.mjs index.html --mobile`, once it existed, named two things three passes
+of looking had missed. **The page scrolled sideways at 390 px**: 469 px wide in a 390 px
+viewport. A screenshot clips to the viewport, so every phone render had looked fine; the cause
+was a ledger row whose name and value were both `white-space: nowrap`, wider together than the
+column. **The running head was 11.2 px**, under the 12 px floor.
+
+**Changes.** Below 560 px a row's name and value may wrap and the leader keeps a minimum width;
+the running head is 12 px. Re-audited: no failures, no warnings, at both widths; the palette
+reads as one ground, one ink, one signal at 0.1% of the page.
+
+The lesson belongs in the log: the eye judges what it can see, and a rendered page has defects
+the render hides. The loop's gate is the audit *and* the look; neither alone is the exit.

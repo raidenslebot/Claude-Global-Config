@@ -20,7 +20,7 @@ and one discipline runs through all of them:
 6. Render     tools/screen-render.mjs --preset <field> · tools/print-render.mjs for paper
 7. Loop       look, name the weakest thing, fix, render again — until a passionate
               professional in that field would sign it (creative-divergence Step 4)
-8. Gate       tools/slop-lint.mjs for anything on a screen; print-lint for anything on paper
+8. Gate       tools/slop-lint.mjs and tools/page-audit.mjs for anything on a screen; print-lint for paper
 ```
 
 Read the reference for the field before the first line of markup. Facts are marked **[C]**

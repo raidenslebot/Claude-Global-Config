@@ -8,7 +8,11 @@ fight. Five is a template with effects on it.
 
 Every face named here is free (Google Fonts unless marked *Fontshare*), so there is never a
 reason to fall back to Inter. Load with `<link href="https://fonts.googleapis.com/css2?family=…&display=swap">`
-or self-host; `tools/screen-render.mjs` names any @font-face that failed to load.
+or self-host; `tools/screen-render.mjs` names any @font-face that failed to load. See a pairing and a
+palette set for real before choosing: `node tools/specimen.mjs --display "Fraunces:ital,opsz,wght@1,9..144,300"
+--text Archivo --mono "JetBrains Mono" --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"`
+renders the display line, the text at reading size, the pairing reversed, and every colour with its contrast
+against the surface and the ink.
 
 **The ambition floor:** a finished piece carries at least one move from *Layout*, *Material*
 or *Motion* — not type and colour alone. Type and colour dress a structure; they do not make one.
