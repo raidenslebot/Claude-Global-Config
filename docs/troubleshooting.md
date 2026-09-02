@@ -257,9 +257,12 @@ The first line of every session is `session-start-cgc.js`'s report. Read it as a
   `node tools/install.mjs` from the clone; auto-update needs a `.git`.
 - **`tests timed out`** or **`(N failed)`** — run `npm test` in the repo; the suite is six seconds
   and names the case.
-- **The line does not appear at all** — the hook is not registered or Node is not where
-  `settings.json` pins it. `node tools/doctor.mjs` says which; `node tools/install.mjs
-  --only=hooks` repairs it.
+- **The line does not appear at all** — three causes. The hook is not registered, or Node is
+  not where `settings.json` pins it: `node tools/doctor.mjs` says which, `node tools/install.mjs
+  --only=hooks` repairs it. Or the host did not run SessionStart hooks for this session at all —
+  observed on the desktop app resuming a session, whose transcript held only the compaction
+  hooks. Then `CLAUDE.md` tells Claude to run the installed hook itself and open with its
+  line; the line is produced either way.
 
 ## outline-text says "fontkit not found" or "Google Fonts answered 400"
 

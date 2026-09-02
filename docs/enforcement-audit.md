@@ -25,6 +25,17 @@ search that found nothing.
 | UNENFORCEABLE | 8 | Taste, precedence between advice layers, scope authorization |
 | Documentation defects found | 6 | Two files title a section "Enforcement" and describe injection |
 
+**Addendum, 2026-09-02.** The counts above are the audit's, on its date. Since then the
+detect-and-report bucket has grown from three hooks to seven — `post-tool-print-directions.js`
+(a physical design written without its directions), `post-tool-slop.js` (the templated look on
+every screen file written), `react-doctor.mjs` (registered at last, see A2), and
+`session-start-cgc.js`, which does more than report: it fast-forwards the install, runs the
+doctor and re-applies the install on any failure, runs the suite once per commit, and prints
+one line — and four gates that fail rather than report: `tools/print-lint.mjs`,
+`tools/slop-lint.mjs`, `tools/page-audit.mjs` and `tools/test/examples.test.mjs`, which holds
+every shipped example to the first three. The design mandates in A1 remain advisory as to
+*consultation*, by the argument A1 makes; their *output* is no longer advisory.
+
 **Three live defects found while auditing**, each a case where the gate that would have caught it
 does not exist:
 
@@ -188,6 +199,15 @@ Stated somewhere; nothing detects a violation.
 
 ### A1 — The UI/design resource stack
 
+**Status: consultation still advisory, by design; the output is gated — 2026-09-02.** Nothing
+records that a library was consulted, for the reasons below. What a written file *is* can be
+checked, and now is: `post-tool-slop.js` reports the fingerprint of the templated look on every
+screen file as it is written (`tools/slop-lint.mjs`, sixteen families, weighted), `post-tool-
+print-directions.js` reports a physical design without `directions.md` beside it,
+`tools/page-audit.mjs` measures the rendered page (contrast, fallbacks, measure, widows, sideways
+scroll, tap targets, focus, reduced motion, the motion laws, the palette by area), and
+`tools/test/examples.test.mjs` fails the suite if any shipped example stops passing those gates.
+
 **Stated:** `config/CLAUDE.md:3-37`, the whole of `config/ui-design-stack.md`, and injected three
 times per prompt (`config/hooks/session-start-ui-stack.js`, `user-prompt-ui-stack.js`,
 `skills/visual-design-mastery/hooks/user-prompt-visual.js`).
@@ -219,6 +239,12 @@ which are assertions about files.
   prose/measurement drift it was written for.
 
 ### A2 — The React tooling stack, and a gate that exists but is not wired
+
+**Status: the gate is wired — 2026-09-02.** `config/hooks/react-doctor.mjs` is registered in
+`config/hooks.json` under `PostToolUse` with the matcher `Edit|Write|MultiEdit|NotebookEdit` and
+a 45-second timeout, and `tools/test/hook-registration.test.mjs` asserts set equality between the
+hooks that ship and the hooks that are registered, so it cannot silently drop out again. The
+stack itself remains advisory as to *being run*, for the reasons below.
 
 **Stated:** `config/CLAUDE.md:39-52`, `config/react-tooling-stack.md:47-53` — the order
 `react-doctor → eslint → react-scan → strix`, "Never claim a React task complete without running

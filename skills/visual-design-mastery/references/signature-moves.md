@@ -99,6 +99,10 @@ p { max-width: 66ch; line-height: 1.55; text-wrap: pretty; }
   chapter opens. Free, and almost no one does it on a screen.
 - **Width as rhythm.** One variable face stepped through `wdth` per line (Anybody, Archivo):
   the block reads as a poster, not a paragraph.
+- **The wordmark leaves as paths.** Anything set in a face and sent to a shop, a cutter or an
+  embroiderer goes as outlines: `node tools/outline-text.mjs --font "<family:axes>" --text "…"
+  --out mark.svg` — one `<path>`, the font's own kerning, the viewBox at the ink. Customise
+  the letterforms from there; never ship live text.
 
 ---
 

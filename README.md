@@ -51,10 +51,10 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 From then on the install looks after itself. Every session start runs one hook that follows
 `main` (fast-forward when behind, re-applying config, hooks and skills), runs the doctor and
 **repairs** any failure by re-applying the install, runs this package's own tests once per
-commit, and prints one line to the user and to the session, for example:
+commit, and prints one line to the user and to the session:
 
 ```
-CGC v1.2.0 enabled · 38/38 checks · 216/216 tests · up to date (0116008)
+CGC v<version> enabled · <n>/<n> checks · <n>/<n> tests · up to date (<commit>)
 ```
 
 Offline is a word in that line, never an error; a dirty checkout, another branch or unpushed
@@ -155,7 +155,8 @@ motion laws — is `visual-design-mastery/references/signature-moves.md`; every 
 a page — identity, icons, illustration, diagrams, social, slides, email, packaging, signage — has
 its canvas, minimums and delivery format in `design-fields`. A page built through the loop, with
 its directions and the log of its passes, ships in `creative-divergence/examples/cgc-landing/`;
-an identity system and a feed series, built the same way, ship in `design-fields/examples/`.
+an identity system, a feed series and an icon set, built the same way, ship in
+`design-fields/examples/` — seven worked pieces in all, every one held to its gates by the suite.
 The audit also checks the motion laws — linear easing on movement, layout properties animated,
 entrances that are waits, one constant for every event, garnish that never stops.
 
