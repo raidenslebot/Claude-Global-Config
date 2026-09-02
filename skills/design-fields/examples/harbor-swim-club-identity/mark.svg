@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1in" height="1in" viewBox="0 0 350 350">
+  <!--
+    The mark: a life-ring with its waterline, the way a tow-float sits half under. Stroke 16 on a
+    350 grid; the bar half that, and 2 units above the geometric centre so it reads as centred.
+    Navy on cream here; the reversed and one-colour versions change the fill only. Below 0.25 in
+    or 16 px use favicon.svg, which is redrawn heavier, not this file scaled.
+    Render: screen-render brand-sheet.html; print-render for the sheet at trim.
+  -->
+  <circle cx="175" cy="175" r="120" fill="none" stroke="#1f2a44" stroke-width="16"/>
+  <rect x="47" y="169" width="256" height="8" fill="#1f2a44"/>
+</svg>

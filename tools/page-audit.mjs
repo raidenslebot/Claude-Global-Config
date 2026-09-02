@@ -236,6 +236,62 @@ function runningAnimationsInPage() {
   return document.getAnimations().filter((a) => a.playState === 'running').length
 }
 
+// Installed before any page script runs: samples document.getAnimations() from DOMContentLoaded
+// for six seconds, so entrances that finish before the audit looks are still on record, with
+// their timing and the properties they animate.
+function motionRecorderInit() {
+  const seen = new Map()
+  const rec = () => {
+    let anims = []
+    try { anims = document.getAnimations() } catch { return }
+    for (const a of anims) {
+      const eff = a.effect
+      if (!eff || !eff.target) continue
+      let t = {}
+      try { t = eff.getTiming() } catch { /* no timing */ }
+      const el = eff.target
+      const cls = typeof el.className === 'string' && el.className ? '.' + el.className.split(/\s+/)[0] : ''
+      const name = a.animationName || a.transitionProperty || a.id || ''
+      const key = `${name}@${el.tagName}${cls}:${t.duration}`
+      if (seen.has(key)) continue
+      let props = []
+      try { props = [...new Set(eff.getKeyframes().flatMap((k) => Object.keys(k).filter((p) => !/^(offset|easing|composite|computedOffset)$/.test(p))))] } catch { /* none */ }
+      seen.set(key, {
+        kind: a.constructor.name, name, duration: Number(t.duration) || 0, delay: Number(t.delay) || 0,
+        easing: String(t.easing || ''), iterations: t.iterations === Infinity ? 'infinite' : Number(t.iterations) || 1,
+        props, target: (el.tagName || '').toLowerCase() + cls,
+      })
+    }
+  }
+  document.addEventListener('DOMContentLoaded', rec)
+  const iv = setInterval(rec, 50)
+  setTimeout(() => clearInterval(iv), 6000)
+  window.__pageAuditMotion = () => { rec(); return [...seen.values()] }
+}
+
+// The motion laws a machine can check: linear easing on movement, layout properties animated,
+// entrances that are waits, one constant for every event, garnish that never stops.
+function motionFindings(list) {
+  const out = []
+  if (!list.length) return out
+  const LAYOUT = /^(width|height|top|left|right|bottom|margin|padding|inset|font-size|line-height|border-width)/
+  const MOVE = /^(transform|translate|scale|rotate|left|top|right|bottom|offset)/
+  const inf = list.filter((a) => a.iterations === 'infinite')
+  const finite = list.filter((a) => a.iterations !== 'infinite')
+  const sample = (xs) => xs.slice(0, 2).map((a) => `${a.name || a.kind} on ${a.target}: ${a.duration}ms ${a.easing}`).join('; ')
+  out.push({ rule: 'motion', level: 'info', msg: `${list.length} animation(s): ${finite.length} finite, ${inf.length} infinite`, sample: sample(list) })
+  const linear = finite.filter((a) => a.easing === 'linear' && a.props.some((p) => MOVE.test(p)))
+  if (linear.length) out.push({ rule: 'motion-linear', level: 'warn', msg: `${linear.length} movement(s) with linear easing — nothing physical moves at constant speed; ease-out in, ease-in out`, sample: sample(linear) })
+  const layout = list.filter((a) => a.props.some((p) => LAYOUT.test(p)))
+  if (layout.length) out.push({ rule: 'motion-layout', level: 'warn', msg: `${layout.length} animation(s) of a layout property (${[...new Set(layout.flatMap((a) => a.props.filter((p) => LAYOUT.test(p))))].join(', ')}) — every frame re-lays out the page; animate transform and opacity`, sample: sample(layout) })
+  const long = finite.filter((a) => a.delay + a.duration > 1500)
+  if (long.length) out.push({ rule: 'motion-long', level: 'warn', msg: `${long.length} entrance(s) over 1.5s (longest ${Math.round(Math.max(...long.map((a) => a.delay + a.duration)))}ms) — an entrance is 300–700ms; longer is a wait`, sample: sample(long) })
+  const laws = new Set(finite.map((a) => `${a.duration}ms ${a.easing}`))
+  if (finite.length >= 3 && laws.size === 1) out.push({ rule: 'motion-uniform', level: 'warn', msg: `${finite.length} animations share one duration and easing (${[...laws][0]}) — one law is good; one constant for every event is a default`, sample: '' })
+  if (inf.length > 3) out.push({ rule: 'motion-noise', level: 'warn', msg: `${inf.length} animations run forever — motion as garnish; one thing moves, and says why`, sample: sample(inf) })
+  return out
+}
+
 // ── driver ───────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const out = { _: [] }
@@ -254,7 +310,9 @@ Renders the page and measures what a reader gets. FAIL: contrast under 4.5:1 (3:
 face that fell back, text under 10px, sideways scroll on a phone, tap targets under 24px.
 WARN: measure outside 45–75 characters, tight leading, text under 12px, a widow in a heading,
 tap targets under 44px, images without alt, focus that cannot be seen, animations that run
-under prefers-reduced-motion, more than three saturated hues, dead greys.
+under prefers-reduced-motion, more than three saturated hues, dead greys; and the motion laws —
+linear easing on movement, layout properties animated, entrances over 1.5s, one constant for
+every animation, more than three that never stop.
 Exit 1 on any FAIL; 2 when no browser is available.
 `
 
@@ -271,10 +329,13 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
       const isMobile = vp.width < 768
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, isMobile, hasTouch: isMobile })
       const page = await ctx.newPage()
+      await page.addInitScript(motionRecorderInit)
       try { await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 }) } catch { await page.goto(url, { waitUntil: 'load', timeout: 20000 }) }
       await page.evaluate(() => document.fonts.ready)
       await page.waitForTimeout(250)
       const findings = await page.evaluate(auditInPage, { mobile: isMobile })
+      const motion = await page.evaluate(() => (window.__pageAuditMotion ? window.__pageAuditMotion() : [])).catch(() => [])
+      findings.push(...motionFindings(motion))
       // focus
       const n = await page.evaluate(recordFocusablesInPage)
       const unseen = []

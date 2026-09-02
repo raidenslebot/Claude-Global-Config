@@ -51,7 +51,7 @@ const tool = (name) => path.join(REPO, 'tools', name)
 const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
 function runInstall() {
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills'], { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true })
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'], { cwd: REPO, encoding: 'utf8', timeout: 180000, windowsHide: true })
   return r.status === 0
 }
 

@@ -38,6 +38,20 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 | Motion graphics, title sequences, Lottie | `motion-and-animation.md`, `lottie-animation`, `svg-animation` | text sliding in from the left on a gradient |
 | Generative art, plotter, TUI, data-viz posters | `generative-creative-tui-dataviz.md` | unseeded noise; a rainbow palette |
 
+## Two pieces in exactly this form
+
+- [`examples/harbor-swim-club-identity/`](examples/harbor-swim-club-identity/) — an identity
+  system: directions first, the mark and its redrawn favicon, the wordmark **outlined to paths**
+  with `tools/outline-text.mjs`, both lockups and their reversed forms, the system's one
+  variable, the icon master, a one-file brand sheet, the spec sheet, and the passes in
+  `review.md`. Its stacked lockup is the tee's mark in the `apparel-design` example — one
+  subject, two fields, one system.
+- [`examples/night-market-social/`](examples/night-market-social/) — a feed series: one
+  template, one variable, three weeks at 1080 × 1350, from the DNA of the `print-design`
+  poster; the passes in `review.md` include the ink that had to change for a screen.
+
+Read them for the shape; do not copy their designs.
+
 ## A field with no reference here
 
 Book covers, album art, menus, maps, patterns, trade-show booths, vehicle wraps, game assets,

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1in" height="1in" viewBox="0 0 350 350">
+  <!-- The system's one variable: the waterline at three quarters, for materials about a swim at high water. Otherwise mark.svg. -->
+  <circle cx="175" cy="175" r="120" fill="none" stroke="#1f2a44" stroke-width="16"/>
+  <rect x="71" y="111" width="208" height="8" fill="#1f2a44"/>
+</svg>

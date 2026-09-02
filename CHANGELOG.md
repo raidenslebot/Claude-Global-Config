@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.3.0 — 2026-09-02
+
+- **Text as paths.** `tools/outline-text.mjs` takes a local font or a Google Fonts family with
+  its axis spec, applies variable axes, lays the text out with the font's own kerning and
+  ligatures, and writes an SVG whose only element is one `<path>` — the outlined wordmark
+  every identity reference demands and every shop asks for. Google fonts are fetched once and
+  cached beside the config. The package's one runtime dependency (fontkit) lives in its own
+  `package.json`; a `deps` install phase puts it in place and the session hook re-applies it.
+- **The motion laws, measured.** `page-audit` records every animation from DOMContentLoaded
+  and warns on linear easing on movement, layout properties animated, entrances over 1.5 s,
+  one constant for every animation, and more than three that never stop.
+- **An identity system, worked.** `design-fields/examples/harbor-swim-club-identity/`: the
+  mark, a favicon redrawn for 16 px, the wordmark outlined, both lockups and their reversed
+  forms, the system's one variable, the icon master, a one-file brand sheet, the spec sheet,
+  and the passes. Its stacked lockup replaces the live text in the apparel example's tee
+  mark, which now depends on no font.
+- **A feed series, worked.** `design-fields/examples/night-market-social/`: one template, one
+  variable, three weeks at 1080 × 1350 from the poster's DNA — with the ink that had to
+  change for a screen, and why.
+- The doctor checks seven design tools and the font parser.
+
 ## 1.2.1 — 2026-09-02
 
 - The session line counts test passes against the tests that ran and names skips

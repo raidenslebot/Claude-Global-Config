@@ -71,7 +71,7 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
 | **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `design-fields`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills. A skill already present under one of these names is moved to `~/.claude/.cgc-replaced/` and replaced; a plugin known to shadow them (`open-design`) is disabled |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
-| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen) |
+| **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen); `tools/outline-text.mjs` (any text as one SVG path with the font's own kerning — the outlined wordmark every shop asks for) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
 | **npm** | `eslint`, `react-scan`, `react-doctor` if absent |
 | **MCP** | `playwright` and `context7`, installed locally and pinned — both keyless |
@@ -136,6 +136,7 @@ node tools/screen-render.mjs page.html --mobile     # page-1440.png and page-390
 node tools/screen-render.mjs post.html --preset ig-post   # 1080×1350 exactly; story, yt-thumb, og, slide, email, app-icon…
 node tools/page-audit.mjs page.html --mobile        # FAIL: contrast, a face that fell back, text under 10px, sideways scroll, tap targets under 24px
 node tools/specimen.mjs --display "Fraunces:ital,opsz,wght@1,9..144,300" --text Archivo --palette "oklch(0.97 0.012 80),oklch(0.22 0.02 60),oklch(0.55 0.17 25)"
+node tools/outline-text.mjs --font "Archivo:wdth,wght@75,600" --text HARBOR --tracking 0.14 --wdth 75 --wght 600 --out wordmark.svg
 ```
 
 `page-audit` exists because a screenshot clips to the viewport: the example page below scrolled
@@ -152,7 +153,10 @@ vocabulary with its numbers — faces and their settings, palettes, layout gramm
 motion laws — is `visual-design-mastery/references/signature-moves.md`; every field that is not
 a page — identity, icons, illustration, diagrams, social, slides, email, packaging, signage — has
 its canvas, minimums and delivery format in `design-fields`. A page built through the loop, with
-its directions and the log of its passes, ships in `creative-divergence/examples/cgc-landing/`.
+its directions and the log of its passes, ships in `creative-divergence/examples/cgc-landing/`;
+an identity system and a feed series, built the same way, ship in `design-fields/examples/`.
+The audit also checks the motion laws — linear easing on movement, layout properties animated,
+entrances that are waits, one constant for every event, garnish that never stops.
 
 ### The tiering, and why it exists
 

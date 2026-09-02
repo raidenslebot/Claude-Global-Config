@@ -103,7 +103,8 @@ template.
 ## Artwork the shop will accept
 
 - **Vector** (SVG, AI, EPS, PDF) for anything screen printed, embroidered or cut. Fonts
-  converted to outlines. Colours as **named spots** (Pantone) — one per screen — not as
+  converted to outlines — `node tools/outline-text.mjs --font <face> --text "…" --out name.svg`
+  writes any line of type as one path, with the font's kerning, so the file depends on no font. Colours as **named spots** (Pantone) — one per screen — not as
   gradients or RGB.
 - **Raster** (PNG, transparent background) only for DTG and printable transfers, at **300 dpi
   at print size**: a 12 in print is a **3600 px** wide file.

@@ -274,6 +274,16 @@ dead greys. `tools/specimen.mjs` sets a pairing and a palette for real — displ
 size, reversed, every colour with its contrast — because a face named in a catalogue is not a
 decision. Both are verified present and parsing by the doctor, along with the browser they run in.
 
+`tools/outline-text.mjs` closes a requirement every identity reference states and no tool could
+meet: the delivered wordmark must not depend on a font. It parses a local font file or a Google
+Fonts family with its axis spec (fetched once, cached beside the config), applies variable axes,
+lays the text out with the font's own kerning and ligatures, and writes one `<path>`. It is the
+package's one runtime dependency (fontkit, in the repo's own package.json), installed by a
+`deps` phase the session hook re-applies. The audit gained the motion laws a machine can check:
+an init script samples `document.getAnimations()` from DOMContentLoaded so entrances that finish
+before the audit looks are still on record — linear easing on movement, layout properties
+animated, entrances over 1.5 s, one constant for every event, more than three that never stop.
+
 ## What is deliberately not here
 
 - **No dependency on a package registry at runtime.** argo has zero dependencies; the tools use

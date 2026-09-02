@@ -82,7 +82,7 @@ test('behind main: fast-forwards, re-applies config/hooks/skills, reports the ve
   assert.equal(head(w.friend), head(w.author))
   const marker = join(w.friend, 'installed.txt')
   assert.ok(existsSync(marker), 'install.mjs must run after the pull')
-  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills')
+  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps')
 })
 
 test('local changes block the update; it is reported with the fix and nothing is pulled', (t) => {

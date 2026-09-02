@@ -1,0 +1,28 @@
+HARBOR SWIM CLUB — IDENTITY, DELIVERABLES                            version 1 · 2 September 2026
+
+THE MARK       mark.svg — the ring with its waterline at the centre. Navy #1f2a44 on cream.
+               mark-high-water.svg — the one variable: waterline at three quarters; event materials only.
+               Reversed: change the fill to #efe9dc on a navy ground. One colour in either; never a third.
+WORDMARK       wordmark.svg — HARBOR, Archivo width 75 weight 600, caps, tracked 0.14 em, OUTLINED
+               (tools/outline-text.mjs). One path. Depends on no font. Do not retype it.
+LOCKUPS        lockup-horizontal.svg, lockup-horizontal-reversed.svg — mark left, wordmark on the
+               ring's centre line; the viewBox includes the clear space.
+               lockup-stacked.svg, lockup-stacked-reversed.svg — the garment lockup (3.5 in grid).
+CLEAR SPACE    twice the ring's stroke on every side. Nothing enters it.
+MINIMUMS       lockup 1 in / 100 px. mark 0.25 in / 16 px — below 48 px use favicon.svg (redrawn:
+               stroke 22% of width), never mark.svg scaled.
+ICONS          favicon.svg (16–48 px; cream in dark mode via prefers-color-scheme).
+               icon.html → node tools/screen-render.mjs icon.html --preset app-icon → the 1024 × 1024
+               master, square, no rounded corners (platforms mask it; the mark sits in the central 80%).
+               Derive: favicon.ico 16+32, apple-touch-icon.png 180, icon-192.png, icon-512.png (maskable).
+COLOUR         Navy #1f2a44 · Pantone 2767 C (confirm on a swatch)
+               Cream #efe9dc · Pantone 7499 C
+               Tow-float orange #ff5a1f · Pantone 1655 C (confirm) — ONE use: the flags on safety notices
+TYPE           Wordmark: outlined, above. Everything else: Archivo — headings width 75 weight 600 caps
+               tracked 0.06 em; body width 100 weight 400. Specs and captions: JetBrains Mono.
+GARMENTS       The stacked lockup is the tee's left-chest mark (apparel-design/examples/harbor-swim-club),
+               3.5 in wide, cream on navy, screen print one colour; on the cap, embroidery, 2.25 in tall.
+FILES SENT     every SVG above (vector, one spot colour each), icon PNG set, brand-sheet.html (the
+               sheet, one file, everything inlined), this sheet, directions.md, review.md.
+NEVER          gradient, shadow, rotation, an outline stroke on the wordmark, the ring without its
+               waterline, orange as decoration, the wordmark set live in a font and sent to a shop.

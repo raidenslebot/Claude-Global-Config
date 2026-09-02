@@ -5,8 +5,8 @@
 //   node tools/install.mjs --dry-run       show every action, change nothing
 //   node tools/install.mjs --skip-library  skip cloning the Tier-3 skill library (~200MB)
 //   node tools/install.mjs --skip-npm      skip global npm packages
-//   node tools/install.mjs --only=config   run one phase: config|skills|hooks|npm|mcp|library|argo
-//   node tools/install.mjs --only=config,hooks,skills   several (what the auto-update hook re-applies)
+//   node tools/install.mjs --only=config   run one phase: config|skills|hooks|deps|npm|mcp|library|argo
+//   node tools/install.mjs --only=config,hooks,skills,deps   several (what the auto-update hook re-applies)
 //
 // Idempotent: re-running is safe and repairs drift. Never touches .credentials.json,
 // and merges settings.json rather than overwriting it.
@@ -317,6 +317,22 @@ if (wants('argo')) {
         ok('argonaut plugin installed — 22 skills, 3 agents, 2 hooks')
       } else warn(`plugin install failed: ${instOut.split('\n')[0]} — run: claude plugin install argonaut@argonaut-local`)
     }
+  }
+}
+
+// ── 4b. Repo dependencies ───────────────────────────────────────────────────
+// The one runtime dependency the tools carry (fontkit, for outline-text) lives in the repo's
+// own package.json and installs into its node_modules. Run only when it is absent, so an
+// offline session start does not wait on the registry.
+if (wants('deps')) {
+  phase('Repo dependencies')
+  const deps = Object.keys(JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).dependencies || {})
+  const missing = deps.filter((d) => !existsSync(join(REPO, 'node_modules', d)))
+  if (!deps.length) skip('no dependencies declared')
+  else if (!missing.length) skip(`dependencies present (${deps.join(', ')})`)
+  else {
+    const r = run('npm', ['i', '--no-audit', '--no-fund'], { cwd: REPO, timeout: 180000 })
+    r.status === 0 || DRY ? ok(`installed ${missing.join(', ')}`) : warn(`npm i failed in ${REPO} — outline-text needs fontkit; run npm i there`)
   }
 }
 

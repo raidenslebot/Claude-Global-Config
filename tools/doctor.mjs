@@ -147,11 +147,13 @@ phase('MCP servers')
 // checked here; the browser they render through is named, or its absence and the fix are.
 phase('Design tools')
 {
-  const tools = ['print-render.mjs', 'print-lint.mjs', 'screen-render.mjs', 'slop-lint.mjs', 'page-audit.mjs', 'specimen.mjs']
+  const tools = ['print-render.mjs', 'print-lint.mjs', 'screen-render.mjs', 'slop-lint.mjs', 'page-audit.mjs', 'specimen.mjs', 'outline-text.mjs']
   const missing = tools.filter((t) => !existsSync(join(REPO, 'tools', t)))
   const broken = tools.filter((t) => !missing.includes(t) && spawnSync(process.execPath, ['--check', join(REPO, 'tools', t)], { encoding: 'utf8', timeout: 20000 }).status !== 0)
   if (missing.length || broken.length) fail(`design tools: ${[...missing.map((t) => `${t} missing`), ...broken.map((t) => `${t} does not parse`)].join(', ')}`)
-  else ok(`${tools.length} design tools present and parse (render, lint, audit, specimen)`)
+  else ok(`${tools.length} design tools present and parse (render, lint, audit, specimen, outline)`)
+  existsSync(join(REPO, 'node_modules', 'fontkit')) ? ok('fontkit present — outline-text can turn text into paths')
+    : warn('fontkit missing — outline-text cannot run; node tools/install.mjs --only=deps (or npm i in the repo)')
   const pw = findPlaywright()
   if (pw) ok(`browser for render and audit: playwright-core from ${pw.from}`)
   else warn('no browser — print-render, screen-render, page-audit and specimen cannot run; node tools/install.mjs --only=mcp installs the Playwright MCP that brings it')

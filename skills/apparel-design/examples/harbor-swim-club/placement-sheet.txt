@@ -8,7 +8,9 @@ PLACEMENT:    front — left-chest: 3.5 in wide, top edge 3.5 in below the colla
               back — full-back: 11 in wide, top edge 4.5 in below the collar, centred
               (back-tide.svg)
 SIZES:        S–2XL: art as supplied. Youth S–L: scale both to 80%.
-FILES:        front-mark.svg, back-tide.svg (vector, one spot colour; please outline the fonts
-              in your RIP — the files reference system faces), mockup PNGs, directions.md
+FILES:        front-mark.svg (vector, one spot colour; HARBOR is outlined — no font needed),
+              back-tide.svg (vector, one spot colour; the tide rows reference a system mono —
+              outline them in your RIP, or regenerate with tools/outline-text.mjs), mockup PNGs,
+              directions.md
 NOTES:        The tide rows on the back are the design; please do not re-align or tidy them.
               Strike-off / photo proof before the run.

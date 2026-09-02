@@ -33,6 +33,10 @@ const BAD = `<!doctype html><html><head><meta name="viewport" content="width=dev
   a.btn { display: inline-block; width: 20px; height: 20px; outline: none; color: #111; }
   .spin { animation: spin 2s linear infinite; color: #111; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .slide { animation: slide 2s linear both; color: #111; }
+  @keyframes slide { from { transform: translateX(-40px); } to { transform: none; } }
+  .grow { animation: grow 1s ease both; color: #111; }
+  @keyframes grow { from { width: 10px; } to { width: 200px; } }
   .s { width: 200px; height: 200px; display: inline-block; }
 </style></head><body>
 <h1>aaaa bbbb cccc dddd eeee</h1>
@@ -40,7 +44,7 @@ const BAD = `<!doctype html><html><head><meta name="viewport" content="width=dev
 <span class="tiny">tiny text here</span>
 <div><a class="btn" href="#">x</a></div>
 <img src="nothing.png">
-<div class="spin">spinning</div>
+<div class="spin">spinning</div><div class="slide">sliding in at constant speed</div><div class="grow">growing by width</div>
 <div class="s" style="background:#ff2020"></div><div class="s" style="background:#20c020"></div><div class="s" style="background:#2040ff"></div><div class="s" style="background:#e020e0"></div>
 <div style="color:#888">grey one, a label set in a dead grey with no hue in it at all</div><div style="color:#666">grey two, another dead grey, one step darker than the first</div><div style="color:#aaa">grey three, the lightest of the dead greys on this page</div>
 </body></html>`
@@ -68,7 +72,10 @@ test('every planted defect is named at its level', { skip }, async (t) => {
   assert.equal(r.ok, false)
   const fails = rules(r, 'fail'), warns = rules(r, 'warn')
   for (const id of ['contrast', 'font', 'small-text', 'overflow', 'tap-target']) assert.ok(fails.includes(id), `expected FAIL ${id} in ${fails}`)
-  for (const id of ['measure', 'leading', 'widow', 'alt', 'focus', 'reduced-motion', 'palette']) assert.ok(warns.includes(id), `expected warn ${id} in ${warns}`)
+  for (const id of ['measure', 'leading', 'widow', 'alt', 'focus', 'reduced-motion', 'palette', 'motion-linear', 'motion-layout', 'motion-long']) assert.ok(warns.includes(id), `expected warn ${id} in ${warns}`)
+  const motion = r.results[0].findings.find((x) => x.rule === 'motion')
+  assert.match(motion.msg, /3 animation\(s\): 2 finite, 1 infinite/)
+  assert.ok(!warns.includes('motion-noise'), 'one spinner is not garnish')
   // Lowest ratio first: #aaa on white (2.32:1) outranks the #999 paragraph (2.85:1); both are named.
   const contrast = r.results[0].findings.filter((x) => x.rule === 'contrast' && x.level === 'fail')
   assert.match(contrast[0].msg, /^2\.3\d:1 — #aaaaaa on #ffffff/)
@@ -86,7 +93,7 @@ test('a page that made the right decisions passes with no failure, and the palet
   const r = await audit(f, { mobile: true })
   assert.deepEqual(rules(r, 'fail'), [], JSON.stringify(r.results, null, 1))
   assert.equal(r.ok, true)
-  for (const id of ['widow', 'measure', 'focus', 'alt', 'reduced-motion', 'tap-target']) assert.ok(!rules(r, 'warn').includes(id), `unexpected warn ${id}: ${JSON.stringify(r.results, null, 1)}`)
+  for (const id of ['widow', 'measure', 'focus', 'alt', 'reduced-motion', 'tap-target', 'motion-linear', 'motion-layout', 'motion-long', 'motion-uniform']) assert.ok(!rules(r, 'warn').includes(id), `unexpected warn ${id}: ${JSON.stringify(r.results, null, 1)}`)
   const info = r.results[0].findings.filter((x) => x.rule === 'palette').map((x) => x.msg).join(' ')
   assert.match(info, /1 saturated hue/)
 })

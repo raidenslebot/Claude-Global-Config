@@ -1,0 +1,41 @@
+/* Night Market — the feed series. One template; the stalls are the variable (see directions.md).
+   Canvas 1080 × 1350 (ig-post). Render: node tools/screen-render.mjs post-1.html --preset ig-post
+   Gate:   node tools/slop-lint.mjs .   ·   node tools/page-audit.mjs post-1.html --viewport 1080x1350 */
+
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --paper: #f2e9d6;
+  --orange: #ef4a0f;     /* the poster's fluorescent ink one step deeper: the screen cannot fluoresce, and at #ff5a1f the word was 2.6:1 on this paper; this is 3.1:1 */
+  --orange-ink: #c8420f; /* the same ink pressed harder — 4.1:1 on the paper, so the times and the price read */
+  --blue: #1a3a6b;
+  --word: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --board: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); }
+.post { position: relative; width: 1080px; height: 1350px; overflow: hidden; background: var(--paper); color: var(--blue); font-family: var(--board); }
+.post::after { content: ""; position: absolute; inset: 0; filter: url(#grain); pointer-events: none; }
+
+/* The word: 470px caps, cropped by the right edge on purpose — into the T, so it still reads
+   as NIGHT; at 640px the T fell off entirely. Two inks, the blue 6px off. */
+.word { position: absolute; left: 52px; top: 42px; margin: 0; font: 900 580px/0.8 var(--word); letter-spacing: -0.02em; white-space: nowrap; color: var(--orange); }
+.word.ghost { left: 58px; top: 36px; color: var(--blue); mix-blend-mode: multiply; opacity: 0.55; }
+.week { position: absolute; left: 60px; top: 606px; margin: 0; font: 900 118px/1 var(--word); letter-spacing: 0.01em; color: var(--blue); }
+.week small { display: block; font: 500 34px/1.2 var(--board); letter-spacing: 0.06em; margin-top: 12px; }
+
+/* The board: this week's four stalls with their hours where the prices go. */
+.board { position: absolute; left: 60px; right: 60px; top: 800px; font-size: 40px; line-height: 2; }
+.board div { display: flex; align-items: baseline; border-bottom: 1.5px solid rgb(26 58 107 / 0.35); }
+.board .n { font-weight: 500; white-space: nowrap; }
+.board .l { flex: 1; border-bottom: 3px dotted var(--blue); margin: 0 18px; transform: translateY(-0.55em); }
+.board .p { color: var(--orange-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The one cheap thing this week: a price-board price, in the orange hand. One line. */
+.deal { position: absolute; left: 60px; right: 60px; top: 1142px; margin: 0; font: 500 38px/1.15 var(--board); color: var(--orange-ink); white-space: nowrap; }
+.deal b { font: 900 92px/0.9 var(--word); color: var(--orange-ink); margin-right: 18px; vertical-align: -0.02em; letter-spacing: 0.01em; }
+
+/* The foot: the running caps line, and the perforation above it. 26px so it survives the feed's scale. */
+.foot { position: absolute; left: 0; right: 0; bottom: 0; height: 78px; border-top: 2px dashed var(--blue); display: flex; align-items: center; padding: 0 60px;
+        font: 500 24px/1 var(--board); letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); white-space: nowrap; }
+.foot span + span::before { content: " · "; margin: 0 0.6em; }
