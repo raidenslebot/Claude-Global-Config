@@ -114,6 +114,34 @@ test('a checkout on another branch is left alone even when main moved', (t) => {
   assert.equal(head(w.friend), before)
 })
 
+test('a clone whose origin/HEAD is unset still follows its branch', (t) => {
+  const w = world(t)
+  git(w.friend, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+  w.release('1.1.0', 'Add the thing')
+  assert.match(fire(w, w.friend).line, /updated 1\.0\.0 → 1\.1\.0/)
+  assert.equal(head(w.friend), head(w.author))
+})
+
+test('git missing from PATH is said, not blamed on a branch', (t) => {
+  const w = world(t)
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^path$/i.test(k)))
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ source: 'startup' }), encoding: 'utf8', timeout: 60000,
+    env: { ...env, PATH: join(w.root, 'empty-path'), CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config },
+  })
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(JSON.parse(r.stdout).systemMessage, /git is not on PATH/)
+})
+
+test('a detached HEAD is named and left alone', (t) => {
+  const w = world(t)
+  git(w.friend, 'checkout', '-q', '--detach')
+  w.release('1.1.0', 'Add the thing')
+  const before = head(w.friend)
+  assert.match(fire(w, w.friend).line, /detached HEAD at [0-9a-f]{7}, not followed/)
+  assert.equal(head(w.friend), before)
+})
+
 test('offline is a word in the line, not an error', (t) => {
   const w = world(t)
   w.release('1.1.0', 'Add the thing')

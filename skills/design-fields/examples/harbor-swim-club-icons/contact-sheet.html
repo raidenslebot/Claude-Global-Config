@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Swim Club — icons</title>
+<!--
+  The contact sheet: the eight icons at 24 and 48, on cream and on navy, without labels first
+  (an icon that needs its label is decoration), then with. The symbols are inlined from
+  sprite.svg so this is one file; the sprite is the master.
+  Render: node tools/screen-render.mjs contact-sheet.html   ·   Gate: node tools/page-audit.mjs contact-sheet.html --mobile
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,600;100,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --cream: #efe9dc; --navy: #1f2a44; --line: rgb(31 42 68 / 0.25); }
+  * { box-sizing: border-box; }
+  html { background: var(--cream); color: var(--navy); }
+  body { margin: 0; font-family: Archivo, "Helvetica Neue", Arial, sans-serif; font-size: 17px; line-height: 1.5; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 56px 72px; }
+  .head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; border-bottom: 0.5px solid var(--navy); padding-bottom: 12px; }
+  h1 { font: 600 clamp(2.2rem, 4.5vw, 3.6rem)/1 Archivo, sans-serif; font-stretch: 75%; letter-spacing: 0.04em; text-transform: uppercase; margin: 48px 0 8px; text-wrap: balance; }
+  .lede { max-width: 62ch; font-size: 19px; margin: 0; text-wrap: pretty; }
+  h2 { font: 500 12px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; margin: 48px 0 18px; padding-top: 14px; border-top: 0.5px solid var(--navy); }
+  .band { display: grid; grid-template-columns: repeat(8, 1fr); gap: 16px; padding: 28px; border: 0.5px solid var(--line); align-items: end; justify-items: center; }
+  .band.rev { background: var(--navy); color: var(--cream); border-color: var(--navy); }
+  .band svg { display: block; }
+  .band figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .band figcaption { font: 400 12px/1.4 "JetBrains Mono", ui-monospace, monospace; opacity: 0.8; }
+  .rule { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .rule p { margin: 0 0 12px; max-width: 58ch; }
+  .rule svg { width: 100%; max-width: 360px; height: auto; display: block; }
+  .foot { margin-top: 48px; border-top: 0.5px solid var(--navy); padding-top: 12px; font: 400 12px/1.6 "JetBrains Mono", ui-monospace, monospace; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  @media (max-width: 800px) { .band { grid-template-columns: repeat(4, 1fr); } .rule { grid-template-columns: 1fr; } .page { padding: 24px 20px 56px; } }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="swim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="2.5"/><path d="M12 12c2-3 5-3 7 0"/><path d="M2 14h20"/></symbol>
+  <symbol id="dawn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14a6 6 0 0 1 12 0"/><path d="M12 3v2M5.5 6.5 7 8M18.5 6.5 17 8"/><path d="M2 14h20"/></symbol>
+  <symbol id="tide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="m8 11 4-4 4 4"/><path d="M2 14h20"/></symbol>
+  <symbol id="temperature" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.5V5a2 2 0 0 0-4 0v9.5a3.5 3.5 0 1 0 4 0z"/><path d="M2 14h6M16 14h6"/></symbol>
+  <symbol id="wall" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 21v-9h4V8h5"/><path d="M2 14h11"/></symbol>
+  <symbol id="flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V4"/><path d="M8 4h9l-2.5 3 2.5 3H8"/><path d="M2 14h20"/></symbol>
+  <symbol id="float" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="5"/><path d="M2 14h20"/></symbol>
+  <symbol id="thermos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5V3h4v2"/><path d="M9 5h6v9H9z"/><path d="M2 14h20"/></symbol>
+</svg>
+<div class="page">
+  <header class="head"><span>Harbor Swim Club</span><span>icons · version 1</span><span>2 September 2026</span></header>
+
+  <h1>Above, below, or half under</h1>
+  <p class="lede">Eight things from the harbour, each drawn with the same waterline. What an icon means is where its object sits in relation to the line: the flag and the thermos stand above it, the float sits half under, the tide rises through it, the harbour steps come down to meet it. One rule, eight times.</p>
+
+  <h2>At 24 — without labels first</h2>
+  <div class="band">
+    <svg width="24" height="24"><use href="#swim"/></svg><svg width="24" height="24"><use href="#dawn"/></svg><svg width="24" height="24"><use href="#tide"/></svg><svg width="24" height="24"><use href="#temperature"/></svg><svg width="24" height="24"><use href="#wall"/></svg><svg width="24" height="24"><use href="#flag"/></svg><svg width="24" height="24"><use href="#float"/></svg><svg width="24" height="24"><use href="#thermos"/></svg>
+  </div>
+
+  <h2>At 48, on cream and on navy</h2>
+  <div class="band">
+    <figure><svg width="48" height="48"><use href="#swim"/></svg><figcaption>swim</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#dawn"/></svg><figcaption>dawn</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#tide"/></svg><figcaption>tide</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#temperature"/></svg><figcaption>temperature</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#wall"/></svg><figcaption>wall</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#flag"/></svg><figcaption>flag</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#float"/></svg><figcaption>float</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#thermos"/></svg><figcaption>thermos</figcaption></figure>
+  </div>
+  <div class="band rev" style="margin-top:16px">
+    <figure><svg width="48" height="48"><use href="#swim"/></svg><figcaption>swim</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#dawn"/></svg><figcaption>dawn</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#tide"/></svg><figcaption>tide</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#temperature"/></svg><figcaption>temperature</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#wall"/></svg><figcaption>wall</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#flag"/></svg><figcaption>flag</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#float"/></svg><figcaption>float</figcaption></figure>
+    <figure><svg width="48" height="48"><use href="#thermos"/></svg><figcaption>thermos</figcaption></figure>
+  </div>
+
+  <h2>The rule, and the grid</h2>
+  <div class="rule">
+    <div>
+      <p>24-pixel grid, 20-pixel live area, 2-pixel stroke with round caps and joins, <code>currentColor</code>. Every coordinate sits on the pixel grid, so the stroke renders crisp at 24 and, doubled, at 48.</p>
+      <p>The waterline is at y&nbsp;=&nbsp;14 in every icon and is never omitted. It is the identity's one variable at icon scale: the mark's ring is the <em>float</em>, half under.</p>
+      <p>Not delivered at 16. There the stroke would be 1.3 pixels and the line would merge with the objects; below 20 pixels the mark's favicon is used instead. Sizes are redrawn, not scaled — and here, at that size, not drawn.</p>
+    </div>
+    <svg viewBox="-1 -1 26 26" xmlns="http://www.w3.org/2000/svg" aria-label="the grid and the waterline">
+      <g stroke="rgb(31 42 68 / 0.18)" stroke-width="0.1"><path d="M0 0v24M2 0v24M4 0v24M6 0v24M8 0v24M10 0v24M12 0v24M14 0v24M16 0v24M18 0v24M20 0v24M22 0v24M24 0v24M0 0h24M0 2h24M0 4h24M0 6h24M0 8h24M0 10h24M0 12h24M0 14h24M0 16h24M0 18h24M0 20h24M0 22h24M0 24h24"/></g>
+      <rect x="2" y="2" width="20" height="20" fill="none" stroke="rgb(31 42 68 / 0.45)" stroke-width="0.25" stroke-dasharray="0.6 0.6"/>
+      <g fill="none" stroke="#1f2a44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V4"/><path d="M8 4h9l-2.5 3 2.5 3H8"/></g>
+      <path d="M2 14h20" fill="none" stroke="#c8420f" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <footer class="foot"><span>Files: sprite.svg (master) · swim.svg dawn.svg tide.svg temperature.svg wall.svg flag.svg float.svg thermos.svg (split.mjs) · contact-sheet.html</span><span>directions.md · review.md</span></footer>
+</div>
+</body>
+</html>

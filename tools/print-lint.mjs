@@ -16,7 +16,7 @@
 // That means it sees declared values, not computed ones: a font-size set in a stylesheet it
 // cannot follow is a warning, not a pass.
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { resolve, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -296,4 +296,6 @@ exit:  0 clean · 1 a finding that would fail on press · 2 bad input`)
   return results.every((r) => r.ok) ? 0 : 1
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main())
+// Compared by real path, so the tool also runs when invoked through a symlink.
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) process.exit(main())

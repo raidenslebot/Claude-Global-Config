@@ -90,6 +90,12 @@ something a person remembers to run into something that runs.
 
 ## G2. Two tools have no tests, and one of them carries a live instance of the documented bug class
 
+**Status: closed.** `tools/test/sync.test.mjs` and `tools/test/uninstall.test.mjs` exercise both
+tools on isolated fixtures (the uninstall fixture redirects HOME and empties PATH so no run can
+reach the real plugin); the Windows-only regex in `sync.mjs` was replaced by one that matches an
+absolute path on any platform, and the test holds it. Since 2026-09-02 every tool under
+`tools/` has a test file, and `uninstall` also restores what `install` moved aside.
+
 **Gap.** `tools/sync.mjs` and `tools/uninstall.mjs` are unexercised by any test, and
 `sync.mjs` contains a Windows-only regex that makes its stated purpose a silent no-op on
 macOS and Linux.
@@ -141,6 +147,12 @@ files. Pairs with G1: G1 makes the tests run, G2 gives them something to run aga
 ---
 
 ## G3. Documented numbers drift from measured ones, and nothing compares them
+
+**Status: closed.** `tools/test/docs-numbers.test.mjs` compares the hook count, the tier-2 count,
+the repo count and the quoted resident token cost in the prose against `config/hooks.json`,
+`library/sources.json` and a measurement; the changelog must lead with `package.json`'s version
+(`auto-update.test.mjs`); and the doctor reports the package's own token cost against its
+budget at every session start.
 
 **Gap.** The repo asserts figures in prose that its own tooling can compute, and three of them
 are currently wrong.

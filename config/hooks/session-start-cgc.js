@@ -51,7 +51,7 @@ const tool = (name) => path.join(REPO, 'tools', name)
 const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
 function runInstall() {
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'], { cwd: REPO, encoding: 'utf8', timeout: 180000, windowsHide: true })
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'], { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true })
   return r.status === 0
 }
 
@@ -59,16 +59,27 @@ function runInstall() {
 function update(always) {
   const gitDir = path.join(REPO, '.git')
   if (!fs.existsSync(gitDir)) return { status: 'no-git' }
+  // git missing from PATH is the case the user most needs to hear, and the one every later
+  // call would otherwise misreport as an empty branch.
+  const probe = git(['--version'])
+  if (probe.error || probe.status !== 0) return { status: 'no-git-cli' }
   const stamp = path.join(STATE, 'update.json')
   const last = readJson(stamp)
   if (!always && last && Date.now() - (last.at || 0) < FETCH_THROTTLE_MS) return { status: 'skipped', head: out(git(['rev-parse', 'HEAD'])) }
   const finish = (res) => { writeJson(stamp, { at: Date.now(), ...res }); return res }
 
   // Follow the origin's default branch, whatever it is called; another branch checked out
-  // is deliberate work and is left alone.
-  const main = (out(git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])).replace(/^origin\//, '')) || 'main'
+  // is deliberate work and is left alone. origin/HEAD is unset in a clone made before a
+  // rename, or after git init + remote add: then follow the current branch if the origin has
+  // it, else main, else master — never assume, never blame the user's branch for it.
+  let main = out(git(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])).replace(/^origin\//, '')
   const branch = out(git(['symbolic-ref', '--short', 'HEAD']))
   const head = out(git(['rev-parse', 'HEAD']))
+  if (!branch) return finish({ status: 'detached', head })
+  if (!main) {
+    main = [branch, 'main', 'master'].find((b) => git(['rev-parse', '-q', '--verify', `refs/remotes/origin/${b}`]).status === 0) || ''
+    if (!main) return finish({ status: 'no-remote-branch', head, branch })
+  }
   if (branch !== main) return finish({ status: 'branch', branch, main, head })
   if (git(['fetch', '--quiet', 'origin', main], 10000).status !== 0) return finish({ status: 'offline', head })
 
@@ -141,6 +152,9 @@ function compose(ver, u, v, t) {
   if (t) parts.push(t.timedOut ? 'tests timed out' : `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`)
   const upd = {
     'no-git': 'not a git clone — cannot auto-update',
+    'no-git-cli': 'git is not on PATH — cannot update',
+    detached: `detached HEAD at ${short(u.head)}, not followed`,
+    'no-remote-branch': `no remote branch to follow from ${u.branch}`,
     skipped: `at ${short(u.head)}`,
     branch: `on ${u.branch}, ${u.main} not followed`,
     offline: `offline, at ${short(u.head)}`,
@@ -159,6 +173,8 @@ function details(u) {
   const q = (s) => `"${s}"`
   switch (u.status) {
     case 'no-git': return `${REPO} is not a git clone (a downloaded archive cannot fetch updates). Clone the repository with git and run node tools/install.mjs from the clone.`
+    case 'no-git-cli': return 'git was not found on PATH. The session hook updates and verifies through git; install it or add it to PATH.'
+    case 'no-remote-branch': return `The origin has no branch named ${u.branch}, main or master to follow. Fetch once (git fetch origin) or set origin/HEAD (git remote set-head origin -a).`
     case 'diverged': return `This clone has local commits that are not on ${u.main}. Rebase them: git -C ${q(REPO)} rebase origin/${u.main}`
     case 'dirty': return `Update ${short(u.head)} → ${short(u.remote)} is waiting on local changes in ${REPO}. Commit or discard them, then: git -C ${q(REPO)} pull --ff-only origin ${u.main}`
     case 'failed': return `The fast-forward failed: ${u.error}`

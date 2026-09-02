@@ -14,7 +14,7 @@
 // Fonts are loaded by name; add the axis spec after a colon to see the real italic and weights
 // rather than a synthesised one. screen-render names any face that failed to load.
 
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdirSync, realpathSync } from 'node:fs'
 import { resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { main as render } from './screen-render.mjs'
@@ -73,7 +73,7 @@ export function specimenHtml({ display, text, mono = '', italic = false, palette
   // Contrast of each swatch against the surface and the ink, in the browser's own colour maths.
   (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 1; const ctx = cv.getContext('2d', { willReadFrequently: true })
-    const rgb = (c) => { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]] }
+    const rgb = (c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]] }
     const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
     const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
     const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
@@ -120,6 +120,7 @@ export async function main(argv = process.argv.slice(2)) {
   return render([`${out}.html`, '--full', '--out', out])
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   main().then((code) => process.exit(code), (e) => { console.error(`specimen: ${e.message}`); process.exit(1) })
 }

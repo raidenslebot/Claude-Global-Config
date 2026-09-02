@@ -38,7 +38,7 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 | Motion graphics, title sequences, Lottie | `motion-and-animation.md`, `lottie-animation`, `svg-animation` | text sliding in from the left on a gradient |
 | Generative art, plotter, TUI, data-viz posters | `generative-creative-tui-dataviz.md` | unseeded noise; a rainbow palette |
 
-## Two pieces in exactly this form
+## Three pieces in exactly this form
 
 - [`examples/harbor-swim-club-identity/`](examples/harbor-swim-club-identity/) — an identity
   system: directions first, the mark and its redrawn favicon, the wordmark **outlined to paths**
@@ -49,6 +49,10 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 - [`examples/night-market-social/`](examples/night-market-social/) — a feed series: one
   template, one variable, three weeks at 1080 × 1350, from the DNA of the `print-design`
   poster; the passes in `review.md` include the ink that had to change for a screen.
+- [`examples/harbor-swim-club-icons/`](examples/harbor-swim-club-icons/) — an icon set: one
+  drawing rule from the subject (the waterline through every icon), a 24-grid sprite in
+  `currentColor`, one file per icon written by `split.mjs`, a contact sheet at 24 and 48 on
+  both grounds without labels first — and a size deliberately *not* delivered, with the reason.
 
 Read them for the shape; do not copy their designs.
 

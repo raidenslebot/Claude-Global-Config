@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/session-start-cgc.js\"",
-            "timeout": 300,
+            "timeout": 600,
             "statusMessage": "CGC: updating, verifying, repairing"
           }
         ]

@@ -18,6 +18,7 @@
 // machine this is) with the repo's own install as a fallback; nothing here names a path.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs'
+import { realpathSync as __realpath } from 'node:fs'
 import { join, resolve, dirname, basename, extname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -373,6 +374,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isEntry = (() => { try { return Boolean(process.argv[1]) && __realpath(process.argv[1]) === __realpath(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   main().then((code) => process.exit(code)).catch((e) => { console.error(`print-render: ${e.message}`); process.exit(1) })
 }

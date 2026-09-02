@@ -59,6 +59,23 @@ test('the CLI writes the file, gives it a physical size with --units, and prints
   assert.ok(j.capHeight > 0 && j.width > 0 && j.d === undefined)
 })
 
+const ITALIC = [
+  'C:/Windows/Fonts/timesi.ttf', 'C:/Windows/Fonts/georgiai.ttf',
+  '/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf',
+].find(existsSync)
+
+test('ink that hangs left of the origin is not clipped, and a glyph the font lacks is an error, never a box', { skip }, () => {
+  const font = fk.module.create(readFileSync(FONT))
+  assert.throws(() => outline(font, 'Tokyo 東京', { size: 50 }), /no glyph for "東", "京"/)
+  if (!ITALIC) return
+  const it = fk.module.create(readFileSync(ITALIC))
+  const r = outline(it, 'fjord', { size: 96 })
+  const xs = [...r.d.matchAll(/[MLQC]?(-?\d+\.?\d*) (-?\d+\.?\d*)/g)].map((m) => Number(m[1]))
+  assert.ok(Math.min(...xs) >= -0.01, `minimum x ${Math.min(...xs)} — the path must start at the ink, not at the advance origin`)
+  assert.ok(r.width > 0 && r.advance > 0)
+})
+
 test('usage on a missing argument, an error on a missing file — never a stack trace', async () => {
   assert.equal(await main(['--text', 'x']), 1)
   if (fk) assert.equal(await main(['--font', join(tmpdir(), 'nope-' + process.pid + '.ttf'), '--text', 'x']), 1)

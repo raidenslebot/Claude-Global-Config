@@ -346,8 +346,11 @@ library/      index, caveats, sources             tools/scan-secrets.mjs pre-pus
   repos/      cloned at install (gitignored)      tools/run-tests.mjs    explicit-path test runner
 docs/         architecture, troubleshooting,      tools/print-render.mjs / print-lint.mjs   paper and fabric
               the audits and their closures       tools/screen-render.mjs / slop-lint.mjs  screens
-CHANGELOG.md  what a machine gained between       tools/test/            the gates
-              two session starts                  .githooks/             pre-commit secret gate
+CHANGELOG.md  what a machine gained between       tools/page-audit.mjs   the rendered page, measured
+              two session starts                  tools/specimen.mjs     a pairing and a palette, set
+                                                  tools/outline-text.mjs text as one SVG path
+                                                  tools/test/            the gates
+                                                  .githooks/             pre-commit secret gate
 ```
 
 ## License

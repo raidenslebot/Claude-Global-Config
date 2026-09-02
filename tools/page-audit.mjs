@@ -15,7 +15,7 @@
 // rest. It cannot tell whether the page is good — the loop in creative-divergence does that —
 // but a page that fails here is not finished, whatever it looks like.
 
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { findPlaywright } from './print-render.mjs'
@@ -66,9 +66,10 @@ function auditInPage({ mobile }) {
     const r = el.getBoundingClientRect()
     return r.width > 0 && r.height > 0
   }
-  // The ground a text sits on: every ancestor's background composited, top down. A background
-  // image makes the ground unknowable; those are counted, not judged.
-  const ground = (el) => {
+  // The ground by ancestry: every ancestor's background composited, top down. Cheap, and right
+  // for the palette by area; wrong for contrast when something positioned is painted under the
+  // text, which is what every hero does.
+  const groundChain = (el) => {
     const chain = []
     for (let e = el; e && e.nodeType === 1; e = e.parentElement) chain.push(e)
     let g = [255, 255, 255, 1], unknown = false
@@ -81,43 +82,79 @@ function auditInPage({ mobile }) {
     return { g, unknown }
   }
   const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()
+  // The ground as painted: the stack of elements under a point inside the text's first line
+  // box, composited from the bottom up to the text element itself. A positioned image or a
+  // sibling block behind the text is part of it; an image, video, canvas or background image
+  // in the stack makes it unknowable. The element is scrolled into view first — the stack is
+  // only answerable inside the viewport.
+  const groundPainted = (el) => {
+    el.scrollIntoView({ block: 'center', inline: 'nearest' })
+    const tn = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
+    let box = null
+    if (tn) { const rg = document.createRange(); rg.selectNodeContents(tn); box = [...rg.getClientRects()].find((r) => r.width > 0 && r.height > 0) || null }
+    if (!box) box = el.getBoundingClientRect()
+    const x = Math.min(innerWidth - 1, Math.max(0, box.left + Math.min(box.width / 2, 8)))
+    const y = Math.min(innerHeight - 1, Math.max(0, box.top + box.height / 2))
+    const stack = document.elementsFromPoint(x, y)
+    const i = stack.indexOf(el)
+    if (i < 0) return groundChain(el)
+    let g = [255, 255, 255, 1], unknown = false
+    for (let k = stack.length - 1; k >= i; k--) {
+      const e = stack[k]
+      if (/^(IMG|VIDEO|CANVAS|PICTURE|IFRAME|OBJECT|svg)$/i.test(e.tagName)) { unknown = true; continue }
+      const cs = getComputedStyle(e)
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') unknown = true
+      const bg = rgba(cs.backgroundColor)
+      if (bg[3] > 0) g = over(bg, g)
+    }
+    return { g, unknown }
+  }
+  // Opacity dims the ink as surely as alpha does, all the way up the tree.
+  const alphaOf = (el) => { let a = 1; for (let e = el; e && e.nodeType === 1; e = e.parentElement) a *= Math.min(1, Math.max(0, +getComputedStyle(e).opacity)); return a }
 
   const all = [...document.querySelectorAll('body *')].filter((el) => el.namespaceURI === HTML && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName))
   const textEls = all.filter((el) => ownText(el).length >= 2 && visible(el))
 
   // 1. Contrast.
   let unknownGround = 0, low = []
+  const scroll0 = [scrollX, scrollY]
   for (const el of textEls) {
     const cs = getComputedStyle(el)
-    const { g, unknown } = ground(el)
+    const { g, unknown } = groundPainted(el)
     if (unknown) { unknownGround++; continue }
     let fg = rgba(cs.color); if (fg[3] === 0) continue
+    fg = [fg[0], fg[1], fg[2], fg[3] * alphaOf(el)]
     fg = over(fg, g)
     const fs = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700
     const large = fs >= 24 || (fs >= 18.66 && bold)
     const r = ratio(fg, g)
     if (r < (large ? 3 : 4.5)) low.push({ r, el, fg, g, fs })
   }
+  scrollTo(scroll0[0], scroll0[1])
   low.sort((a, b) => a.r - b.r)
   for (const x of low.slice(0, 6)) push('contrast', 'fail', `${x.r.toFixed(2)}:1 — ${hex(x.fg)} on ${hex(x.g)} at ${x.fs.toFixed(0)}px; needs ${x.fs >= 24 ? 3 : 4.5}:1`, ownText(x.el))
   if (low.length > 6) push('contrast', 'fail', `… and ${low.length - 6} more text runs below the minimum`)
-  if (unknownGround) push('contrast', 'info', `${unknownGround} text run(s) sit on a background image — contrast not measurable, check by eye`)
+  if (unknownGround) push('contrast', 'info', `${unknownGround} text run(s) sit on an image or a background image — contrast not measurable, check by eye`)
 
-  // 2. Faces that fell back. A face that is not available renders exactly as its fallback.
+  // 2. Faces that fell back. A face that is not available renders exactly as its fallback —
+  // measured with the page's own text in that face, so an icon face or a CJK face with no
+  // Latin glyphs is judged on what it is asked to draw, not on an alphabet it does not have.
   const faces = new Map()
   for (const el of textEls) {
     const f = getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '')
     if (f && !GENERIC.test(f) && !faces.has(f)) faces.set(f, el)
   }
   const probe = document.createElement('span')
-  // Wide and narrow glyphs, upper, lower and figures: any face that is present measures
-  // differently from a generic across this. (Built from pieces — one long alphabet string
-  // reads as a secret to the entropy scanner.)
-  probe.textContent = ['mmmmmmmmmm', 'lllllllllll', 'ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789'].join('')
+  // Wide and narrow glyphs, upper, lower and figures — the fallback sample when an element's
+  // own text is too short. (Built from pieces: one long alphabet string reads as a secret to
+  // the entropy scanner.)
+  const ALPHABET = ['mmmmmmmmmm', 'lllllllllll', 'ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789'].join('')
   probe.style.cssText = 'position:absolute;left:-9999px;top:0;font-size:40px;white-space:nowrap;visibility:hidden'
   document.body.appendChild(probe)
   const width = (fam) => { probe.style.fontFamily = fam; return probe.getBoundingClientRect().width }
   for (const [face, el] of faces) {
+    const own = ownText(el).replace(/\s+/g, ' ')
+    probe.textContent = own.length >= 3 ? own.slice(0, 60) : ALPHABET
     const same = ['monospace', 'serif', 'sans-serif'].every((gen) => Math.abs(width(`"${face}", ${gen}`) - width(gen)) < 0.5)
     if (same) push('font', 'fail', `"${face}" is not available — the page rendered in a fallback, so the design judged is not the one shipped`, ownText(el))
   }
@@ -148,10 +185,15 @@ function auditInPage({ mobile }) {
     const range = document.createRange(); range.selectNodeContents(h)
     const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0)
     if (!rects.length) continue
-    const lines = new Map()
-    for (const r of rects) { const k = Math.round(r.top / 4); lines.set(k, Math.max(lines.get(k) || 0, r.right) - Math.min(r.left, (lines.get(k + 'l') ?? r.left))); lines.set(k + 'l', Math.min(r.left, lines.get(k + 'l') ?? r.left)) }
-    const tops = [...lines.keys()].filter((k) => typeof k === 'number').sort((a, b) => a - b)
-    if (tops.length < 2) continue
+    // Line boxes by vertical overlap, so a smaller inline run on the same line is the same line.
+    const lines = []
+    for (const r of rects.slice().sort((a, b) => a.top - b.top || a.left - b.left)) {
+      const L = lines[lines.length - 1]
+      if (L && Math.min(L.bottom, r.bottom) - Math.max(L.top, r.top) > 0.5 * Math.min(L.bottom - L.top, r.height)) {
+        L.left = Math.min(L.left, r.left); L.right = Math.max(L.right, r.right); L.top = Math.min(L.top, r.top); L.bottom = Math.max(L.bottom, r.bottom)
+      } else lines.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right })
+    }
+    if (lines.length < 2) continue
     // width of the last word alone
     const walker = document.createTreeWalker(h, NodeFilter.SHOW_TEXT)
     let last = null; while (walker.nextNode()) if (walker.currentNode.textContent.trim()) last = walker.currentNode
@@ -159,18 +201,19 @@ function auditInPage({ mobile }) {
     const m = /(\S+)\s*$/.exec(last.textContent); if (!m) continue
     const wr = document.createRange(); wr.setStart(last, m.index); wr.setEnd(last, m.index + m[1].length)
     const w = wr.getBoundingClientRect().width
-    const lastLineWidth = lines.get(tops[tops.length - 1])
-    if (lastLineWidth <= w + 4) push('widow', 'warn', `the last line of a heading is one word ("${m[1]}") — text-wrap: balance, or rewrite`, h.textContent)
+    const lastLine = lines[lines.length - 1]
+    if (lastLine.right - lastLine.left <= w + 4) push('widow', 'warn', `the last line of a heading is one word ("${m[1]}") — text-wrap: balance, or rewrite`, h.textContent)
   }
 
   // 5. Horizontal overflow.
   const de = document.documentElement
   if (de.scrollWidth > de.clientWidth + 1) push('overflow', mobile ? 'fail' : 'warn', `the page is ${de.scrollWidth}px wide in a ${de.clientWidth}px viewport — it scrolls sideways`)
 
-  // 6. Tap targets (phone only). Inline links in running text are exempt, as WCAG exempts them.
+  // 6. Tap targets (phone only). A link inside running text is exempt, as WCAG exempts it —
+  // judged by whether the parent carries other text, not by its tag: a nav's <li><a> is a control.
   if (mobile) {
     const targets = [...document.querySelectorAll('a[href], button, input, select, textarea, [role="button"]')].filter(visible)
-      .filter((el) => !/^(P|LI|TD|DD|BLOCKQUOTE|FIGCAPTION|SPAN|SMALL|EM|STRONG)$/.test(el.parentElement?.tagName || ''))
+      .filter((el) => !(el.parentElement && ownText(el.parentElement).length > 0))
     const small = targets.map((el) => ({ el, r: el.getBoundingClientRect() })).filter((x) => x.r.width < 44 || x.r.height < 44)
     const bad = small.filter((x) => x.r.width < 24 || x.r.height < 24)
     if (bad.length) push('tap-target', 'fail', `${bad.length} control(s) under 24×24px — a thumb cannot hit them`, ownText(bad[0].el) || bad[0].el.tagName.toLowerCase())
@@ -186,17 +229,17 @@ function auditInPage({ mobile }) {
   const add = (c, w, role) => { const k = hex(c); const e = pal.get(k) || { c, w: 0, roles: new Set() }; e.w += w; e.roles.add(role); pal.set(k, e) }
   const pageArea = Math.max(1, de.scrollWidth * de.scrollHeight)
   // The page's own ground: html's background under body's, over the canvas white.
-  add(ground(document.body).g, pageArea, 'ground')
+  add(groundChain(document.body).g, pageArea, 'ground')
   for (const el of all) {
     if (!visible(el)) continue
     const cs = getComputedStyle(el)
     const bg = rgba(cs.backgroundColor)
-    if (bg[3] > 0.5 && el !== document.body) { const r = el.getBoundingClientRect(); add(over(bg, ground(el.parentElement || el).g), r.width * r.height, 'ground') }
+    if (bg[3] > 0.5 && el !== document.body) { const r = el.getBoundingClientRect(); add(over(bg, groundChain(el.parentElement || el).g), r.width * r.height, 'ground') }
   }
   for (const el of textEls) {
     const cs = getComputedStyle(el); const fg = rgba(cs.color); if (fg[3] === 0) continue
     const fs = parseFloat(cs.fontSize)
-    add(over(fg, ground(el).g), ownText(el).length * fs * fs * 0.55, 'ink')
+    add(over(fg, groundChain(el).g), ownText(el).length * fs * fs * 0.55, 'ink')
   }
   const total = [...pal.values()].reduce((a, e) => a + e.w, 0) || 1
   const rows = [...pal.entries()].map(([k, e]) => ({ hex: k, share: e.w / total, roles: [...e.roles].join('+'), ...oklab(e.c) })).sort((a, b) => b.share - a.share)
@@ -254,11 +297,17 @@ function motionRecorderInit() {
       const name = a.animationName || a.transitionProperty || a.id || ''
       const key = `${name}@${el.tagName}${cls}:${t.duration}`
       if (seen.has(key)) continue
-      let props = []
-      try { props = [...new Set(eff.getKeyframes().flatMap((k) => Object.keys(k).filter((p) => !/^(offset|easing|composite|computedOffset)$/.test(p))))] } catch { /* none */ }
+      let props = [], easing = String(t.easing || '')
+      try {
+        const kf = eff.getKeyframes()
+        props = [...new Set(kf.flatMap((k) => Object.keys(k).filter((p) => !/^(offset|easing|composite|computedOffset)$/.test(p))))]
+        // A CSS animation's timing function lives on its keyframes; the effect's own easing is
+        // always "linear" for them, which would call every eased entrance linear.
+        if (easing === 'linear' && kf[0] && kf[0].easing) easing = String(kf[0].easing)
+      } catch { /* none */ }
       seen.set(key, {
         kind: a.constructor.name, name, duration: Number(t.duration) || 0, delay: Number(t.delay) || 0,
-        easing: String(t.easing || ''), iterations: t.iterations === Infinity ? 'infinite' : Number(t.iterations) || 1,
+        easing, iterations: t.iterations === Infinity ? 'infinite' : Number(t.iterations) || 1,
         props, target: (el.tagName || '').toLowerCase() + cls,
       })
     }
@@ -274,7 +323,8 @@ function motionRecorderInit() {
 function motionFindings(list) {
   const out = []
   if (!list.length) return out
-  const LAYOUT = /^(width|height|top|left|right|bottom|margin|padding|inset|font-size|line-height|border-width)/
+  // Keyframe property names are camelCase.
+  const LAYOUT = /^(width|height|top|left|right|bottom|margin|padding|inset|fontSize|lineHeight|border\w*Width|min\w+|max\w+|flex|gap|columnGap|rowGap)/
   const MOVE = /^(transform|translate|scale|rotate|left|top|right|bottom|offset)/
   const inf = list.filter((a) => a.iterations === 'infinite')
   const finite = list.filter((a) => a.iterations !== 'infinite')
@@ -388,6 +438,8 @@ export async function main(argv = process.argv.slice(2)) {
   return r.ok ? 0 : 1
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compared by real path, so the tool also runs when invoked through a symlink.
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   main().then((code) => process.exit(code), (e) => { console.error(`page-audit: ${e.message}`); process.exit(1) })
 }

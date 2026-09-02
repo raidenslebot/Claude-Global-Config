@@ -5,6 +5,41 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.5.1 — 2026-09-02
+
+An adversarial review of the four newest tools, every finding reproduced before it was fixed,
+and each fix held by a test:
+
+- **page-audit.** The contrast ground is what is *painted* under the text — the element stack
+  at a point in its first line box, composited from the bottom — not its ancestors alone; a
+  hero's white text over a dark positioned block was reported as white on white. Opacity dims
+  the ink. The font-fallback probe uses the page's own text, so an icon face or a CJK face
+  with no Latin glyphs is judged on what it draws. A smaller inline run shares its line, so it
+  is not a widow. A nav's `<li><a>` is a control; only a link inside running text is exempt.
+  A CSS animation's easing is read from its keyframes — every eased entrance was "linear".
+  Keyframe property names are camelCase, so `fontSize` and friends count as layout.
+- **outline-text.** The viewBox starts at the ink: an italic *f* or a *J* hangs left of its
+  origin and was clipped. A Google family is fetched subset to the text, so *ő* and *東* get
+  their glyphs; a character the face lacks is an error naming it, never a `.notdef` box. The
+  help text's pt arithmetic was wrong.
+- **The session hook.** git missing from PATH is said; a detached HEAD is named; when
+  `origin/HEAD` is unset the hook follows the current branch if the origin has it, then main,
+  then master, instead of assuming main and blaming the user's branch. The hook's own timeouts
+  sum inside the registration's.
+- **All tools** run when invoked through a symlink (entry checks compare real paths); the
+  specimen's swatch reader clears its canvas between colours.
+
+## 1.5.0 — 2026-09-02
+
+- **An icon set, worked.** `design-fields/examples/harbor-swim-club-icons/`: one drawing rule
+  from the subject — the waterline through every icon, at the same height, the object above,
+  below or crossed by it — on a 24 grid in `currentColor`; a sprite as the master, one file per
+  icon written by `split.mjs`, a contact sheet at 24 and 48 on both grounds without labels
+  first, and a size deliberately not delivered (16) with the reason. The one field in
+  `design-fields` that had references and no worked piece now has one.
+- The gap analysis records G2 and G3 as closed by the tests that exist; the README layout
+  lists every tool.
+
 ## 1.4.0 — 2026-09-02
 
 - **The override, reversed.** `uninstall` puts back the copy that install moved aside under

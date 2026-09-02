@@ -13,7 +13,7 @@
 // Honest limit: the absence of fingerprints is not the presence of design. This catches the
 // average; it cannot see the good. The review loop in creative-divergence is for that.
 
-import { readFileSync, statSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, statSync, readdirSync, existsSync, realpathSync } from 'node:fs'
 import { join, extname, basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -315,6 +315,7 @@ export function main(argv = process.argv.slice(2)) {
   return bad ? 1 : 0
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   process.exit(main())
 }

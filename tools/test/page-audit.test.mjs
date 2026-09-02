@@ -65,6 +65,46 @@ const GOOD = `<!doctype html><html><head><meta name="viewport" content="width=de
 <img src="nothing.png" alt="" width="10" height="10">
 </body></html>`
 
+// The cases an adversarial review found the first version getting wrong: the ground is what is
+// painted under the text (a hero's dark block, not the white body); opacity dims the ink; a
+// smaller inline run shares its line; a nav's <li><a> is a control; a CSS animation's easing
+// lives on its keyframes; keyframe property names are camelCase.
+const EDGE = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+  body { margin: 0; font-family: serif; background: #fff; color: #111; font-size: 18px; }
+  .hero { position: relative; padding: 40px; }
+  .hero .bg { position: absolute; inset: 0; background: rgb(38 34 30); }
+  .hero h2 { position: relative; margin: 0; color: rgb(247 244 238); font-size: 32px; }
+  .faint { opacity: 0.3; }
+  h3 { font-size: 40px; margin: 0; } h3 small { font-size: 16px; }
+  nav a { font-size: 12px; line-height: 1; display: inline-block; }
+  .eased { animation: slide 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes slide { from { transform: translateX(-40px); } to { transform: none; } }
+  .fs { animation: grow 0.5s ease both; }
+  @keyframes grow { from { font-size: 10px; } to { font-size: 20px; } }
+</style></head><body>
+<section class="hero"><div class="bg"></div><h2>Over a dark block behind the text</h2></section>
+<p class="faint">Faint text at thirty percent opacity that renders far below the minimum.</p>
+<h3>Harbor Swim <small>club</small></h3>
+<nav><ul><li><a href="#">Home</a></li></ul></nav>
+<p>See the <a href="#">docs</a> for the rest of it.</p>
+<div class="eased">eased entrance</div><div class="fs">font-size animated</div>
+</body></html>`
+
+test('the ground is what is painted, opacity dims the ink, inline runs share a line, nav links are controls, keyframe easing counts', { skip }, async (t) => {
+  const d = scratch(t)
+  const f = join(d, 'edge.html'); writeFileSync(f, EDGE)
+  const r = await audit(f, { mobile: true })
+  const fails = r.results[0].findings.filter((x) => x.level === 'fail')
+  const warns = rules(r, 'warn')
+  assert.ok(!fails.some((x) => x.rule === 'contrast' && /Over a dark block/.test(x.sample)), `cream on a dark positioned block is not cream on white: ${JSON.stringify(fails)}`)
+  assert.ok(fails.some((x) => x.rule === 'contrast' && /Faint/.test(x.sample)), `black at 30% opacity on white fails: ${JSON.stringify(fails)}`)
+  assert.ok(!warns.includes('widow'), 'a smaller inline run on the same line is not a widow')
+  const tap = r.results[1].findings.find((x) => x.rule === 'tap-target')
+  assert.ok(tap && tap.level === 'fail' && /Home/.test(tap.sample), `a 12px nav link is a control, not running text: ${JSON.stringify(tap)}`)
+  assert.ok(!warns.includes('motion-linear'), 'a cubic-bezier CSS animation is not linear')
+  assert.ok(warns.includes('motion-layout'), 'fontSize keyframes are a layout animation')
+})
+
 test('every planted defect is named at its level', { skip }, async (t) => {
   const d = scratch(t)
   const f = join(d, 'bad.html'); writeFileSync(f, BAD)

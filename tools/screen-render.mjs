@@ -12,7 +12,7 @@
 // commonest way a designed page ships looking like the default. It cannot tell whether a
 // LOCAL font resolved; only the render can, so look at it.
 
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { join, resolve, dirname, basename, extname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { findPlaywright } from './print-render.mjs'
@@ -130,6 +130,7 @@ export async function main(argv = process.argv.slice(2)) {
   return 0
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   main().then((code) => process.exit(code), (e) => { console.error(`screen-render: ${e.message}`); process.exit(1) })
 }

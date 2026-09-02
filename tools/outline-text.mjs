@@ -12,7 +12,7 @@
 // whose only element is one <path>. Variable axes are applied when the font carries them.
 // Google fonts are fetched once and cached under <config>/.cgc/fonts.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { join, resolve, dirname, basename } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -31,13 +31,15 @@ export function findFontkit() {
   try { return { module: require('fontkit'), from: 'require' } } catch { return null }
 }
 
-/** A Google Fonts family spec ("Fraunces:ital,opsz,wght@1,9..144,300") → a cached woff2 path. */
-export async function fetchGoogleFont(spec) {
+/** A Google Fonts family spec ("Fraunces:ital,opsz,wght@1,9..144,300") → a cached woff2 path.
+ *  With `text`, the request asks for a subset covering exactly those characters, so a face is
+ *  fetched with the glyphs the text needs — the latin slice alone has no ő and no 東. */
+export async function fetchGoogleFont(spec, text = '') {
   mkdirSync(CACHE, { recursive: true })
-  const key = createHash('sha1').update(spec).digest('hex').slice(0, 16)
+  const key = createHash('sha1').update(spec + '\n' + text).digest('hex').slice(0, 16)
   const file = join(CACHE, `${spec.split(':')[0].replace(/\W+/g, '-').toLowerCase()}-${key}.woff2`)
   if (existsSync(file)) return file
-  const url = `https://fonts.googleapis.com/css2?family=${spec.trim().replace(/ /g, '+')}&display=swap`
+  const url = `https://fonts.googleapis.com/css2?family=${spec.trim().replace(/ /g, '+')}&display=swap${text ? `&text=${encodeURIComponent(text)}` : ''}`
   const css = await fetch(url, { headers: { 'User-Agent': UA } }).then((r) => { if (!r.ok) throw new Error(`Google Fonts answered ${r.status} for "${spec}" — check the family name and axis spec`); return r.text() })
   // The latin block first; any woff2 otherwise.
   const m = /\/\* latin \*\/\s*@font-face\s*\{[^}]*?src:\s*url\(([^)]+\.woff2)\)/.exec(css) || /src:\s*url\(([^)]+\.woff2)\)/.exec(css)
@@ -78,19 +80,31 @@ export function outline(font, text, { size = 96, tracking = 0, variation = null,
     if (Object.keys(v).length) f = f.getVariation(v)
   }
   const s = size / f.unitsPerEm
+  // A glyph the font lacks lays out as .notdef — a box — and a box in a wordmark is a defect
+  // nobody should discover at the shop. Name the characters instead.
+  const missing = [...new Set([...text].filter((ch) => /\S/.test(ch) && !f.hasGlyphForCodePoint(ch.codePointAt(0))))]
   const run = f.layout(text, features)
+  if (missing.length || run.glyphs.some((g) => g.id === 0)) {
+    throw new Error(`"${f.familyName || 'this font'}" has no glyph for ${missing.length ? missing.map((c) => `"${c}"`).join(', ') : 'part of the text'} — choose a face that covers the script (a Google fetch subsets to the text you pass)`)
+  }
   const ascent = f.ascent * s, descent = f.descent * s
   const baseline = ascent
   const track = tracking * size
+  // The ink, not the advance: an italic f or a J hangs left of its origin, and a viewBox that
+  // starts at the advance origin clips it. The run's bbox is in font units.
+  const bb = run.bbox
+  const dx = bb && Number.isFinite(bb.minX) ? -bb.minX * s : 0
   let x = 0
   const parts = []
   run.glyphs.forEach((g, i) => {
     const p = run.positions[i]
-    parts.push(pathData(g.path.commands, s, x + p.xOffset * s, baseline - p.yOffset * s))
+    parts.push(pathData(g.path.commands, s, x + p.xOffset * s + dx, baseline - p.yOffset * s))
     x += p.xAdvance * s + (i < run.glyphs.length - 1 ? track : 0)
   })
+  const tracked = Math.max(0, run.glyphs.length - 1) * track
+  const width = bb && Number.isFinite(bb.maxX) ? (bb.maxX - bb.minX) * s + tracked : x
   return {
-    d: parts.join(''), width: x, height: ascent - descent, baseline,
+    d: parts.join(''), width, advance: x, height: ascent - descent, baseline,
     capHeight: (f.capHeight || 0) * s, xHeight: (f.xHeight || 0) * s, glyphs: run.glyphs.length, family: f.familyName || '',
   }
 }
@@ -117,9 +131,11 @@ const HELP = `usage:
                [--units in|mm|pt] [--out <file.svg>] [--json]
 
 Writes an SVG whose only element is one <path>: the text as outlines, laid out with the font's own
-kerning and ligatures. --units gives the SVG a physical size at 1px = 1 unit/96 for print (pt: 1px = 1pt).
---json prints the metrics (width, height, baseline, capHeight, xHeight) instead of writing. Exit 2 when
-fontkit is not installed (npm i in the repo, or node tools/install.mjs --only=deps).
+kerning and ligatures, the viewBox starting at the ink. --units gives the SVG a physical size at
+96 px per inch (so pt: 1 px = 0.75 pt). A Google family is fetched subset to the text and cached.
+--json prints the metrics (width, advance, height, baseline, capHeight, xHeight) instead of writing.
+A character the face has no glyph for is an error, never a box. Exit 2 when fontkit is not
+installed (npm i in the repo, or node tools/install.mjs --only=deps).
 `
 
 export async function main(argv = process.argv.slice(2)) {
@@ -129,7 +145,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (!fk) { console.error('outline-text: fontkit not found — run npm i in the repo, or node tools/install.mjs --only=deps'); return 2 }
   let file = String(args.font)
   if (!/\.(ttf|otf|woff2?)$/i.test(file) && !existsSync(file)) {
-    try { file = await fetchGoogleFont(file) } catch (e) { console.error(`outline-text: ${e.message}`); return 1 }
+    try { file = await fetchGoogleFont(file, String(args.text)) } catch (e) { console.error(`outline-text: ${e.message}`); return 1 }
   } else if (!existsSync(file)) { console.error(`outline-text: no such font file — ${file}`); return 1 }
   let font
   try { font = fk.module.create(readFileSync(file)) } catch (e) { console.error(`outline-text: cannot read ${basename(file)} — ${e.message}`); return 1 }
@@ -137,7 +153,9 @@ export async function main(argv = process.argv.slice(2)) {
   const variation = {}
   for (const axis of ['wght', 'wdth', 'opsz', 'ital', 'slnt', 'SOFT', 'WONK']) if (args[axis] !== undefined) variation[axis] = Number(args[axis])
   const size = args.size ? Number(args.size) : 96
-  const res = outline(font, String(args.text), { size, tracking: args.tracking ? Number(args.tracking) : 0, variation })
+  let res
+  try { res = outline(font, String(args.text), { size, tracking: args.tracking ? Number(args.tracking) : 0, variation }) }
+  catch (e) { console.error(`outline-text: ${e.message}`); return 1 }
   if (args.json) { console.log(JSON.stringify({ font: basename(file), family: res.family, size, ...res, d: undefined }, null, 2)); return 0 }
   let units = ''
   if (args.units) {
@@ -158,6 +176,7 @@ export async function main(argv = process.argv.slice(2)) {
   return 0
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (isEntry) {
   main().then((code) => process.exit(code), (e) => { console.error(`outline-text: ${e.message}`); process.exit(1) })
 }

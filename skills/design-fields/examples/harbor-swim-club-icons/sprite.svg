@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <!--
+    Harbor Swim Club icons. 24 grid, live area 20, stroke 2, round caps and joins, currentColor.
+    The rule: a waterline at y=14 in every icon; the object is above it, below it or crossed by it.
+    Use: <svg width="24" height="24"><use href="sprite.svg#swim"/></svg>, or inline the symbol.
+    Delivered at 24 and 48. Not at 16 (the mark's favicon covers that size). split.mjs writes one
+    file per symbol. Drawn by hand from directions.md.
+  -->
+  <symbol id="swim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="8.5" cy="8" r="2.5"/>
+    <path d="M12 12c2-3 5-3 7 0"/>
+    <path d="M2 14h20"/>
+  </symbol>
+  <symbol id="dawn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 14a6 6 0 0 1 12 0"/>
+    <path d="M12 3v2M5.5 6.5 7 8M18.5 6.5 17 8"/>
+    <path d="M2 14h20"/>
+  </symbol>
+  <symbol id="tide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 21V7"/>
+    <path d="m8 11 4-4 4 4"/>
+    <path d="M2 14h20"/>
+  </symbol>
+  <symbol id="temperature" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 14.5V5a2 2 0 0 0-4 0v9.5a3.5 3.5 0 1 0 4 0z"/>
+    <path d="M2 14h6M16 14h6"/>
+  </symbol>
+  <symbol id="wall" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13 21v-9h4V8h5"/>
+    <path d="M2 14h11"/>
+  </symbol>
+  <symbol id="flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 21V4"/>
+    <path d="M8 4h9l-2.5 3 2.5 3H8"/>
+    <path d="M2 14h20"/>
+  </symbol>
+  <symbol id="float" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="14" r="5"/>
+    <path d="M2 14h20"/>
+  </symbol>
+  <symbol id="thermos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 5V3h4v2"/>
+    <path d="M9 5h6v9H9z"/>
+    <path d="M2 14h20"/>
+  </symbol>
+</svg>
