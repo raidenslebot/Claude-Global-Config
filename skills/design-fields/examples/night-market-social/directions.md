@@ -14,7 +14,7 @@ for the feed, one a week, that people stop on and that reads as the same market 
 | **Tempo** | weekly; lettered by hand the same afternoon; loud, crowded, improvised |
 | **Vernacular** | "stall", "board", "cash only", "while it lasts", "from 7 till late" |
 | **Rules of the world** | prices dominate; nothing is centred by a designer; everything is made cheap and fast and looks it, on purpose |
-| **Where it is seen** | a phone, in a feed, at a thumb's distance, for one second, between two other posts; 1080 × 1350 is the tallest a post gets |
+| **Where it is seen** | a phone, in a feed, at a thumb's distance, for one second, between two other posts; 4:5 (1080 × 1350) is the tallest every scheduler takes, and the feed itself has gone 3:4 (1080 × 1440) since 2025 |
 
 ## Directions
 
@@ -36,9 +36,10 @@ for the feed, one a week, that people stop on and that reads as the same market 
 
 **Direction 1.** The series is the design: one template, one variable, three weeks.
 
-- **Canvas.** 1080 × 1350, 4:5 — the tallest feed image, so the board has room. Type ≥ 40 px
-  for anything that must be read in the feed; the word is 520 px tall and cropped by the right
-  edge on purpose.
+- **Canvas.** 1080 × 1350, 4:5 — the tallest image every scheduler accepts, so the board has
+  room; the feed's own 3:4 (`ig-34`) would give 90 px more and is the variant to cut when the
+  client posts by hand. Type ≥ 40 px for anything that must be read in the feed; the word is
+  cropped by the right edge on purpose.
 - **Faces.** The word in **Big Shoulders Display** at `wght 900` — condensed caps, signage,
   the poster's voice on a face the feed can load; the board in **JetBrains Mono** — the hand
   that writes the prices. Two faces.
