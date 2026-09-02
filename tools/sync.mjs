@@ -45,6 +45,12 @@ function syncFile(from, to, tmpl) {
   if (!existsSync(from)) { warnings.push(`missing on disk, not synced: ${from}`); return }
   let text = readFileSync(from, 'utf8')
   if (tmpl) text = templatize(text, vars)
+  // install.mjs ends the live CLAUDE.md with a marker and keeps whatever the user writes below
+  // it. The repo owns only what is above: the marker and the user's notes never sync back.
+  if (/CLAUDE\.md$/i.test(from)) {
+    const MARK = '<!-- user-additions-below -->'
+    if (text.includes(MARK)) text = text.slice(0, text.indexOf(MARK)).trimEnd() + '\n'
+  }
   checked++
   const prev = existsSync(to) ? readFileSync(to, 'utf8') : null
   if (prev === text) return

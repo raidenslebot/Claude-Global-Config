@@ -35,7 +35,7 @@ export function hsl(str) {
     r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16)
   } else if ((m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(str))) {
     r = +m[1]; g = +m[2]; b = +m[3]
-  } else if ((m = /^hsla?\(\s*([\d.]+)[\s,]+([\d.]+)%[\s,]+([\d.]+)%/i.exec(str))) {
+  } else if ((m = /^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%/i.exec(str))) {
     return { h: +m[1], s: +m[2] / 100, l: +m[3] / 100 }
   } else if ((m = /^oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/i.exec(str))) {
     // oklch hue is not hsl hue, but the purple band and the acid band land in the same place.
@@ -51,8 +51,13 @@ export function hsl(str) {
   return { h: h * 60, s, l }
 }
 const COLOUR = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\)/gi
-// indigo-500 (#6366f1) sits at 239°; the band starts in blue-violet so the indigo→pink pair counts.
-const inPurple = (c) => c && c.s >= 0.35 && c.h >= 232 && c.h <= 345
+// indigo-500 (#6366f1) sits at 239° and the canonical #667eea at 229°; the band starts in
+// blue-violet so those pairs count. A gradient is the tell when one stop is in the band and
+// the other is any saturated blue-to-pink partner (200–345°), which covers #667eea→#764ba2 and
+// #6a11cb→#2575fc — the two most copied gradients on the web.
+const inPurple = (c) => c && c.s >= 0.35 && c.h >= 225 && c.h <= 345
+const purplePartner = (c) => c && c.s >= 0.35 && c.h >= 200 && c.h <= 345
+const purplePair = (cols) => cols.some(inPurple) && cols.filter(purplePartner).length >= 2
 const isAcid = (c) => c && c.s >= 0.6 && c.l >= 0.4 && c.h >= 70 && c.h <= 195
 const nearBlack = (c) => c && c.l <= 0.12
 
@@ -106,8 +111,8 @@ export const FAMILIES = [
       const tw = first(/\bfrom-(purple|violet|indigo|fuchsia|pink)-\d+\b[^"'`]*\b(via|to)-(purple|violet|indigo|fuchsia|pink|blue|rose)-\d+\b/, t)
       if (tw) return { i: tw.i, s: tw.s.slice(0, 60) }
       for (const m of t.matchAll(/(?:linear|radial|conic)-gradient\(((?:[^()]|\([^()]*\))*)\)/g)) {
-        const cols = (m[1].match(COLOUR) || []).map(hsl).filter(inPurple)
-        if (cols.length >= 2) return { i: m.index, s: m[0].slice(0, 60) }
+        const cols = (m[1].match(COLOUR) || []).map(hsl).filter(Boolean)
+        if (purplePair(cols)) return { i: m.index, s: m[0].slice(0, 60) }
       }
       const clip = first(/bg-clip-text\b[^"'`]*text-transparent|text-transparent\b[^"'`]*bg-clip-text|-webkit-background-clip\s*:\s*text/, t)
       return clip && /gradient/.test(t) ? { i: clip.i, s: 'gradient-clipped heading text' } : null
@@ -158,9 +163,11 @@ export const FAMILIES = [
     why: 'emoji as section markers read as a pitch deck. Draw a mark, set a numeral, or use nothing',
     find(t) {
       const body = t.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
-      const all = body.match(/\p{Extended_Pictographic}/gu) || []
+      // Emoji_Presentation, not Extended_Pictographic: © ® ™ ↗ ✔ are typography, not icons.
+      const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}️/gu
+      const all = body.match(EMOJI) || []
       if (all.length < 3) return null
-      const m = first(/\p{Extended_Pictographic}/u, body)
+      const m = first(/\p{Emoji_Presentation}|\p{Extended_Pictographic}️/u, body)
       return { i: t.indexOf(m.s), s: `${all.length} emoji, first ${m.s}` }
     },
   },

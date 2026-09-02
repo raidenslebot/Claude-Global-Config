@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync, realpathSync, renameSync } from 'node:fs'
 import { join, dirname, relative, basename } from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, buildVars, realize, unresolved } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved } from './paths.mjs'
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
 
 const args = process.argv.slice(2)
@@ -56,19 +56,32 @@ function run(cmd, argv, opts = {}) {
   return spawnSync(plan.file, plan.args, { encoding: 'utf8', timeout: opts.timeout ?? 300000, shell: false, ...opts })
 }
 
+/** Windows paths compare case-insensitively; realpathSync keeps the case it was given. */
+const samePath = (a, b) => (IS_WIN ? a.toLowerCase() === b.toLowerCase() : a === b)
+
 /** Cross-platform directory link. Windows junctions need no admin rights; POSIX uses symlinks.
  *  An existing entry that does not resolve to `target` is a foreign copy under our name; it
  *  would shadow the repo's version on every session, so it is moved aside and replaced. */
 function linkDir(target, linkPath) {
   let replaced = ''
-  if (existsSync(linkPath)) {
+  // lstat, not existsSync: existsSync follows the link, so a dangling junction reads as absent,
+  // mklink then fails on it, and the copy fallback crashed the whole installer.
+  let present = false
+  try { lstatSync(linkPath); present = true } catch { /* nothing there */ }
+  if (present) {
     let same = false
-    try { same = realpathSync(linkPath) === realpathSync(target) } catch { /* a dangling link: replace it */ }
+    try { same = samePath(realpathSync(linkPath), realpathSync(target)) } catch { /* a dangling link: replace it */ }
     if (same) return 'exists'
     if (DRY) return 'would replace'
     const aside = join(CONFIG_ROOT, '.cgc-replaced', `${basename(linkPath)}-${Date.now()}`)
     mkdirSync(dirname(aside), { recursive: true })
-    try { renameSync(linkPath, aside) } catch { rmSync(linkPath, { recursive: true, force: true }) }
+    // Move it aside; if that fails, COPY it aside and only then remove it. Nothing of the
+    // user's is deleted before a copy exists, and the message never names a copy that is not there.
+    try { renameSync(linkPath, aside) } catch {
+      try { cpSync(linkPath, aside, { recursive: true }); rmSync(linkPath, { recursive: true, force: true }) } catch (e) {
+        return `failed: ${linkPath} could not be moved aside (${e.message}) — left in place, not linked`
+      }
+    }
     replaced = ` — replaced; the previous copy is at ${aside}`
   }
   if (DRY) return 'dry'
@@ -137,15 +150,27 @@ if (wants('config')) {
     const left = unresolved(text)
     if (left.length) warn(`${name} has unresolved tokens: ${left.join(', ')}`)
     const dest = join(CONFIG_ROOT, name)
-    // CLAUDE.md may hold the user's own notes. Preserve anything below the marker.
-    if (name === 'CLAUDE.md' && existsSync(dest)) {
-      const cur = readFileSync(dest, 'utf8')
+    // CLAUDE.md may hold the user's own notes. The shipped file ends with a marker; anything
+    // a user writes below it survives every update. A file that is already there WITHOUT the
+    // marker is the user's own — it is kept, never overwritten and lost.
+    if (name === 'CLAUDE.md') {
       const MARK = '<!-- user-additions-below -->'
-      if (cur.includes(MARK)) {
-        const keep = cur.slice(cur.indexOf(MARK))
-        if (!DRY) writeFileSync(dest, text.trimEnd() + '\n\n' + keep, 'utf8')
-        ok(`${name} (user additions preserved)`); continue
+      const body = text.includes(MARK) ? text : text.trimEnd() + '\n\n' + MARK + '\n'
+      if (existsSync(dest)) {
+        const cur = readFileSync(dest, 'utf8')
+        if (cur.includes(MARK)) {
+          const keep = cur.slice(cur.indexOf(MARK) + MARK.length)
+          if (!DRY) writeFileSync(dest, body.trimEnd() + '\n' + keep.replace(/^\s*\n/, '\n'), 'utf8')
+          ok(`${name} (user additions below the marker preserved)`); continue
+        }
+        const aside = join(CONFIG_ROOT, '.cgc-replaced', `CLAUDE.md-${Date.now()}`)
+        if (!DRY) { mkdirSync(dirname(aside), { recursive: true }); cpSync(dest, aside) }
+        if (!DRY) writeFileSync(dest, body, 'utf8')
+        ok(`${name} — the existing file had no marker; it is kept at ${aside}, and anything you add below the marker in the new one survives updates`)
+        continue
       }
+      if (!DRY) writeFileSync(dest, body, 'utf8')
+      ok(name); continue
     }
     if (!DRY) writeFileSync(dest, text, 'utf8')
     ok(name)
@@ -156,7 +181,7 @@ if (wants('config')) {
 if (wants('hooks')) {
   phase('Config — hooks')
   const hooksDir = join(CONFIG_ROOT, 'hooks')
-  mkdirSync(hooksDir, { recursive: true })
+  if (!DRY) mkdirSync(hooksDir, { recursive: true })
   // Hooks are collected from three places into ONE directory. They must all live under
   // {{CONFIG_ROOT}}: a hook registered at a path outside it (in a plugin dir, say) is dead
   // on any machine that does not happen to have that exact path.
@@ -253,7 +278,7 @@ if (wants('hooks')) {
 if (wants('skills')) {
   phase('Skills')
   const skillsDir = join(CONFIG_ROOT, 'skills')
-  mkdirSync(skillsDir, { recursive: true })
+  if (!DRY) mkdirSync(skillsDir, { recursive: true })
 
   // Skills this repo authors.
   const owned = join(REPO, 'skills')
@@ -261,7 +286,9 @@ if (wants('skills')) {
     for (const name of readdirSync(owned)) {
       if (!existsSync(join(owned, name, 'SKILL.md'))) continue
       const r = linkDir(join(owned, name), join(skillsDir, name))
-      r === 'exists' ? skip(`${name} (already installed)`) : ok(`${name} (${r})`)
+      if (r === 'exists') skip(`${name} (already installed)`)
+      else if (r.startsWith('failed')) fail(`${name}: ${r}`)
+      else ok(`${name} (${r})`)
     }
   }
 
@@ -271,7 +298,7 @@ if (wants('skills')) {
   const wfSrc = join(REPO, 'workflows')
   if (existsSync(wfSrc)) {
     const wfDest = join(CONFIG_ROOT, 'workflows')
-    mkdirSync(wfDest, { recursive: true })
+    if (!DRY) mkdirSync(wfDest, { recursive: true })
     let n = 0
     for (const f of readdirSync(wfSrc).filter((f) => /.(js|mjs)$/.test(f))) {
       if (!DRY) writeFileSync(join(wfDest, f), realize(readFileSync(join(wfSrc, f), 'utf8'), vars, { slash: 'forward' }), 'utf8')
@@ -363,7 +390,7 @@ if (wants('mcp')) {
   if (r.status === 0 || DRY) ok(`installed ${servers.join(', ')}`)
   else warn('MCP server install failed — run npm i in library/mcp-servers')
 
-  const cfgPath = join(HOME, '.claude.json')
+  const cfgPath = CLAUDE_JSON
   if (existsSync(cfgPath) && !DRY) {
     try {
       const cfg = JSON.parse(readFileSync(cfgPath, 'utf8').replace(/^﻿/, ''))
@@ -414,7 +441,8 @@ if (wants('library') && !SKIP.has('library')) {
       const target = join(root, ...s.path.split('/'))
       if (!existsSync(target)) { warn(`tier-2 skill missing: ${s.name}`); continue }
       const r = linkDir(target, join(CONFIG_ROOT, 'skills', s.name))
-      if (r !== 'exists') n++
+      if (r.startsWith('failed')) fail(`${s.name}: ${r}`)
+      else if (r !== 'exists') n++
     }
     ok(`tier-2 skills linked (${n} new, ${t2.length} total)`)
   }

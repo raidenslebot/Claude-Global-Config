@@ -93,7 +93,7 @@ export function findPlaywright() {
   const require = createRequire(import.meta.url)
   const candidates = []
   try {
-    const cfg = JSON.parse(readFileSync(join(homedir(), '.claude.json'), 'utf8').replace(/^﻿/, ''))
+    const cfg = JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR || homedir(), '.claude.json'), 'utf8').replace(/^﻿/, ''))
     const entry = cfg?.mcpServers?.playwright?.args?.[0]
     if (entry) candidates.push(resolve(dirname(String(entry)), '..', '..'))
   } catch { /* no live config — fall through */ }
@@ -167,6 +167,7 @@ function mockupWrapper({ flatSvg, flatW, flatH, zone, artUrl, artW, artH, garmen
   // Ink on a light garment reads as multiply (it soaks in); on a dark one an opaque ink sits on
   // top, so no blend. Decided from the garment colour, not guessed.
   const lum = luminance(garment)
+  if (presentation && lum === null) console.error(`print-render: --garment "${garment}" is not a hex colour, so the ink-blend decision is skipped — give it as #rrggbb`)
   const blend = presentation && lum !== null && lum > 0.35 ? ' mix-blend-mode: multiply;' : ''
   // Presentation: a neutral studio ground, a soft cast shadow, a fabric grain on the garment
   // only, and a slight fall-off toward the edges. Restrained on purpose — this is a review
@@ -229,11 +230,23 @@ export function artSize(file) {
     const b = readFileSync(file)
     if (b.length > 24 && b.toString('latin1', 1, 4) === 'PNG') return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), unit: 'px' }
   }
+  if (ext === '.jpg' || ext === '.jpeg') {
+    // The first SOF marker carries the dimensions; a JPEG was placed square before this.
+    const b = readFileSync(file)
+    let i = 2
+    while (i + 9 < b.length && b[i] === 0xff) {
+      const type = b[i + 1]
+      if (type >= 0xc0 && type <= 0xcf && type !== 0xc4 && type !== 0xc8 && type !== 0xcc) return { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5), unit: 'px' }
+      i += 2 + b.readUInt16BE(i + 2)
+    }
+  }
   return { w: 1, h: 1, unit: 'ratio' }
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
+// Flags that never take a value, so `--marks back.html` keeps its page.
+const BOOLEAN = new Set(['marks', 'json', 'presentation', 'show-zones', 'pages', 'help'])
 function parseArgs(argv) {
   const out = { _: [] }
   for (let i = 0; i < argv.length; i++) {
@@ -241,7 +254,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split(/=(.*)/s)
       if (v !== undefined) out[k] = v
-      else if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]
+      else if (!BOOLEAN.has(k) && i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]
       else out[k] = true
     } else out._.push(a)
   }
@@ -345,6 +358,8 @@ export async function main(argv = process.argv.slice(2)) {
       const vw = Math.round(pageW * 96), vh = Math.round(pageH * 96)
       const ctx = await browser.newContext({ deviceScaleFactor: scale, viewport: { width: vw, height: vh * pages } })
       const page = await ctx.newPage()
+      // The proof must show what the PDF prints: print media, not screen media.
+      await page.emulateMedia({ media: 'print' })
       await page.goto(pathToFileURL(wrapper).href, { waitUntil: 'load' })
       await page.evaluate(() => document.fonts ? document.fonts.ready : null)
       if (pages === 1) {

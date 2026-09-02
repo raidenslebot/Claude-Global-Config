@@ -153,15 +153,22 @@ test('--yes restores the copy install moved aside under our skill\'s name, and r
   writeFileSync(join(aside, 'SKILL.md'), '# the user\'s own copy, moved aside at install\n', 'utf8')
   mkdirSync(join(cfg, '.cgc', 'fonts'), { recursive: true })
   writeFileSync(join(cfg, '.cgc', 'selftest.json'), '{}', 'utf8')
+  // The realized workflows install writes, plus one that is not ours.
+  const wfNames = readdirSync(join(REPO, 'workflows')).filter((f) => /\.(js|mjs)$/.test(f))
+  mkdirSync(join(cfg, 'workflows'), { recursive: true })
+  for (const f of [...wfNames, 'someone-elses.js']) writeFileSync(join(cfg, 'workflows', f), `// ${f}\n`, 'utf8')
 
   const dry = runUninstall([], home)
   assert.equal(dry.status, 0, dry.plain)
   assert.ok(existsSync(join(cfg, '.cgc', 'selftest.json')), 'a dry run removes nothing')
   assert.ok(existsSync(aside), 'a dry run restores nothing')
+  assert.ok(existsSync(join(cfg, 'workflows', wfNames[0])), 'a dry run removes no workflow')
 
   const r = runUninstall(['--yes'], home)
   assert.equal(r.status, 0, r.plain)
   assert.match(r.plain, /is back in its place/)
+  for (const f of wfNames) assert.ok(!existsSync(join(cfg, 'workflows', f)), `${f} is removed`)
+  assert.ok(existsSync(join(cfg, 'workflows', 'someone-elses.js')), 'a workflow that is not ours is kept')
   assert.ok(!lstatSync(join(skills, name)).isSymbolicLink(), 'our link is gone')
   assert.equal(readFileSync(join(skills, name, 'SKILL.md'), 'utf8'), '# the user\'s own copy, moved aside at install\n', 'the replaced copy is restored')
   assert.ok(!existsSync(aside), 'the aside copy moved, not duplicated')

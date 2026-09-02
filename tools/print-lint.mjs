@@ -137,14 +137,16 @@ export function lint(file, opts = {}) {
 
   // 4. Type below the minimum.
   const sizes = []
-  for (const m of text.matchAll(/font-size\s*[:=]\s*"?([\d.]+)\s*(pt|px|mm|in|cm|pc|em|rem)/gi)) sizes.push({ src: m[0], v: m[1], u: m[2] })
+  // CSS form only (a colon): the attribute form is read below, once, with an optional unit.
+  for (const m of text.matchAll(/font-size\s*:\s*([\d.]+)\s*(pt|px|mm|in|cm|pc|em|rem)/gi)) sizes.push({ src: m[0], v: m[1], u: m[2] })
   for (const m of text.matchAll(/\bfont\s*:\s*(?:[a-z-]+\s+)*?([\d.]+)(pt|px|mm|in|cm|pc)(?:\/[\d.]+)?\s/gi)) sizes.push({ src: m[0].trim(), v: m[1], u: m[2] })
   for (const m of text.matchAll(/font-size="([\d.]+)(pt|px|mm|in|cm|pc)?"/gi)) sizes.push({ src: m[0], v: m[1], u: m[2] || (isSvg ? 'svg' : 'px') })
   const rootPt = (() => { const m = text.match(/html\s*\{[^}]*font-size\s*:\s*([\d.]+)(pt|px)/i); return m ? toPt(m[1], m[2]) : 12 })()
   for (const s of sizes) {
     let pt
     if (s.u === 'em' || s.u === 'rem') { warn('type', `${s.src} — relative unit; cannot verify against ${method.text}pt (root assumed ${rootPt}pt → ${(Number(s.v) * rootPt).toFixed(1)}pt)`); continue }
-    if (s.u === 'svg') { if (!declared) { warn('type', `${s.src} — unitless SVG font-size; declare the SVG in physical units to check it`); continue } pt = svgUserToPt(text, declared, Number(s.v)); if (pt == null) continue }
+    // No viewBox: a user unit is a CSS pixel, so the px conversion is the right fallback, not a skip.
+    if (s.u === 'svg') { if (!declared) { warn('type', `${s.src} — unitless SVG font-size; declare the SVG in physical units to check it`); continue } pt = svgUserToPt(text, declared, Number(s.v)) ?? toPt(s.v, 'px') }
     else pt = toPt(s.v, s.u)
     if (pt < method.text) fail('type', `${s.src} = ${pt.toFixed(1)}pt, below the ${method.text}pt minimum for ${method.label}`)
     else if (pt < method.reversedText) warn('type', `${s.src} = ${pt.toFixed(1)}pt — fine positive; too small if reversed (light on dark) for ${method.label}`)
@@ -159,24 +161,33 @@ export function lint(file, opts = {}) {
   for (const m of text.matchAll(/stroke-width\s*[:=]\s*"?([\d.]+)(pt|px|mm|in)?/gi)) {
     let pt
     if (m[2]) pt = toPt(m[1], m[2])
-    else if (isSvg && declared) { pt = svgUserToPt(text, declared, Number(m[1])); if (pt == null) continue }
+    else if (isSvg && declared) { pt = svgUserToPt(text, declared, Number(m[1])) ?? toPt(m[1], 'px') }
     else pt = toPt(m[1], 'px')
     if (pt > 0 && pt < method.line) fail('line', `${m[0]} = ${pt.toFixed(2)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
   }
 
   // 6. Rasters placed below the required dpi.
   if (method.raster) {
-    for (const m of text.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
+    // An HTML <img src> or an SVG <image href> — a raster placed in an SVG prints just as soft.
+    for (const m of text.matchAll(/<(?:img|image)\b[^>]*\b(?:src|href|xlink:href)="([^"]+)"[^>]*>/gi)) {
       const tag = m[0]
       const srcRaw = m[1]
       if (/^(https?:|data:)/i.test(srcRaw)) { warn('raster', `${srcRaw.slice(0, 40)}… — remote or inline image; cannot verify resolution`); continue }
-      const p = resolve(dirname(file), decodeURIComponent(srcRaw.replace(/^file:\/\/\/?/, '')))
+      // A file: URL resolves through fileURLToPath (stripping the scheme by hand ate the POSIX root).
+      let p
+      try { p = /^file:/i.test(srcRaw) ? fileURLToPath(srcRaw) : resolve(dirname(file), decodeURIComponent(srcRaw)) } catch { p = resolve(dirname(file), srcRaw) }
       const px = rasterWidth(p)
-      if (!px) continue
+      // An image that cannot be read is a finding, not a pass: the press will ask for it.
+      if (!px) { warn('raster', `${srcRaw} — not found or not a readable PNG/JPEG at ${p}; its resolution cannot be verified`); continue }
       // The placed width: an inline style or width attribute on the tag, else a stylesheet
       // rule whose selector actually targets this image — `img`, one of its classes, or its
       // id. Never "the first width in the file", which is usually the sheet itself.
       let wm = tag.match(/width\s*[:=]\s*"?([\d.]+)\s*(in|mm|cm|pt)/i)
+      // An SVG <image width="N"> is in user units: through the viewBox to inches, or CSS px without one.
+      if (!wm && isSvg && declared) {
+        const u = tag.match(/\bwidth="([\d.]+)"/i)
+        if (u) wm = [u[0], String((svgUserToPt(text, declared, Number(u[1])) ?? toPt(u[1], 'px')) / 72), 'in']
+      }
       if (!wm) {
         const selectors = ['img']
         for (const c of ((tag.match(/class="([^"]+)"/i) || [])[1] || '').split(/\s+/).filter(Boolean)) selectors.push(`\\.${c}`)
@@ -238,6 +249,8 @@ function rasterWidth(p) {
 
 // ── cli ──────────────────────────────────────────────────────────────────────
 
+// Flags that never take a value, so `--json card.html` keeps its file.
+const BOOLEAN = new Set(['json', 'help'])
 function parseArgs(argv) {
   const out = { _: [] }
   for (let i = 0; i < argv.length; i++) {
@@ -245,7 +258,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split(/=(.*)/s)
       if (v !== undefined) out[k] = v
-      else if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]
+      else if (!BOOLEAN.has(k) && i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]
       else out[k] = true
     } else out._.push(a)
   }

@@ -319,7 +319,8 @@ between, and which commits, when it updates. Release: bump the version, add the 
 its hook registrations by script name so they cannot be duplicated or dropped, and honours
 `CLAUDE_CONFIG_DIR`. It does not touch `.credentials.json`, permissions, or anything else in
 `settings.json`, and a user's own notes below `<!-- user-additions-below -->` in `CLAUDE.md`
-survive every update.
+survive every update — the shipped file always ends with that marker, and a `CLAUDE.md` that
+was there before it, without the marker, is kept under `.cgc-replaced/` rather than overwritten.
 
 The repo is the source of truth. After editing `~/.claude` by hand, pull the changes back:
 

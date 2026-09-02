@@ -16,6 +16,9 @@ export const IS_WIN = platform() === 'win32'
 // Claude Code itself honours CLAUDE_CONFIG_DIR; an install that ignored it would write to a
 // directory the running Claude never reads. The tests use it to install into a scratch root.
 export const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || join(HOME, '.claude')
+// Claude Code reads .claude.json from CLAUDE_CONFIG_DIR when that is set, else from HOME.
+// Registering MCP servers in the other file is registering them nowhere.
+export const CLAUDE_JSON = join(process.env.CLAUDE_CONFIG_DIR || HOME, '.claude.json')
 
 /** Locate the node executable to hard-pin in hook commands.
  *  Pinning matters: a hook that relies on PATH silently dies when PATH differs

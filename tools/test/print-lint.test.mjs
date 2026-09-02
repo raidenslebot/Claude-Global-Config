@@ -100,6 +100,40 @@ test('an SVG in physical units is checked through its viewBox; one in pixels fai
   assert.ok(rules(px, 'fail').includes('size'))
 })
 
+test('the cases a review found passing clean: a raster inside an SVG, an SVG with no viewBox, an image that cannot be read', (t) => {
+  const d = scratch(t)
+  // A 900px PNG placed 12in wide inside an 18×24 SVG = 75dpi.
+  const png = Buffer.alloc(33)
+  png.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); png.writeUInt32BE(13, 8); png.write('IHDR', 12, 'latin1')
+  png.writeUInt32BE(900, 16); png.writeUInt32BE(600, 20)
+  writeFileSync(join(d, 'photo.png'), png)
+  const svgImage = `<svg xmlns="http://www.w3.org/2000/svg" width="18.5in" height="24.5in" viewBox="0 0 1850 2450"><image href="photo.png" width="1200" height="800"/><text font-size="60" x="20" y="200">Night</text></svg>`
+  const r = lint(file(d, 'poster.svg', svgImage), { size: 'poster-18x24' })
+  assert.ok(rules(r, 'fail').includes('raster'), JSON.stringify(r.findings))
+  assert.match(r.findings.find((f) => f.rule === 'raster').msg, /900px placed at 12\.00in = 75dpi/)
+
+  // No viewBox: a user unit is a CSS pixel, so font-size 5 is 3.75pt and a 0.1 stroke is 0.08pt.
+  const noViewBox = `<svg xmlns="http://www.w3.org/2000/svg" width="4in" height="2in"><text font-size="5" x="10" y="40">Ada</text><line x1="0" y1="50" x2="100" y2="50" stroke="#000" stroke-width="0.1"/></svg>`
+  const n = lint(file(d, 'novb.svg', noViewBox), {})
+  assert.ok(rules(n, 'fail').includes('type'), JSON.stringify(n.findings))
+  assert.ok(rules(n, 'fail').includes('line'))
+
+  // An image that is not there is a warning, never silence.
+  const missing = GOOD_CARD.replace('</style>', 'img { width: 2in; }</style>').replace('<h1>', '<img src="nowhere.png"><h1>')
+  const w = lint(file(d, 'missing.html', missing), { size: 'business-card-us' })
+  assert.ok(rules(w, 'warn').includes('raster'), JSON.stringify(w.findings))
+  assert.match(w.findings.find((f) => f.rule === 'raster').msg, /not found/)
+
+  // The attribute form of font-size is reported once, and --json keeps the file that follows it.
+  const attr = lint(file(d, 'attr.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="4in" height="2in" viewBox="0 0 400 200"><text font-size="4pt" x="10" y="40">Ada</text></svg>`), {})
+  assert.equal(attr.findings.filter((f) => f.rule === 'type').length, 1, JSON.stringify(attr.findings))
+  const { spawnSync } = require_child()
+  const cli = spawnSync(process.execPath, [join(REPO, 'tools', 'print-lint.mjs'), '--json', join(d, 'attr.svg')], { encoding: 'utf8', timeout: 60000 })
+  assert.equal(cli.status, 1, cli.stdout + cli.stderr)
+  assert.doesNotThrow(() => JSON.parse(cli.stdout), 'the file after --json was linted, and the output is JSON')
+  assert.match(cli.stdout, /"rule":\s*"type"/)
+})
+
 test('an SVG whose comment holds a double hyphen fails as malformed XML — Chromium would refuse it silently', (t) => {
   const d = scratch(t)
   const good = `<svg xmlns="http://www.w3.org/2000/svg" width="4in" height="4in" viewBox="0 0 400 400"><!-- mockup: print-render mark.svg, zone left-chest --><text font-size="40" x="20" y="200">Mark</text></svg>`

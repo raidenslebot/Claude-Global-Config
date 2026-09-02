@@ -6,10 +6,10 @@
 //
 // Exit 1 if any check FAILS. Warnings alone exit 0.
 
-import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, unresolved } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved } from './paths.mjs'
 import { findPlaywright } from './print-render.mjs'
 
 const JSON_OUT = process.argv.includes('--json')
@@ -75,6 +75,8 @@ phase('Hooks')
   if (settings && !events.length) warn('no hooks registered')
   for (const [event, groups] of events) {
     for (const g of groups || []) for (const h of g.hooks || []) {
+      // A prompt or agent hook has no command; only command hooks can be a silent no-op.
+      if (h.type && h.type !== 'command') { ok(`${event} · ${h.type} hook`); continue }
       const cmd = String(h.command || '')
       const tok = (cmd.match(/"[^"]*"|\S+/g) || []).map((t) => t.replace(/^"|"$/g, ''))
       const script = tok.slice(1).find((t) => /\.[cm]?js$/i.test(t))
@@ -94,8 +96,8 @@ phase('Hooks')
 // ── 4. MCP servers ──────────────────────────────────────────────────────────
 phase('MCP servers')
 {
-  const cfgPath = join(HOME, '.claude.json')
-  if (!existsSync(cfgPath)) warn('~/.claude.json not found — launch Claude Code once')
+  const cfgPath = CLAUDE_JSON
+  if (!existsSync(cfgPath)) warn(`${cfgPath} not found — launch Claude Code once`)
   else {
     let cfg = null
     try { cfg = readJson(cfgPath); ok('~/.claude.json parses') }
@@ -131,7 +133,7 @@ phase('MCP servers')
       const entry = (s.args || [])[0]
       if (!resolveExe(String(s.command || ''))) fail(`${name}${where}: command not found — ${s.command}`)
       else if (!entry) warn(`${name}${where}: no entry point in args`)
-      else if (!existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
+      else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
       else ok(`${name}${where} · ${basename(entry)}`)
     }
     // Stated because it is a real limit, not a covered case: connectors provided by the
@@ -157,6 +159,24 @@ phase('Design tools')
   const pw = findPlaywright()
   if (pw) ok(`browser for render and audit: playwright-core from ${pw.from}`)
   else warn('no browser — print-render, screen-render, page-audit and specimen cannot run; node tools/install.mjs --only=mcp installs the Playwright MCP that brings it')
+}
+
+phase('Authored skills')
+{
+  // Every skill this repo authors must resolve, from the live config, to this repo's copy.
+  // A stale copy under the same name shadows the repo on every session; install replaces it,
+  // and the session hook re-applies install on any FAIL here.
+  const owned = readdirSync(join(REPO, 'skills')).filter((n) => existsSync(join(REPO, 'skills', n, 'SKILL.md')))
+  let good = 0
+  for (const name of owned) {
+    let same = false
+    try {
+      const a = realpathSync(join(CONFIG_ROOT, 'skills', name)), b = realpathSync(join(REPO, 'skills', name))
+      same = IS_WIN ? a.toLowerCase() === b.toLowerCase() : a === b
+    } catch { /* absent, or a dangling link */ }
+    same ? good++ : fail(`${name}: not linked from ${join(CONFIG_ROOT, 'skills')} to this repo — node tools/install.mjs --only=skills`)
+  }
+  if (good === owned.length) ok(`all ${owned.length} authored skills are linked to this repo`)
 }
 
 phase('Tier-2 skills')
@@ -309,6 +329,7 @@ let contention = []
     if (/^".*"$/s.test(desc)) desc = desc.slice(1, -1)
     desc = desc
       .replace(/\\"[^"]{2,120}\\"/g, ' ')                       // escaped "phrase" inside the YAML string
+      .replace(/"[^"]{2,120}"/g, ' ')                           // bare "phrase" in a plain scalar
       .replace(/(^|[\s(,;:—-])'[^']{2,120}'(?=[\s),.;:]|$)/g, '$1 ') // 'phrase' — not an apostrophe inside a word
       .toLowerCase()
     for (const w of new Set(desc.match(/[a-z][a-z-]{3,}/g) || [])) {

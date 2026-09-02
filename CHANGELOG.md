@@ -5,6 +5,35 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.6.0 — 2026-09-02
+
+A second adversarial review, over the older tools and the installer, twelve findings reproduced
+and fixed, each held by a test:
+
+- **The installer never loses a user's file.** A hand-written `CLAUDE.md` with no marker is kept
+  under `.cgc-replaced` and the shipped file now always ends with the marker, so anything
+  written below it survives every update (and `sync` never copies it into the repo). A skill
+  directory that cannot be moved aside is copied aside before anything is removed, and the
+  message never names a copy that is not there. A dangling junction under a skill name no
+  longer crashes the installer natively — it is replaced like any foreign entry. A dry run
+  creates no directories. A link that fails is a FAIL, not an `ok`.
+- **The doctor tells the truth on more machines.** A prompt or agent hook has no command and
+  is not "empty"; an MCP server started by name (`npx`, `uvx`, a binary) is not "missing";
+  `.claude.json` is read from `CLAUDE_CONFIG_DIR` when set, as Claude Code reads it (install,
+  uninstall and the renderer likewise); bare quoted phrases in a plain YAML scalar are phrases,
+  not bare claims. A new check holds every authored skill linked from the live config to this
+  repo, which is what the session hook's repair is for.
+- **The print lint sees more.** An SVG `<image>` counts as a raster; an SVG with a physical
+  size but no viewBox is checked in CSS pixels instead of skipped; an image that cannot be
+  read is a warning, not a pass; a `file:` URL resolves properly on POSIX; the attribute form
+  of `font-size` is reported once; `--json card.html` keeps its file.
+- **The renderer proofs what it prints.** The PNG proof renders under print media, as the PDF
+  does; a JPEG artwork is placed at its real aspect; a named garment colour says the ink-blend
+  decision was skipped; `--marks back.html` keeps its page.
+- **The slop lint catches the canonical gradient** (`#667eea → #764ba2` and its kin, and
+  `hsl(280deg …)`), and no longer counts ©, ®, ™, arrows and ticks as emoji.
+- **uninstall removes the realized workflows** it installed and leaves any other.
+
 ## 1.5.1 — 2026-09-02
 
 An adversarial review of the four newest tools, every finding reproduced before it was fixed,

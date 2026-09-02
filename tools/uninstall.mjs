@@ -28,7 +28,7 @@ import { renameSync,
 import { join, basename, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, buildVars } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars } from './paths.mjs'
 
 const args = process.argv.slice(2)
 const DRY = !args.includes('--yes')
@@ -111,7 +111,9 @@ function unlinkDir(p) {
 }
 
 const under = (child, parent) => {
-  const c = resolve(child), a = resolve(parent)
+  // Windows paths compare case-insensitively: a repo typed in lower case is the same repo.
+  const norm = (p) => (IS_WIN ? resolve(p).toLowerCase() : resolve(p))
+  const c = norm(child), a = norm(parent)
   return c === a || c.startsWith(a.endsWith(sep) ? a : a + sep)
 }
 
@@ -293,6 +295,24 @@ phase('Skills')
   }
 }
 
+// ── 4a. Workflows ────────────────────────────────────────────────────────────
+// install.mjs realizes REPO/workflows/*.js into <config>/workflows. A realized file points into
+// the repo, so after the repo is gone it is a dead workflow; only ours are removed, by name.
+phase('Workflows')
+{
+  const src = join(REPO, 'workflows'), dest = join(CONFIG_ROOT, 'workflows')
+  if (!existsSync(src) || !existsSync(dest)) skip('workflows not present')
+  else {
+    for (const f of readdirSync(src).filter((f) => /\.(js|mjs)$/.test(f))) {
+      const p = join(dest, f)
+      if (!existsSync(p)) continue
+      if (!DRY) rmSync(p, { force: true })
+      gone(`workflows/${f}`)
+    }
+    if (!DRY && existsSync(dest) && !readdirSync(dest).length) { rmdirSync(dest); gone('workflows/ (directory, now empty)') }
+  }
+}
+
 // ── 4b. State this config kept beside itself ─────────────────────────────────
 phase('State')
 {
@@ -345,7 +365,7 @@ phase('argo — plugin, marketplace, CLI')
 // ── 6. MCP servers ──────────────────────────────────────────────────────────
 phase('MCP servers')
 {
-  const cfgPath = join(HOME, '.claude.json')
+  const cfgPath = CLAUDE_JSON
   const mcpRoot = join(REPO, 'library', 'mcp-servers')
   if (!existsSync(cfgPath)) skip('~/.claude.json not present')
   else {

@@ -94,6 +94,11 @@ test('the purple gradient is recognised in CSS colours, not only Tailwind names;
   assert.ok(ids(lintText('<style>.h{background:linear-gradient(90deg, rgb(139,92,246) 0%, rgb(217,70,239) 100%)}</style>')).includes('gradient-purple'))
   assert.ok(!ids(lintText('<style>.h{background:linear-gradient(#f4f1ea,#e8e2d4)}</style>')).includes('gradient-purple'))
   assert.ok(!ids(lintText('<style>.h{background:linear-gradient(180deg,#1a3a6b,#ff5a1f)}</style>')).includes('gradient-purple'), 'blue to orange is not the tell')
+  // The two most copied gradients on the web, and an hsl-written purple with a deg unit.
+  assert.ok(ids(lintText('<style>.h{background:linear-gradient(135deg, #667eea 0%, #764ba2 100%)}</style>')).includes('gradient-purple'))
+  assert.ok(ids(lintText('<style>.h{background:linear-gradient(to right, #6a11cb, #2575fc)}</style>')).includes('gradient-purple'))
+  assert.ok(ids(lintText('<style>.h{background:linear-gradient(hsl(280deg 80% 50%), hsl(320deg 80% 60%))}</style>')).includes('gradient-purple'))
+  assert.ok(!ids(lintText('<style>.h{background:linear-gradient(#1a3a6b,#0b3d91)}</style>')).includes('gradient-purple'), 'two navies are not purple')
 })
 
 test('the centred hero needs all three parts; a left-aligned statement with one link is not it', () => {
@@ -119,6 +124,8 @@ test('JSX className strings and a .css file are read the same way; comments and 
   const quiet = '<!-- 🚀 🚀 🚀 seamless effortless --><script>const s = "supercharge unleash"</script><p>Plain.</p>'
   const q = lintText(quiet)
   assert.ok(!ids(q).includes('emoji-icons') && !ids(q).includes('stock-copy'), JSON.stringify(q.findings))
+  const typography = '<footer>© 2026 Acme Ltd® · Acme™</footer><a>Docs ↗</a><a>Blog ↗</a><p>✔ done</p>'
+  assert.ok(!ids(lintText(typography)).includes('emoji-icons'), 'copyright, trademark, arrows and ticks are typography, not icons')
 })
 
 test('hsl() reads hex, rgb, hsl and oklch; the bands are where the fingerprints live', () => {
