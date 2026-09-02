@@ -28,7 +28,7 @@ const STUB_INSTALL = "import { writeFileSync } from 'node:fs'\nwriteFileSync(new
 const STUB_DOCTOR = "import { existsSync } from 'node:fs'\nconst ok = existsSync(new URL('../installed.txt', import.meta.url))\n"
   + "console.log(JSON.stringify(ok ? { healthy: true, counts: { ok: 4 }, results: [] } : { healthy: false, counts: { ok: 3, fail: 1 }, results: [{ level: 'fail', message: 'hooks/post-tool-slop.js not registered' }] }))\n"
 const STUB_TESTS = "import { writeFileSync, readFileSync, existsSync } from 'node:fs'\nconst f = new URL('../testruns.txt', import.meta.url)\n"
-  + "const n = existsSync(f) ? Number(readFileSync(f, 'utf8')) + 1 : 1\nwriteFileSync(f, String(n))\nconsole.log('ℹ tests 3\\nℹ pass 3\\nℹ fail 0')\n"
+  + "const n = existsSync(f) ? Number(readFileSync(f, 'utf8')) + 1 : 1\nwriteFileSync(f, String(n))\nconsole.log('ℹ tests 4\\nℹ pass 3\\nℹ fail 0\\nℹ skipped 1')\n"
 
 function world(t, { doctor = false, tests = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-session-'))
@@ -152,9 +152,10 @@ test('a failing check is repaired by re-applying the install, and the line says 
   assert.doesNotMatch(ctx, /Still failing/)
 })
 
-test('the test suite runs once per commit and is cached for a day; the line carries the count', (t) => {
+test('the test suite runs once per commit and is cached for a day; the line counts passes against the tests that ran', (t) => {
   const w = world(t, { tests: true })
-  assert.match(fire(w, w.friend).line, /3\/3 tests/)
+  // 4 tests, 3 passed, 1 skipped (could not run here): 3/3, with the skip named, never 3/4.
+  assert.match(fire(w, w.friend).line, /3\/3 tests \(1 skipped\)/)
   assert.match(fire(w, w.friend).line, /3\/3 tests/)
   assert.equal(readFileSync(join(w.friend, 'testruns.txt'), 'utf8'), '1', 'same commit within a day: cached')
   w.release('1.1.0', 'Change')

@@ -5,6 +5,12 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.2.1 — 2026-09-02
+
+- The session line counts test passes against the tests that ran and names skips
+  separately — `215/215 tests (1 skipped)` — instead of a `215/216` that read as a failure
+  when the one skip was the no-browser case correctly not running on a machine with a browser.
+
 ## 1.2.0 — 2026-09-02
 
 - **The rendered page, measured.** `tools/page-audit.mjs` renders a page at desktop and phone
