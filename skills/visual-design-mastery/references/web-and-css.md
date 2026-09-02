@@ -119,7 +119,10 @@ p, li { text-wrap: pretty; }
 **Variable fonts + optical sizing.** One file, every weight; let `opsz` tune letterforms to size automatically.
 
 ```css
-h1 { font-variation-settings: "opsz" 48, "wght" 620; font-optical-sizing: auto; }
+h1 { font-weight: 620; font-optical-sizing: auto; }   /* opsz follows font-size automatically */
+/* font-variation-settings is the low-level override, applied last: pinning "opsz" there DEFEATS
+   optical sizing, and "wght" there bypasses font-weight. Use it only for axes with no high-level
+   property — Fraunces' "SOFT" and "WONK", Anybody's width beyond font-stretch. */
 ```
 
 **Tracking is not one value.** Large display text wants slight *negative* tracking; all-caps labels want *positive* tracking or they look cramped:
@@ -226,7 +229,7 @@ Use sparingly and only where there's contrast behind it — glass on a flat back
 @layer reset, base, tokens, components, utilities;
 ```
 
-**Anchor positioning** — tether tooltips/menus/popovers to a trigger in pure CSS, no positioning library. Chrome/Edge 125+ and Safari 26+ (Safari 18.2–18.3 shipped partial support *without* `@position-try`); Firefox still unshipped through 2026 — not yet Baseline, so treat as progressive enhancement and keep a base position outside `@position-try` for the partial Safari versions.
+**Anchor positioning** — tether tooltips/menus/popovers to a trigger in pure CSS, no positioning library. Chrome/Edge 125+ (`position-try-fallbacks` from 128; 125–127 spelled it `position-try-options`), Safari 26+, Firefox 147+ (January 2026) — Baseline "newly available" in 2026, so gate with `@supports (anchor-name: none)` and keep a base position for the tail of older browsers.
 
 ```css
 .btn { anchor-name: --btn; }
@@ -302,7 +305,7 @@ card.addEventListener("pointermove", e => {
 });
 ```
 
-**Scroll reveals** should prefer the pure-CSS `view()` timeline above over `IntersectionObserver` — less JS, no jank, and free reduced-motion handling.
+**Scroll reveals** should prefer the pure-CSS `view()` timeline above over `IntersectionObserver` — less JS, no jank, and reduced-motion handling one `@media` wrapper away (as above — the timeline itself does not consult the preference).
 
 ---
 

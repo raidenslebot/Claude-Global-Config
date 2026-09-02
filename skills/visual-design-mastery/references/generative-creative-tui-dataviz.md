@@ -10,7 +10,7 @@ A terminal is a canvas and a bar chart is a composition. The long tail of "ungla
 - **p5.js 2.x** (default in the web editor from Aug 2026) — the fastest path from idea to pixels. 2.0 brought an **OKLCH color mode**, **p5.strands** (write shaders in JS, not GLSL), variable-font support, and `async`/`await` asset loading (the old `preload` is gone). Reach for it first for sketches and web pieces.
 - **canvas-sketch** (mattdesl) — the professional generative-art harness: built-in seed management, deterministic replays, high-res PNG and print-ready export, and first-class pen-plotter/SVG output. Use it the moment a sketch needs to be *reproducible* or *sellable*.
 - **Processing 4** (Java) / **openFrameworks 0.12** / **Cinder** (C++) — when you need real performance, threads, or hardware. **Nannou** (Rust) and **thi.ng/umbrella** (Karsten Schmidt's TypeScript toolkit) are the modern, type-safe end of this spectrum.
-- **three.js (r17x)** for 3D/WebGL, **svg.js** or raw SVG for crisp vector/plotter output, **Hydra** for live-coded video synthesis.
+- **three.js (r18x — r185 as of mid-2026)** for 3D/WebGL, **svg.js** or raw SVG for crisp vector/plotter output, **Hydra** for live-coded video synthesis.
 
 ### The core aesthetic rule: constrain randomness, don't unleash it
 Pure `random()` looks like noise because it *is* noise. Beauty in generative work comes from **structured** randomness — noise fields, distributions, and harmony constraints. The single biggest upgrade to any sketch: replace `random(255)` color picking with sampling from a **curated palette**.
@@ -93,7 +93,7 @@ console.log(gradient(['#4361ee', '#4cc9f0'])('◆ MYAPP  v2.0'));  // one banner
 
 ### Box-drawing, Unicode & sparklines
 - **Box-drawing:** `╭─╮ │ ╰─╯` (rounded) reads softer and more modern than sharp `┌┐└┘`. Lip Gloss and Rich both do bordered panels for you — use them instead of hand-aligning.
-- **Braille (U+2800–28FF)** packs a 2×4 dot grid into one cell — the trick behind high-res terminal plots (see `plotille`, `asciichart`, ratatui's canvas). 8× the vertical resolution of block chars.
+- **Braille (U+2800–28FF)** packs a 2×4 dot grid into one cell — the trick behind high-res terminal plots (see `plotille`, `asciichart`, ratatui's canvas). Eight dots per cell — 4× the vertical and 2× the horizontal resolution of full-block characters.
 - **Sparklines:** `▁▂▃▄▅▆▇█` map a value to a bar height inline. One line, instantly legible:
 
 ```python
@@ -104,7 +104,7 @@ def spark(xs):
 ```
 
 ### Spinners & progress — signal, don't decorate
-Pick a spinner that matches the app's weight (dots for calm, `cli-spinners` has ~80). Cardinal rule: **show real progress when you know the total** (a bar), an indeterminate spinner only when you genuinely don't. A fake progress bar is a lie the user feels. Pair the spinner with a *changing* status line so it never looks hung, and always leave a clean final state (`✓`/`✗` + elapsed), not a spinner frozen mid-frame.
+Pick a spinner that matches the app's weight (dots for calm, `cli-spinners` has ~90). Cardinal rule: **show real progress when you know the total** (a bar), an indeterminate spinner only when you genuinely don't. A fake progress bar is a lie the user feels. Pair the spinner with a *changing* status line so it never looks hung, and always leave a clean final state (`✓`/`✗` + elapsed), not a spinner frozen mid-frame.
 
 ### Restraint checklist
 Align columns to a grid. Left-align labels, right-align numbers (tabular). Dim everything that isn't the point. One accent color carries emphasis. Degrade gracefully: check `NO_COLOR` and non-TTY (`isatty`) and drop to plain text — piping into a file should never spew escape codes.
@@ -129,7 +129,7 @@ End a line with a filled dot and its value. It answers "where did it end up?" �
       strokeWidth={2}
       label={({index,x,y,value}) =>
         index === data.length-1
-          ? <text x={x+8} y={y} fontSize={12} fontVariantNumeric="tabular-nums"
+          ? <text x={x+8} y={y} fontSize={12} style={{ fontVariantNumeric: "tabular-nums" }}
                   fill="var(--accent)" dominantBaseline="middle">{value}</text>
           : null} />
 ```
@@ -169,4 +169,4 @@ Animate to *reveal structure*, not to entertain. Stagger a bar grow-in by index,
 ## Part 4 — ASCII/pixel art & demoscene (inspiration)
 - **Image → terminal:** **chafa** (best truecolor+symbol quality), **viu**, **timg**. Great for CLI splash art and previews.
 - **Pixel art:** **Aseprite** is the standard tool; pull palettes from **Lospec** (thousands of curated, constraint-driven palettes — a 4-color GameBoy ramp forces better decisions than 16M colors). **PICO-8**'s fixed 16-color palette is a masterclass in why constraint breeds style.
-- **Demoscene** — the origin of "maximum beauty per byte." Study **shadertoy** (fragment-shader craft), **bytebeat** (music from one line of C), sizecoding (256-byte/4KB intros like `.kkrieger`), and Revision/Assembly party releases. The lesson that transfers everywhere: **constraint is a creative engine, not a limitation.** Every domain above gets better when you cap the palette, cap the code, and let density and restraint do the work.
+- **Demoscene** — the origin of "maximum beauty per byte." Study **shadertoy** (fragment-shader craft), **bytebeat** (music from one line of C), sizecoding (256-byte and 4 KB intros — *elevated* by Rgba & TBC is the canonical one) and procedural 64K/96K productions like `.kkrieger`, and Revision/Assembly party releases. The lesson that transfers everywhere: **constraint is a creative engine, not a limitation.** Every domain above gets better when you cap the palette, cap the code, and let density and restraint do the work.

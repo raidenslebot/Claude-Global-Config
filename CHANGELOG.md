@@ -5,6 +5,30 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.9.0 — 2026-09-02
+
+- **The older taste references fact-checked.** Every typeface probed against the live Google
+  Fonts API, every support claim against browser data, every engine API against its own docs:
+  eleven errors and ten overclaims, all corrected, about a hundred and forty claims confirmed.
+  The errors that mattered: the particle example faded a particle that additive blending makes
+  pop, because additive never reads alpha; the `font-variation-settings` snippet pinned the very
+  optical-size axis its own comment said to let the browser choose; Firefox shipped anchor
+  positioning in January 2026, so the "unshipped through 2026" note was backwards; Motion
+  deprecated `staggerChildren` in July 2025; `BackdropMaterial` is a WinUI 2 API, not WinUI 3;
+  Unity's 2D light types name Sprite, not Point; Godot's HDR 2D moved and is 4.2+; the
+  MonoGame tweening package is deprecated in favour of the main one; smootherstep was
+  smoothstep; braille is four times the vertical resolution, not eight; `.kkrieger` is a 96 KB
+  game, not a 4 KB intro. The overclaims now name their versions and their conditions.
+- **An email, worked.** `design-fields/examples/harbor-swim-club-email/`: the field where the
+  constraints decide the form. Nested tables, a face the reader already has, every structural
+  line a table row so the design is identical with images off, one bulletproof link, 8.9 KB.
+  The audit caught a contrast failure and a 20 px tap target the eye had passed — and following
+  the first properly took the accent out of the design rather than darkening it, because the
+  identity reserves that colour for safety flags.
+- **The react-doctor gate's own hole.** A JavaScript file outside any project still fell back to
+  the session's project, so a scratch script was reported as an unrelated repository. Only a file
+  that names no path at all falls back now, and the test sets the variable that had been hiding it.
+
 ## 1.8.0 — 2026-09-02
 
 - **The far read, proved.** `print-render --distance 40ft,10ft,2ft [--viewer 12in]` writes one

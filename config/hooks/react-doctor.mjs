@@ -114,7 +114,12 @@ const main = () => {
     process.exit(0);
   }
 
-  const projectRoot = projectRootFor(editedPath(input)) || process.env.CLAUDE_PROJECT_DIR;
+  // The written file's project, or — only when the event named no file at all — the session's.
+  // Falling back to the session for a file that HAS a path is what made an edit in one
+  // repository report another: a scratch script would be scanned as whatever project the
+  // session happened to start in.
+  const written = editedPath(input);
+  const projectRoot = written ? projectRootFor(written) : process.env.CLAUDE_PROJECT_DIR;
   // A JavaScript file with no package.json above it is not a project react-doctor can read.
   if (!projectRoot) process.exit(0);
   const outputPath = join(tmpdir(), `react-doctor-agent-hook-output-${process.pid}.txt`);

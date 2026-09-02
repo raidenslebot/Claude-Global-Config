@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Harbor Swim Club — high water, October</title>
+<!--
+  The monthly email. Nested tables, no web fonts, no flexbox, no JavaScript: classic Outlook
+  renders with the Word engine and Gmail clips a message past ~102 KB. Every structural line is
+  a table row or a background colour, so this is the same design with images off — the one
+  <img> is the mark, and it carries alt text.
+
+  Render: node tools/screen-render.mjs email.html --preset email --full
+  Gate:   node tools/slop-lint.mjs .   ·   node tools/page-audit.mjs email.html --viewport 640x1200
+  Send-test it in a real client before any real send; nothing here can prove Outlook.
+-->
+<style>
+  /* Client resets, the four that earn their place. */
+  body { margin: 0; padding: 0; width: 100% !important; }
+  table { border-collapse: collapse; }
+  img { border: 0; outline: none; display: block; }
+  a { color: #1f2a44; }
+  /* Dark mode: hold the two colours rather than let a client invert navy into mud. */
+  @media (prefers-color-scheme: dark) {
+    .ground { background-color: #1f2a44 !important; }
+    .sheet { background-color: #1f2a44 !important; }
+    .ink, .ink a { color: #efe9dc !important; }
+    .rule { background-color: #efe9dc !important; }
+    .hair td { border-bottom-color: rgba(239,233,220,0.35) !important; }
+    .btn { background-color: #efe9dc !important; }
+    .btn a { color: #1f2a44 !important; }
+  }
+  @media (max-width: 660px) {
+    .sheet { width: 100% !important; }
+    .pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .month { font-size: 24px !important; }
+  }
+</style>
+</head>
+<body class="ground" style="background-color:#efe9dc;">
+<!-- Preheader: the line the inbox shows beside the subject. Hidden in the body. -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Five Saturdays, five high waters, and the water is down to eleven degrees.</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="ground" style="background-color:#efe9dc;">
+  <tr>
+    <td align="center" style="padding:28px 12px;">
+
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" class="sheet" style="width:640px;max-width:640px;background-color:#efe9dc;">
+
+        <!-- Header: the mark, the club, the month. Nothing here depends on the image. -->
+        <tr>
+          <td class="pad ink" style="padding:0 40px 14px;color:#1f2a44;font-family:Georgia,'Times New Roman',serif;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td width="56" valign="middle" style="padding-right:16px;">
+                  <img src="mark.png" width="48" height="48" alt="Harbor Swim Club" style="width:48px;height:48px;">
+                </td>
+                <td valign="middle" class="ink" style="color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:15px;letter-spacing:2px;text-transform:uppercase;">
+                  Harbor Swim Club
+                </td>
+                <td valign="middle" align="right" class="ink" style="color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:13px;">
+                  1 October 2026
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- The waterline: the identity's one variable, drawn as a table row. -->
+        <tr><td class="rule" style="background-color:#1f2a44;font-size:0;line-height:0;height:3px;">&nbsp;</td></tr>
+
+        <tr>
+          <td class="pad ink" style="padding:26px 40px 0;color:#1f2a44;font-family:Georgia,'Times New Roman',serif;">
+            <p class="month" style="margin:0;font-size:28px;line-height:1.15;letter-spacing:1px;text-transform:uppercase;">High water, October</p>
+            <p style="margin:12px 0 0;font-size:17px;line-height:1.5;">Five Saturdays, and the wall is quiet again after the summer. Dawn swims are at high water, as always — the tide is the calendar.</p>
+          </td>
+        </tr>
+
+        <!-- The tide table: the artifact members open the email for. -->
+        <tr>
+          <td class="pad" style="padding:24px 40px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="ink" style="color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:17px;">
+              <tr class="hair">
+                <td style="padding:0 0 8px;border-bottom:1px solid rgba(31,42,68,0.35);font-size:13px;letter-spacing:1px;text-transform:uppercase;">Saturday</td>
+                <td align="right" style="padding:0 0 8px;border-bottom:1px solid rgba(31,42,68,0.35);font-size:13px;letter-spacing:1px;text-transform:uppercase;">High water</td>
+                <td align="right" style="padding:0 0 8px;border-bottom:1px solid rgba(31,42,68,0.35);font-size:13px;letter-spacing:1px;text-transform:uppercase;">Height</td>
+              </tr>
+              <tr class="hair"><td style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">3 October</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">06:41</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">4.8 m</td></tr>
+              <tr class="hair"><td style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">10 October</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">06:12</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">5.1 m</td></tr>
+              <tr class="hair"><td style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">17 October</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">06:58</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">4.6 m</td></tr>
+              <tr class="hair"><td style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">24 October</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">06:24</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">5.3 m</td></tr>
+              <tr class="hair"><td style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">31 October</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">07:05</td><td align="right" style="padding:11px 0;border-bottom:1px solid rgba(31,42,68,0.18);">4.4 m</td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- The temperature. NOT in the tow-float orange: the identity reserves that for the
+             safety flags, and a monthly water temperature is not a safety notice. Weight and
+             size carry it instead, which also clears 4.5:1 where the orange did not. -->
+        <tr>
+          <td class="pad ink" style="padding:22px 40px 0;color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.5;">
+            The water was <span style="font-size:22px;font-weight:bold;">11&deg;</span> on Tuesday and falling. Nobody has worn a wetsuit yet.
+          </td>
+        </tr>
+
+        <!-- The link, as a bulletproof button: a table cell with padding, not a styled anchor. -->
+        <tr>
+          <td class="pad" style="padding:26px 40px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <!-- The padding belongs to the ANCHOR, not the cell: padding on the cell looks
+                     like a button and is not one — only the text is a tap target, which the
+                     audit measured at 20px tall. On the anchor the whole 48px area is the link. -->
+                <td class="btn" align="center" bgcolor="#1f2a44" style="background-color:#1f2a44;">
+                  <a href="https://example.org/harbor/october.ics" style="color:#efe9dc;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:20px;text-decoration:none;display:inline-block;padding:14px 26px;">Add the October swims to your calendar</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td class="pad ink" style="padding:26px 40px 0;color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.5;">
+            Swim between the flags.
+          </td>
+        </tr>
+
+        <tr><td style="padding:26px 40px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="hair"><tr><td style="border-bottom:1px solid rgba(31,42,68,0.35);font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+        <tr>
+          <td class="pad ink" style="padding:14px 40px 34px;color:#1f2a44;font-family:Georgia,'Times New Roman',serif;font-size:13px;line-height:1.6;">
+            Harbor Swim Club &middot; the wall at Old Ferry Lane<br>
+            You get this because you are a member. <a href="https://example.org/harbor/unsubscribe" style="color:#1f2a44;">Unsubscribe</a>.
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+</body>
+</html>

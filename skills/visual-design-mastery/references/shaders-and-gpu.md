@@ -82,7 +82,7 @@ float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.545312
 
 float noise(vec2 p) {
     vec2 i = floor(p), f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);            // smootherstep-ish interp
+    vec2 u = f * f * (3.0 - 2.0 * f);            // smoothstep (cubic Hermite); Perlin's smootherstep is 6f^5-15f^4+10f^3
     return mix(mix(hash(i + vec2(0,0)), hash(i + vec2(1,0)), u.x),
                mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
 }
@@ -189,7 +189,7 @@ fn fs(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
 }
 ```
 
-WGSL gives you compute shaders — particles, simulation, GPU sorting — that WebGL never could. Opinion: start on WebGPU for anything new and heavy; keep a WebGL2 fallback only if you must ship to old Safari.
+WGSL gives you compute shaders — particles, simulation, GPU sorting — that WebGL never could. Opinion: start on WebGPU for anything new and heavy; keep a WebGL2 fallback for Safari before 26, for Firefox on the platforms and versions where WebGPU is still partial, and for older Android GPUs — check `navigator.gpu` at runtime rather than assuming.
 
 ## The game path — HLSL & engine shading languages
 

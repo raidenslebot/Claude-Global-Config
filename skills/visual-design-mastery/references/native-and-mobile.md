@@ -16,7 +16,7 @@ card
   .animation(.spring(response: 0.4, dampingFraction: 0.75), value: isPressed)
 ```
 
-**Springs, done right.** Prefer the physical spring over duration curves for anything interactive. The modern initializer is `.spring(response:dampingFraction:blendDuration:)`; iOS 17+ also gives `.spring(duration:bounce:)` and the presets `.smooth`, `.snappy`, `.bouncy` — reach for those before hand-tuning. Response is the settling *time*, dampingFraction 1.0 is critically damped (no overshoot), ~0.7 gives a lively but controlled bounce. Never ship `.easeInOut(duration:)` for gestures — it feels like the web, not the OS.
+**Springs, done right.** Prefer the physical spring over duration curves for anything interactive. The long-standing initializer is `.spring(response:dampingFraction:blendDuration:)` (iOS 13); the modern one is `.spring(duration:bounce:)` with the presets `.smooth`, `.snappy`, `.bouncy` (iOS 17) — reach for those before hand-tuning. Apple defines `response` as the spring's stiffness expressed as an approximate duration, so the actual settling time depends on it *and* on dampingFraction; dampingFraction 1.0 is critically damped (no overshoot), ~0.7 gives a lively but controlled bounce. Never ship `.easeInOut(duration:)` for gestures — it feels like the web, not the OS.
 
 **Hero transitions with `matchedGeometryEffect`.** The single highest-leverage SwiftUI move. One `@Namespace`, same `id` on source and destination, and SwiftUI interpolates frame, position, and size across the view swap.
 
@@ -73,7 +73,7 @@ GlassEffectContainer(spacing: 20) {
 
 ---
 
-## Jetpack Compose (1.10 / Material 3 1.4, Dec '25)
+## Jetpack Compose (1.10, Dec '25 / Material 3 1.4, Sept '25)
 
 **Implicit state animation.** `animateFloatAsState`, `animateColorAsState`, `animateDpAsState`, `animateOffsetAsState` — declare a target, Compose animates the delta. Feed them a spec.
 
@@ -161,7 +161,7 @@ final _slide = Tween(begin: const Offset(0, .2), end: Offset.zero).animate(
 
 ## Desktop, where polish still applies
 
-- **WinUI 3 / Windows App SDK:** Mica and Acrylic backdrop materials (`BackdropMaterial`, `DesktopAcrylicBackdrop`), `ConnectedAnimationService` for hero transitions between pages, `ThemeShadow` for real elevation, `AnimatedIcon`. This is Fluent done natively — far beyond WPF's `Storyboard`/`DoubleAnimation` (still fine for line-of-business).
+- **WinUI 3 / Windows App SDK:** Mica and Acrylic via `Window.SystemBackdrop = new MicaBackdrop()` or `new DesktopAcrylicBackdrop()` (`Microsoft.UI.Xaml.Media`; `BackdropMaterial` is the WinUI 2 / UWP form and does not exist here), `ConnectedAnimationService` for hero transitions between pages, `ThemeShadow` for real elevation, `AnimatedIcon`. This is Fluent done natively — far beyond WPF's `Storyboard`/`DoubleAnimation` (still fine for line-of-business).
 - **macOS:** SwiftUI shares everything above; drop to AppKit `NSVisualEffectView` for sidebar/titlebar vibrancy and Core Animation `CABasicAnimation`/`CAKeyframeAnimation` for layer-level work.
 - **GTK4 / libadwaita:** style with CSS, animate via `AdwTimedAnimation`/`AdwSpringAnimation`, and adopt Adwaita's boxed-list and `AdwToastOverlay` idioms so the app feels GNOME-native.
 - **Qt / QML:** `Behavior on <property> { NumberAnimation { easing.type: Easing.OutCubic } }` and `QPropertyAnimation` give declarative, easing-aware motion.

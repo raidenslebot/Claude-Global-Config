@@ -82,7 +82,7 @@ Per-sprite (not full-screen) effects — e.g. a hit-flash shader on one enemy �
 
 ## Game feel / juice — the actual craft
 
-The ethos: *"Juice it or lose it"* (Martin Jonasson & Petri Purho, GDC) — a game feels good when it over-responds to input. Every event below should be dt-based and layered; juice is cumulative.
+The ethos: *"Juice it or lose it"* (Martin Jonasson & Petri Purho, Nordic Game 2012) — a game feels good when it over-responds to input. Every event below should be dt-based and layered; juice is cumulative.
 
 ### An easing helper you will use everywhere
 
@@ -226,7 +226,7 @@ public void Emit(Vector2 at, int count) {
                     Pos = at, Vel = new Vector2(MathF.Cos((float)a), MathF.Sin((float)a)) * spd,
                     Life = 0.4f + (float)_r.NextDouble() * 0.6f, Age = 0f,
                     Rot = 0f, RotVel = (float)(_r.NextDouble()*2-1)*6f,
-                    S0 = 1.4f, S1 = 0f, C0 = Color.White, C1 = new Color(255, 120, 20, 0), Live = true };
+                    S0 = 1.4f, S1 = 0f, C0 = Color.White, C1 = new Color(255, 120, 20), Live = true };
                 break;
             }
 }
@@ -246,14 +246,15 @@ public void Draw(SpriteBatch sb, Texture2D dot, Vector2 origin) {
         ref P p = ref _pool[i]; if (!p.Live) continue;
         float t = p.Age / p.Life;
         float s = Ease.Lerp(p.S0, p.S1, t);
-        Color c = Color.Lerp(p.C0, p.C1, t);     // color AND alpha ride the gradient
+        Color c = Color.Lerp(p.C0, p.C1, t) * (1f - t);  // Additive (One/One) IGNORES alpha —
+                                                 // premultiply the fade into RGB or it pops out
         sb.Draw(dot, p.Pos, null, c, p.Rot, origin, s, SpriteEffects.None, 0f);
     }
     sb.End();
 }
 ```
 
-**What makes particles beautiful:** fade alpha to 0 at end of life — a particle that *pops* out is the #1 tell of amateur work. Use additive for fire/sparks/magic, alpha-blend for smoke/dust. Give a hot bright core color that lerps to a cool dark rim (`White -> orange -> transparent`). Randomize every parameter within a range — uniform particles look mechanical. Prefer many small short-lived particles over few big ones. Add slight drag and a touch of gravity so motion arcs instead of flying straight.
+**What makes particles beautiful:** fade to nothing at end of life (under `BlendState.Additive` that means multiplying the colour down, not lowering alpha — additive blending never reads the alpha channel) — a particle that *pops* out is the #1 tell of amateur work. Use additive for fire/sparks/magic, alpha-blend for smoke/dust. Give a hot bright core color that lerps to a cool dark rim (`White -> orange -> transparent`). Randomize every parameter within a range — uniform particles look mechanical. Prefer many small short-lived particles over few big ones. Add slight drag and a touch of gravity so motion arcs instead of flying straight.
 
 ---
 
@@ -272,7 +273,7 @@ class Tween {
 }
 ```
 
-When you want chaining, `AutoReverse`, `RepeatForever`, and property-expression targeting without writing it, the real, current library is **MonoGame.Extended.Tweening** (`using MonoGame.Extended.Tweening;`, v5.4.0+, Feb 2026). A `Tweener` field, then:
+When you want chaining, `AutoReverse`, `RepeatForever`, and property-expression targeting without writing it, the real, current library is the tweening module of **MonoGame.Extended** (NuGet `MonoGame.Extended`, 5.4.0+ and 6.x as of mid-2026 — the separate `MonoGame.Extended.Tweening` package is deprecated at 3.8; the namespace is still `using MonoGame.Extended.Tweening;`). A `Tweener` field, then:
 
 ```csharp
 _tweener.TweenTo(sprite, s => s.Scale, toValue: 1.3f, duration: 0.15f)
@@ -300,7 +301,7 @@ _tweener.Update(dt);   // v5.4 adds Tween.OnUpdate and Tweener.ActiveTweens (all
 - **Shader Graph** for materials; **VFX Graph** (GPU) for heavy particle counts, **Shuriken** (`ParticleSystem`) for gameplay particles.
 - **Tweening: DOTween** (`transform.DOScale(1.2f, .15f).SetEase(Ease.OutBack)`, `DOShakePosition`, `DOTween.Sequence()`), or **PrimeTween** — a newer allocation-free alternative worth adopting on new projects.
 - **Camera shake: Cinemachine Impulse** (`CinemachineImpulseSource.GenerateImpulse`) — trauma-quality shake without hand-rolling the matrix.
-- **2D lighting: `Light2D`** (URP 2D Renderer) — Global/Spot/Freeform/Point light types, `ShadowCaster2D` for occlusion, sprite normal maps via the Sprite-Lit material.
+- **2D lighting: `Light2D`** (URP 2D Renderer) — Global / Spot (named Point before URP 11) / Freeform / Sprite light types, `ShadowCaster2D` for occlusion, sprite normal maps via the Sprite-Lit material.
 - **Timeline + Animator** for scripted sequences and state-driven animation.
 
 ---
@@ -316,7 +317,7 @@ _tweener.Update(dt);   // v5.4 adds Tween.OnUpdate and Tweener.ActiveTweens (all
     .set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
   tw.set_parallel()   # or chain sequentially by default
   ```
-- **Glow / bloom for 2D:** a `WorldEnvironment` node with an `Environment` resource, `glow_enabled = true` plus `glow_intensity`/`glow_bloom`/`glow_hdr_threshold`. In Godot 4 you must enable **HDR 2D** (Project Settings → Rendering → 2D → HDR) for over-1 colors to actually bloom.
+- **Glow / bloom for 2D:** a `WorldEnvironment` node with an `Environment` resource, `glow_enabled = true` plus `glow_intensity`/`glow_bloom`/`glow_hdr_threshold`. In Godot 4.2+ you must enable **HDR 2D** (Project Settings → Rendering → Viewport → HDR 2D, `rendering/viewport/hdr_2d`; Forward+ and Mobile renderers only, not Compatibility) for over-1 colors to actually bloom.
 - **2D lights:** `PointLight2D` / `DirectionalLight2D`, `CanvasModulate` for global tint, `LightOccluder2D` for shadows, and `CanvasTexture.normal_texture` for per-sprite normal mapping.
 
 ---

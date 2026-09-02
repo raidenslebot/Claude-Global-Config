@@ -80,7 +80,7 @@ Motion for React recipes (`import { motion } from "motion/react"`):
 
 | Feel | stiffness | damping | mass | Use for |
 |---|---|---|---|---|
-| Crisp UI (default) | 400 | 32 | 1 | buttons, menus, most transitions |
+| Crisp UI (our default; Motion's own is 100/10/1) | 400 | 32 | 1 | buttons, menus, most transitions |
 | Snappy | 550 | 30 | 1 | toggles, quick reveals |
 | Gentle | 170 | 26 | 1 | large panels, calm content |
 | Bouncy / playful | 300 | 12 | 1 | success states, emoji, mascots |
@@ -109,7 +109,9 @@ A pile of elements all animating at once (or worse, identically) reads as chaos.
 
 ```jsx
 // Motion for React — parent orchestrates, children inherit the beat
-const list = { animate: { transition: { delayChildren: 0.1, staggerChildren: 0.04 } } };
+const list = { animate: { transition: { delayChildren: stagger(0.04, { startDelay: 0.1 }) } } };
+// import { stagger } from "motion/react" — staggerChildren/staggerDirection were deprecated in
+// Motion 12.22 (July 2025); delayChildren now takes the stagger() function.
 const item = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
 ```
 ```js
@@ -147,7 +149,7 @@ animate(".item", { opacity: [0, 1], y: [12, 0] },
 
 ## 6. Juice — the animation ideal
 
-"Juice" (game-feel) is maximal feedback per input: the interface *responds* to everything, generously. Vlambeer's principle — *the same game feels dead or alive purely from juice.* Bring it to UI in moderation:
+"Juice" (game-feel) is maximal feedback per input: the interface *responds* to everything, generously. The point of *Juice it or lose it* (Jonasson & Purho) and of Vlambeer's *The Art of Screenshake* (Nijman) alike — *the same game feels dead or alive purely from juice.* Bring it to UI in moderation:
 - **Press feedback everywhere:** scale `0.96` + subtle shadow collapse on `:active`. Instant, springy release.
 - **Overshoot on success:** a completed toggle or added-to-cart pops to `1.08` then springs to `1`.
 - **Particles & bursts** for meaningful wins (confetti on purchase, sparkles on a like) — rare, so they stay special.
@@ -203,7 +205,7 @@ Frame budget: **60fps = 16.7ms/frame, 120fps (ProMotion/high-refresh) = 8.3ms.**
   el.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }],
     { duration: 400, easing: "cubic-bezier(0.22,1,0.36,1)", fill: "both" });
   ```
-- **CSS scroll-driven animations** (Chromium shipped, progressive-enhance elsewhere) — reveal on scroll with zero JS:
+- **CSS scroll-driven animations** (Chrome 115+ and Safari 26+; Firefox still Nightly-only as of 2026 — gate with `@supports (animation-timeline: view())`) — reveal on scroll with zero JS:
   ```css
   @keyframes reveal { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
   .section { animation: reveal linear both; animation-timeline: view(); animation-range: entry 0% cover 40%; }

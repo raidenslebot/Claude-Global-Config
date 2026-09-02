@@ -19,8 +19,14 @@ function scratch(t) {
   return dir
 }
 /** Runs the hook on a written file in an empty directory: silent means the gate said no. */
+// CLAUDE_PROJECT_DIR is always set in a real session, and it is the value the hook used to fall
+// back to — so every case here sets it to a real project. Leaving it unset would let a test pass
+// because nothing was there to scan rather than because the gate said no.
 function fire(payload, cwd) {
-  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify(payload), encoding: 'utf8', timeout: 120000, cwd })
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify(payload), encoding: 'utf8', timeout: 120000, cwd,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: REPO },
+  })
   assert.equal(r.status, 0, `hook must always exit 0: ${r.stderr}`)
   return r.stdout.trim()
 }

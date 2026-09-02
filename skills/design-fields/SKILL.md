@@ -38,7 +38,7 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
 | Motion graphics, title sequences, Lottie | `motion-and-animation.md`, `lottie-animation`, `svg-animation` | text sliding in from the left on a gradient |
 | Generative art, plotter, TUI, data-viz posters | `generative-creative-tui-dataviz.md` | unseeded noise; a rainbow palette |
 
-## Four pieces in exactly this form
+## Five pieces in exactly this form
 
 - [`examples/harbor-swim-club-identity/`](examples/harbor-swim-club-identity/) — an identity
   system: directions first, the mark and its redrawn favicon, the wordmark **outlined to paths**
@@ -58,6 +58,12 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
   number each, a hand-drawn chart standing on the waterline, the tide table as the ledger, the
   flag at high water; the passes in `review.md` are four defects the audit passed and the eye
   caught, which is the argument for the loop.
+- [`examples/harbor-swim-club-email/`](examples/harbor-swim-club-email/) — an email: the field
+  where the constraints decide the form. Nested tables, a face the reader already has, every
+  structural line a table row so the design is **identical with images off**, one bulletproof
+  link, 8.9 KB. Its `review.md` is the other half of the argument: the audit caught a contrast
+  failure and a 20 px tap target the eye had passed, and following the first one properly took an
+  accent out of the design rather than darkening it.
 
 Read them for the shape; do not copy their designs.
 
