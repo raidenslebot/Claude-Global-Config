@@ -10,6 +10,9 @@ import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpat
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved } from './paths.mjs'
+import { buildVars } from './paths.mjs'
+
+const { LIBRARY_ROOT } = buildVars()
 import { findPlaywright } from './print-render.mjs'
 
 const JSON_OUT = process.argv.includes('--json')
@@ -186,6 +189,15 @@ phase('Tier-2 skills')
   if (!existsSync(srcFile)) fail('library/sources.json missing — cannot verify tier-2 set')
   else {
     const t2 = readJson(srcFile).tier2 || []
+    // --skip-library is a documented, supported flag, and the Tier-3 library is a ~200 MB clone.
+    // When it was skipped, every Tier-2 skill is absent for a reason the user chose — that is a
+    // warning naming the one command that installs them, not thirteen failures and "install is
+    // broken". A library that IS present with a skill missing from it stays a failure.
+    const libraryPresent = t2.some((s) => existsSync(join(LIBRARY_ROOT, ...s.path.split('/'))))
+    if (!libraryPresent && t2.length) {
+      warn(`Tier-2 skills not installed — the Tier-3 library was skipped or has not been cloned. `
+        + `They are optional: node tools/install.mjs --only=library installs all ${t2.length}.`)
+    } else {
     let good = 0
     for (const s of t2) {
       const dir = join(skillsDir, s.name)
@@ -202,6 +214,7 @@ phase('Tier-2 skills')
     }
     good === t2.length ? ok(`all ${t2.length} tier-2 skills resolve to a real SKILL.md`)
       : warn(`${good}/${t2.length} tier-2 skills healthy`)
+    }
   }
 }
 

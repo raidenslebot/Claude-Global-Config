@@ -15,6 +15,15 @@ import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 
+/** The child env for a HOME-isolated run. */
+function scratchEnv(home, extra = {}) {
+// CLAUDE_CONFIG_DIR is deleted, not just overridden: paths.mjs prefers it over HOME, so an
+// ambient value would send this child to the real config root and defeat the isolation.
+  const env = { ...process.env, HOME: home, USERPROFILE: home, ...extra }
+  delete env.CLAUDE_CONFIG_DIR
+  return env
+}
+
 const TOOLS = join(REPO, 'tools')
 
 /** A scratch HOME, torn down after the test whether or not it passed. */
@@ -30,7 +39,7 @@ function runTool(script, args, home, opts = {}) {
     cwd: opts.cwd || REPO,
     encoding: 'utf8',
     timeout: opts.timeout ?? 180000,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: scratchEnv(home),
   })
 }
 
@@ -178,7 +187,7 @@ test('a hook source naming a bare token is still written forward-slashed', (t) =
 
   const r = spawnSync(process.execPath, [join(repo, 'tools', 'install.mjs'), '--only=hooks'], {
     cwd: repo, encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: scratchEnv(home),
   })
   assert.equal(r.status, 0, r.stdout + r.stderr)
 

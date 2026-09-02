@@ -5,6 +5,25 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.9.1 — 2026-09-02
+
+Found by doing the thing the package promises and had never been tested: cloning it from
+GitHub onto a machine that has nothing and installing it.
+
+- **The test suite obeyed the environment instead of isolating from it.** Since `paths.mjs`
+  began honouring `CLAUDE_CONFIG_DIR` (1.6.0), an ambient value beat the scratch `HOME` these
+  tests isolate with — so on any machine that sets it, twenty-five tests failed and the session
+  hook reported DEGRADED. Worse, the uninstall tests then operated on the **real** config root:
+  the fresh clone's hooks and skills vanished mid-suite, which is how this was found. Every
+  HOME-isolated child now has the variable deleted, and before any destructive run the test asks
+  the child where its `CONFIG_ROOT` actually is and refuses if the answer is outside the scratch
+  home.
+- **`--skip-library` is not a broken install.** The flag is documented and the Tier-3 library is
+  a 200 MB clone; skipping it made the doctor print thirteen failures and "install is broken",
+  and made the session hook repair fruitlessly at every start. Absent Tier-2 skills are now one
+  warning naming the command that installs them — unless the library is present and a skill is
+  missing from it, which is still a failure.
+
 ## 1.9.0 — 2026-09-02
 
 - **The older taste references fact-checked.** Every typeface probed against the live Google

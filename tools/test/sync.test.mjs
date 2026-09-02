@@ -16,6 +16,15 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 
+/** The child env for a HOME-isolated run. */
+function scratchEnv(home, extra = {}) {
+// CLAUDE_CONFIG_DIR is deleted, not just overridden: paths.mjs prefers it over HOME, so an
+// ambient value would send this child to the real config root and defeat the isolation.
+  const env = { ...process.env, HOME: home, USERPROFILE: home, ...extra }
+  delete env.CLAUDE_CONFIG_DIR
+  return env
+}
+
 const TOOLS = join(REPO, 'tools')
 
 /** A scratch directory, torn down after the test whether or not it passed. */
@@ -45,7 +54,7 @@ function fixtureHome(t) {
 function runSync(repo, home, args = []) {
   const r = spawnSync(process.execPath, [join(repo, 'tools', 'sync.mjs'), ...args], {
     cwd: repo, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: scratchEnv(home),
   })
   const m = (r.stdout || '').match(/(\d+) tracked, (\d+) (?:updated|drifted)/)
   r.tracked = m ? Number(m[1]) : NaN

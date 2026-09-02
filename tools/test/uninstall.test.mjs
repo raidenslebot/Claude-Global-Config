@@ -15,6 +15,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { createHash } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { REPO, IS_WIN } from '../paths.mjs'
 import { onPath } from '../../argo/src/spawn.js'
@@ -48,19 +49,35 @@ function scratch(t, prefix) {
  *  env that lacks one, which would silently undo the isolation. */
 function isolatedEnv(home) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^path$/i.test(k)))
+// CLAUDE_CONFIG_DIR is deleted, not just overridden: paths.mjs prefers it over HOME, so an
+// ambient value would send this child to the real config root and defeat the isolation.
+  delete env.CLAUDE_CONFIG_DIR
   return { ...env, HOME: home, USERPROFILE: home, PATH: join(home, 'empty-path') }
 }
 
-/** Proof the isolation holds, via the two lookups uninstall.mjs actually performs. */
-function assertIsolated(env) {
+/** Proof the isolation holds, via the two lookups uninstall.mjs actually performs — and via the
+ *  one that matters most: the CONFIG_ROOT the child will actually delete from. That third check
+ *  exists because it once failed. When paths.mjs began honouring CLAUDE_CONFIG_DIR, an ambient
+ *  value beat the scratch HOME, and these tests deleted the real installation's hooks and skills
+ *  — observed on a fresh clone whose config root vanished mid-suite. Ask the child where it is
+ *  pointed, and refuse to run if the answer is anywhere but the scratch home. */
+function assertIsolated(env, home) {
   assert.equal(onPath('npm', env), null, 'npm is still reachable through the child PATH')
   const w = spawnSync(WHICH, ['node'], { encoding: 'utf8', env, cwd: REPO })
   assert.notEqual(w.status, 0, `${WHICH} still resolves through the child PATH`)
+  if (!home) return
+  const probe = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `import { CONFIG_ROOT } from ${JSON.stringify(pathToFileURL(join(TOOLS, 'paths.mjs')).href)}; console.log(CONFIG_ROOT)`],
+  { encoding: 'utf8', env: { ...env, PATH: process.env.PATH || process.env.Path }, cwd: REPO })
+  assert.equal(probe.status, 0, `could not ask the child for its CONFIG_ROOT: ${probe.stderr}`)
+  const root = probe.stdout.trim().toLowerCase()
+  assert.ok(root.startsWith(home.toLowerCase()),
+    `the child would operate on ${root}, which is OUTSIDE the scratch home ${home} — refusing to run a destructive test`)
 }
 
 function runUninstall(args, home) {
   const env = isolatedEnv(home)
-  if (args.includes('--yes')) assertIsolated(env)
+  if (args.includes('--yes')) assertIsolated(env, home)
   const r = spawnSync(process.execPath, [join(TOOLS, 'uninstall.mjs'), ...args], {
     cwd: REPO, encoding: 'utf8', timeout: 180000, env,
   })

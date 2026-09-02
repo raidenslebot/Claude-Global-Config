@@ -35,7 +35,9 @@ function doctorWith(t, config) {
   writeFileSync(join(home, '.claude.json'), JSON.stringify(config, null, 2), 'utf8')
   const r = spawnSync(process.execPath, [join(REPO, 'tools', 'doctor.mjs')], {
     cwd: REPO, encoding: 'utf8', timeout: 180000,
-    env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: '1', FORCE_COLOR: '0' },
+    // CLAUDE_CONFIG_DIR is deleted, not overridden: paths.mjs prefers it over HOME, so an
+    // ambient value would point doctor at the real config root and defeat the scratch home.
+    env: (() => { const e = { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: '1', FORCE_COLOR: '0' }; delete e.CLAUDE_CONFIG_DIR; return e })(),
   })
   return String(r.stdout || '') + String(r.stderr || '')
 }
