@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="11in" height="10in" viewBox="0 0 1100 1000">
+  <!--
+    Full-back print, one colour (cream) on navy: the month's dawn high-water table, the club's real
+    calendar. Monospace so the columns hold; smallest type 26 units = 0.26 in, about 19 pt (the
+    screen-print minimum is 8 pt). Times and heights are fictional.
+    Mockup: print-render back-tide.svg, mockup tee-back, zone full-back, art width 11in, garment #1f2a44, presentation
+    Gate:   print-lint back-tide.svg, method screen
+  -->
+  <style>
+    text { font-family: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace; fill: #efe9dc; }
+    .h { font-size: 44px; font-weight: 700; letter-spacing: 4px; }
+    .r { font-size: 30px; }
+    .f { font-size: 26px; letter-spacing: 6px; }
+  </style>
+  <text class="h" x="0" y="60">HIGH WATER · SEPTEMBER · DAWN</text>
+  <line x1="0" y1="90" x2="1100" y2="90" stroke="#efe9dc" stroke-width="3"/>
+  <g class="r">
+    <text x="0"   y="150">SAT 06</text><text x="380" y="150">06:52</text><text x="700" y="150">4.9 m</text>
+    <text x="0"   y="200">SUN 07</text><text x="380" y="200">07:31</text><text x="700" y="200">5.1 m</text>
+    <text x="0"   y="250">MON 08</text><text x="380" y="250">08:08</text><text x="700" y="250">5.2 m</text>
+    <text x="0"   y="300">TUE 09</text><text x="380" y="300">08:44</text><text x="700" y="300">5.2 m</text>
+    <text x="0"   y="350">WED 10</text><text x="380" y="350">09:19</text><text x="700" y="350">5.0 m</text>
+    <text x="0"   y="400">THU 11</text><text x="380" y="400">09:55</text><text x="700" y="400">4.8 m</text>
+    <text x="0"   y="450">FRI 12</text><text x="380" y="450">10:33</text><text x="700" y="450">4.5 m</text>
+    <text x="0"   y="500">SAT 13</text><text x="380" y="500">11:16</text><text x="700" y="500">4.2 m</text>
+    <text x="0"   y="550">SUN 14</text><text x="380" y="550">12:07</text><text x="700" y="550">4.0 m</text>
+    <text x="0"   y="600">SAT 20</text><text x="380" y="600">05:58</text><text x="700" y="600">4.6 m</text>
+    <text x="0"   y="650">SUN 21</text><text x="380" y="650">06:41</text><text x="700" y="650">4.9 m</text>
+    <text x="0"   y="700">SAT 27</text><text x="380" y="700">05:12</text><text x="700" y="700">5.3 m</text>
+  </g>
+  <line x1="0" y1="760" x2="1100" y2="760" stroke="#efe9dc" stroke-width="3"/>
+  <text class="f" x="0" y="830">SWIM BETWEEN THE FLAGS</text>
+  <!-- the ring, small, bottom right: the front mark's rhyme -->
+  <circle cx="1040" cy="815" r="32" fill="none" stroke="#efe9dc" stroke-width="7"/>
+  <rect x="1008" y="812" width="64" height="4" fill="#efe9dc"/>
+</svg>

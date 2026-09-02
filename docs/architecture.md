@@ -149,6 +149,23 @@ in pixels or at exactly trim size (bleed forgotten — the most common real mist
 is the same shape as every other gate here: a design that looks finished and would not survive
 the press does not leave the machine.
 
+A second gate came from a failure. The skills required the divergence protocol to be *written*
+before markup; the first card made with them skipped that, the protocol was "run in the head",
+and the result was the centroid the skills describe. Advisory text competes with everything else
+in the context and loses. So a PostToolUse hook now fires the moment an HTML or SVG file with a
+physical page size is written and there is no `directions.md` beside it. It reports, never
+vetoes, and it is silent on screen work — the same rules as every hook here.
+
+## Decision: doctor measures what this package owns, separately from what the machine has
+
+`doctor.mjs` used to warn when the machine's total skill-description cost exceeded one budget.
+On any real machine with host plugins that was every run, and a warning that fires every run is
+decoration. It now reports two numbers — everything installed, and this package's share (the
+Tier-2 residents plus the skills this repo authors) — and warns only against the package's own
+budget; the rest is a note with names in `--json`. Trigger contention gets the same split: a
+contended word is this package's problem when one of its own skills claims it, and the report
+says so; host plugins contending with each other is reported as information.
+
 ## Decision: two dispatch paths, both routed, one vocabulary
 
 Spawned agents reach a model by two different paths, and only one of them passes through the

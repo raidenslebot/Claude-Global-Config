@@ -130,9 +130,10 @@ Also check that the entry is a live link. A junction or symlink whose target has
 
 ---
 
-## Context budget over 6000 tokens
+## Context cost: "this package's skills cost ~N tokens — over its 4000 budget"
 
-**Symptom.** `doctor.mjs` warns `~N tokens per session — over the 6000 budget`.
+**Symptom.** `doctor.mjs` reports two numbers under *Session context cost* — everything installed,
+and this package's share — and warns only on the second.
 
 **Cause.** Every installed skill costs its frontmatter `name` plus `description` in **every
 session**, whether or not it is ever invoked. That text is what dispatch matches against, so it
@@ -143,13 +144,17 @@ triggers competing to match each request.
 This is why the repo tiers its library: 13 resident Tier-2 skills, and 800+ Tier-3 skills that
 live on disk at zero session cost and are found with `grep` over `library/INDEX.md`.
 
-**Fix.** `doctor.mjs` names the offenders rather than just the number — it prints the five
-heaviest installed skills with their individual token cost, so pruning is a decision about
-specific skills. Remove a resident skill by deleting its link from `~/.claude/skills`; it stays
-on disk in the library and remains reachable by path.
+**Why two numbers.** On a machine with other plugins installed, most of the total is not this
+package's. An earlier version warned on the machine total against one budget, which meant it
+warned on every run on any real machine — and a gate that always warns is ignored. Now the
+package is measured against its own budget (4000 tokens: the 13 Tier-2 residents plus the skills
+this repo authors), and the rest is reported as a note with the heaviest names in `--json`.
 
-The single biggest cost is usually one skill with a long `description`. Shorten the description
-before deleting the skill.
+**Fix, when the package is over.** `doctor.mjs` names the offenders — the five heaviest of *this
+package's* skills with their individual cost — so pruning is a decision about specific skills.
+Shorten a long `description` first; remove a Tier-2 resident by taking it out of
+`library/sources.json` and re-running install (it stays on disk in the library, reachable by
+path). Host-plugin cost is managed where those plugins are managed, not here.
 
 ---
 

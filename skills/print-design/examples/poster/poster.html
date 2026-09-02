@@ -1,0 +1,77 @@
+<!doctype html><meta charset="utf-8"><title>Night Market — 18 × 24 poster</title>
+<!--
+  A finished poster in the form this skill produces. Read it for the SHAPE: three reading
+  distances built as three explicit layers (the word, the when-and-where, the board), a two-ink
+  Riso as the material with its misregistration drawn rather than filtered, every dimension
+  physical, bleed 0.25 in because the sheet is large format.
+
+  Render:  node tools/print-render.mjs poster.html --size poster-18x24 --marks --png 60
+  Gate:    node tools/print-lint.mjs   poster.html --size poster-18x24
+  Beside it: directions.md (read first) and spec-sheet.txt
+-->
+<style>
+  @page { size: 18.5in 24.5in; margin: 0; }                /* trim 18 × 24 + 0.25 in bleed each side */
+  html, body { margin: 0; }
+  .sheet { width: 18.5in; height: 24.5in; background: #f2e9d6; position: relative; overflow: hidden;
+           font-family: Bahnschrift, "Arial Narrow", "Helvetica Neue", Arial, sans-serif; color: #1a3a6b; }
+  .safe  { position: absolute; inset: 0.5in; }              /* bleed 0.25 + safe 0.25 */
+
+  /* Two Riso inks. Orange is the far read; blue is everything you read up close. Overlaps multiply. */
+  .ink-orange { color: #ff5a1f; }
+  .ink-blue   { color: #1a3a6b; }
+
+  /* Far read — the word. Condensed caps, two lines, edge to edge. */
+  .word { position: absolute; left: 0; top: 0.2in; margin: 0; line-height: 0.82;
+          font-size: 380pt; font-weight: 700; font-stretch: 75%; letter-spacing: -0.02em; color: #ff5a1f; }
+  /* A second, offset copy in blue behind it: the misregistration a two-pass Riso really has. */
+  .word.ghost { color: #1a3a6b; left: 0.06in; top: 0.16in; mix-blend-mode: multiply; opacity: 0.55; }
+
+  /* Steam: a halftone plume in blue, rising behind the word. Dots, not a gradient — Riso has no gradients. */
+  .steam { position: absolute; left: 6in; top: -1in; width: 10in; height: 13.5in; mix-blend-mode: multiply; opacity: 0.85;
+           background: radial-gradient(circle, #1a3a6b 26%, transparent 30%) 0 0 / 0.16in 0.16in;
+           /* explicit radii, so the plume fades to nothing before the box's own edges — no hard cut */
+           -webkit-mask-image: radial-gradient(ellipse 46% 92% at 50% 100%, #000 0%, rgba(0,0,0,0.55) 50%, transparent 100%);
+           mask-image: radial-gradient(ellipse 46% 92% at 50% 100%, #000 0%, rgba(0,0,0,0.55) 50%, transparent 100%); }
+
+  /* Middle read — when and where, 60 pt, set like the chalk line under a board's title. */
+  .when { position: absolute; left: 0; top: 11.9in; margin: 0; font-size: 60pt; line-height: 1.05; font-weight: 700; font-stretch: 75%; }
+  .when small { display: block; font-size: 30pt; font-weight: 400; font-stretch: 87.5%; letter-spacing: 0.04em; margin-top: 0.1in; }
+
+  /* Near read — the board. Two columns of stalls with their hours where prices go. */
+  .board { position: absolute; left: 0; right: 0; top: 14.4in; columns: 2; column-gap: 0.9in; font-size: 22pt; line-height: 2.35; }
+  .board div { display: flex; align-items: baseline; break-inside: avoid; }
+  .board .n { font-weight: 700; font-stretch: 87.5%; }
+  .board .l { flex: 1; border-bottom: 1pt dotted #1a3a6b; margin: 0 0.12in; transform: translateY(-0.28em); }
+  .board .p { font-variant-numeric: tabular-nums; color: #ff5a1f; font-weight: 700; }
+
+  /* The tear-off strip. A perforation line the printer scores; the essentials repeated. */
+  .perf { position: absolute; left: -0.5in; right: -0.5in; top: 21.55in; border-top: 0.5pt dashed #1a3a6b; }
+  .tab  { position: absolute; left: 0; right: 0; top: 21.85in; display: flex; justify-content: space-between; align-items: baseline;
+          font-size: 20pt; font-weight: 700; font-stretch: 75%; }
+  .tab .cash { color: #ff5a1f; font-size: 16pt; font-weight: 400; font-stretch: 87.5%; letter-spacing: 0.06em; }
+</style>
+<div class="sheet"><div class="safe">
+  <div class="steam"></div>
+  <p class="word ghost">NIGHT<br>MARKET</p>
+  <p class="word">NIGHT<br>MARKET</p>
+
+  <p class="when">Fridays · 7 till late<br><small>Old Ferry Lane, under the railway arches · cash only</small></p>
+
+  <div class="board">
+    <div><span class="n">Dumplings, Auntie Mei</span><span class="l"></span><span class="p">7 · 11</span></div>
+    <div><span class="n">Smoked eel rolls</span><span class="l"></span><span class="p">7 · 10</span></div>
+    <div><span class="n">Charcoal corn</span><span class="l"></span><span class="p">7 · late</span></div>
+    <div><span class="n">Sugarcane press</span><span class="l"></span><span class="p">7 · 12</span></div>
+    <div><span class="n">Tea eggs, by the litre</span><span class="l"></span><span class="p">7 · 9</span></div>
+    <div><span class="n">The soup stall</span><span class="l"></span><span class="p">8 · late</span></div>
+    <div><span class="n">Records, cassettes</span><span class="l"></span><span class="p">7 · 11</span></div>
+    <div><span class="n">Repairs while you wait</span><span class="l"></span><span class="p">7 · 10</span></div>
+    <div><span class="n">Ice, shaved</span><span class="l"></span><span class="p">8 · late</span></div>
+    <div><span class="n">Plants, cuttings</span><span class="l"></span><span class="p">7 · 9</span></div>
+    <div><span class="n">Fortunes</span><span class="l"></span><span class="p">9 · late</span></div>
+    <div><span class="n">Lantern stall</span><span class="l"></span><span class="p">7 · 12</span></div>
+  </div>
+
+  <div class="perf"></div>
+  <div class="tab"><span>NIGHT MARKET · FRIDAYS · 7 PM · OLD FERRY LANE</span><span class="cash">tear this off · keep it</span></div>
+</div></div>

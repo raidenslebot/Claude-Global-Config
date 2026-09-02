@@ -145,22 +145,68 @@ iframe { position: absolute; left: ${slug}in; top: ${slug}in; width: ${iw}in; he
 </body></html>`
 }
 
-function mockupWrapper({ flatSvg, flatW, flatH, zone, artUrl, artW, artH, garment, showZones }) {
+/** Relative luminance of a CSS hex colour, or null when it is not a hex. */
+function luminance(css) {
+  const m = String(css).trim().match(/^#([0-9a-f]{6}|[0-9a-f]{3})$/i)
+  if (!m) return null
+  let h = m[1]; if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+  return 0.2126 * lin(parseInt(h.slice(0, 2), 16)) + 0.7152 * lin(parseInt(h.slice(2, 4), 16)) + 0.0722 * lin(parseInt(h.slice(4, 6), 16))
+}
+
+function mockupWrapper({ flatSvg, flatW, flatH, zone, artUrl, artW, artH, garment, showZones, presentation }) {
   const svg = flatSvg
     .replace(/<svg\b([^>]*)\swidth="[^"]*"/, '<svg$1 width="__W__"')
     .replace(/<svg\b([^>]*)\sheight="[^"]*"/, '<svg$1 height="__H__"')
     .replace('__W__', `${flatW}in`).replace('__H__', `${flatH}in`)
+  // A zone may lie along a sleeve; the art rotates about the zone's centre with it.
+  const rot = zone.rotate ? ` transform: rotate(${zone.rotate}deg); transform-origin: 50% 50%;` : ''
+  const artLeft = zone.x + (zone.w - artW) / 2
+  const artTop = zone.rotate ? zone.y + (zone.h - artH) / 2 : zone.y
+  // Ink on a light garment reads as multiply (it soaks in); on a dark one an opaque ink sits on
+  // top, so no blend. Decided from the garment colour, not guessed.
+  const lum = luminance(garment)
+  const blend = presentation && lum !== null && lum > 0.35 ? ' mix-blend-mode: multiply;' : ''
+  // Presentation: a neutral studio ground, a soft cast shadow, a fabric grain on the garment
+  // only, and a slight fall-off toward the edges. Restrained on purpose — this is a review
+  // tool, not a marketing render, and the art must stay judgeable.
+  const pres = presentation ? `
+body { background: radial-gradient(ellipse at 50% 35%, #efece6 0%, #dcd8cf 70%, #cfcabf 100%); }
+.flat { filter: drop-shadow(0.10in 0.14in 0.28in rgba(20, 18, 14, 0.30)); }
+.flat #garment { filter: url(#fabric); }
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.10) 100%); }` : ''
+  const fabric = presentation ? `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<filter id="fabric" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+  <feTurbulence type="fractalNoise" baseFrequency="2.4 2.4" numOctaves="3" seed="7" result="noise"/>
+  <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.07 0" result="grain"/>
+  <feBlend in="SourceGraphic" in2="grain" mode="multiply"/>
+</filter></defs></svg>` : ''
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 html, body { margin: 0; padding: 0; background: #f4f2ee; }
 body { width: ${flatW}in; height: ${flatH}in; position: relative; overflow: hidden; }
 .flat { position: absolute; left: 0; top: 0; width: ${flatW}in; height: ${flatH}in; --garment: ${garment}; }
 .flat #zones { display: ${showZones ? 'block' : 'none'}; }
-.art { position: absolute; left: ${zone.x + (zone.w - artW) / 2}in; top: ${zone.y}in; width: ${artW}in; height: ${artH}in; }
-.art img { width: 100%; height: 100%; display: block; }
+.art { position: absolute; left: ${artLeft}in; top: ${artTop}in; width: ${artW}in; height: ${artH}in;${rot}${blend} }
+.art img { width: 100%; height: 100%; display: block; }${pres}
 </style></head><body>
-<div class="flat">${svg}</div>
-<div class="art"><img src="${artUrl}" alt=""></div>
+${fabric}<div class="flat">${svg}</div>
+<div class="art"><img src="${artUrl}" alt=""></div>${presentation ? '<div class="vignette"></div>' : ''}
 </body></html>`
+}
+
+/** Several designs as one PDF: each page is a section at page size, breaking after it. */
+function pagesWrapper({ srcUrls, trim, bleed, slug, marks }) {
+  const W = trim.w + 2 * (bleed + slug), H = trim.h + 2 * (bleed + slug)
+  const iw = trim.w + 2 * bleed, ih = trim.h + 2 * bleed
+  const sections = srcUrls.map((u, i) =>
+    `<section${i < srcUrls.length - 1 ? ' style="page-break-after: always; break-after: page;"' : ''}>` +
+    `<iframe src="${u}"></iframe>${marks ? cropMarks(trim, bleed, slug) : ''}</section>`).join('')
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+@page { size: ${W}in ${H}in; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+section { width: ${W}in; height: ${H}in; position: relative; overflow: hidden; display: block; }
+iframe { position: absolute; left: ${slug}in; top: ${slug}in; width: ${iw}in; height: ${ih}in; border: 0; display: block; }
+</style></head><body>${sections}</body></html>`
 }
 
 // ── art dimensions ───────────────────────────────────────────────────────────
@@ -206,19 +252,24 @@ const HELP = `print-render — HTML/SVG at physical size -> PDF (+ PNG proof), o
 usage:
   print-render <design.html|svg> (--size <preset> | --trim WxH<unit>) [--bleed <len>] [--marks]
                [--png <dpi>] [--out <base>] [--json]
+  print-render <front.html> <back.html> [...]  same flags — one multi-page PDF, one PNG per page
   print-render <art.svg|png> --mockup <garment> --zone <zone> [--garment <css colour>]
-               [--art-width <len>] [--show-zones] [--png <dpi>] [--out <base>] [--json]
+               [--art-width <len>] [--show-zones] [--presentation] [--png <dpi>] [--out <base>] [--json]
 
   presets:  ${Object.keys(PRESETS).join(', ')}
-  garments: read from skills/apparel-design/assets/zones.json (tee, tee-back, hoodie, cap, tote)
+  garments: read from skills/apparel-design/assets/zones.json (tee, tee-back, long-sleeve, hoodie,
+            polo, jersey, cap, beanie, tote); --presentation adds a studio ground, cast shadow and
+            fabric grain for review, and multiplies ink into light garments
 
 exit: 0 rendered · 1 bad input · 2 no browser available (install the Playwright MCP server first)`
 
 export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   if (args.help || args._.length === 0) { console.log(HELP); return args.help ? 0 : 1 }
-  const src = resolve(args._[0])
-  if (!existsSync(src)) { console.error(`print-render: no such file — ${src}`); return 1 }
+  const srcs = args._.map((p) => resolve(p))
+  const src = srcs[0]
+  for (const s of srcs) if (!existsSync(s)) { console.error(`print-render: no such file — ${s}`); return 1 }
+  if (srcs.length > 1 && args.mockup) { console.error('print-render: a mockup takes one artwork file'); return 1 }
 
   const pw = findPlaywright()
   if (!pw) {
@@ -226,7 +277,9 @@ export async function main(argv = process.argv.slice(2)) {
     return 2
   }
 
-  const outBase = args.out ? resolve(String(args.out)) : join(dirname(src), basename(src, extname(src)))
+  const outBase = args.out ? resolve(String(args.out))
+    : srcs.length > 1 ? join(dirname(src), srcs.map((s) => basename(s, extname(s))).join('+'))
+      : join(dirname(src), basename(src, extname(src)))
   mkdirSync(dirname(outBase), { recursive: true })
   const dpi = args.png === true ? 300 : args.png ? Number(args.png) : 0
   if (args.png && !(dpi > 0)) { console.error('print-render: --png wants a dpi, e.g. --png 300'); return 1 }
@@ -249,9 +302,10 @@ export async function main(argv = process.argv.slice(2)) {
     html = mockupWrapper({
       flatSvg, flatW: g.width, flatH: g.height, zone, artUrl: pathToFileURL(src).href,
       artW, artH, garment: String(args.garment || '#d9d6cf'), showZones: Boolean(args['show-zones']),
+      presentation: Boolean(args.presentation),
     })
     pageW = g.width; pageH = g.height
-    summary = { mode: 'mockup', garment: args.mockup, zone: args.zone, garmentColour: String(args.garment || '#d9d6cf'), artInches: { w: +artW.toFixed(3), h: +artH.toFixed(3) }, zoneInches: zone }
+    summary = { mode: 'mockup', garment: args.mockup, zone: args.zone, garmentColour: String(args.garment || '#d9d6cf'), artInches: { w: +artW.toFixed(3), h: +artH.toFixed(3) }, zoneInches: zone, presentation: Boolean(args.presentation) }
   } else {
     let trim
     if (args.size) { trim = PRESETS[String(args.size)]; if (!trim) { console.error(`print-render: unknown preset "${args.size}" — one of ${Object.keys(PRESETS).join(', ')}`); return 1 } }
@@ -259,9 +313,12 @@ export async function main(argv = process.argv.slice(2)) {
     else { console.error('print-render: give --size <preset> or --trim WxH<unit>'); return 1 }
     const bleed = args.bleed !== undefined ? parseLength(String(args.bleed)) : defaultBleed(trim)
     const slug = args.marks ? 0.25 : 0
-    html = printWrapper({ srcUrl: pathToFileURL(src).href, trim, bleed, slug, marks: Boolean(args.marks) })
+    const urls = srcs.map((s) => pathToFileURL(s).href)
+    html = srcs.length > 1
+      ? pagesWrapper({ srcUrls: urls, trim, bleed, slug, marks: Boolean(args.marks) })
+      : printWrapper({ srcUrl: urls[0], trim, bleed, slug, marks: Boolean(args.marks) })
     pageW = trim.w + 2 * (bleed + slug); pageH = trim.h + 2 * (bleed + slug)
-    summary = { mode: 'print', trimInches: { w: +trim.w.toFixed(4), h: +trim.h.toFixed(4) }, bleedInches: bleed, slugInches: slug, marks: Boolean(args.marks), colourSpace: 'RGB (Chromium) — state CMYK/Pantone intent in the spec sheet' }
+    summary = { mode: 'print', pages: srcs.length, trimInches: { w: +trim.w.toFixed(4), h: +trim.h.toFixed(4) }, bleedInches: bleed, slugInches: slug, marks: Boolean(args.marks), colourSpace: 'RGB (Chromium) — state CMYK/Pantone intent in the spec sheet' }
   }
 
   const wrapper = join(scratch, 'wrapper.html')
@@ -283,19 +340,30 @@ export async function main(argv = process.argv.slice(2)) {
     }
     if (dpi > 0) {
       const scale = dpi / 96
-      const ctx = await browser.newContext({ deviceScaleFactor: scale, viewport: { width: Math.round(pageW * 96), height: Math.round(pageH * 96) } })
+      const pages = summary.pages || 1
+      const vw = Math.round(pageW * 96), vh = Math.round(pageH * 96)
+      const ctx = await browser.newContext({ deviceScaleFactor: scale, viewport: { width: vw, height: vh * pages } })
       const page = await ctx.newPage()
       await page.goto(pathToFileURL(wrapper).href, { waitUntil: 'load' })
       await page.evaluate(() => document.fonts ? document.fonts.ready : null)
-      const png = `${outBase}.png`
-      await page.screenshot({ path: png, type: 'png', fullPage: false })
-      outputs.png = png
+      if (pages === 1) {
+        const png = `${outBase}.png`
+        await page.screenshot({ path: png, type: 'png', clip: { x: 0, y: 0, width: vw, height: vh } })
+        outputs.png = png
+      } else {
+        outputs.png = []
+        for (let i = 0; i < pages; i++) {
+          const png = `${outBase}-${i + 1}.png`
+          await page.screenshot({ path: png, type: 'png', clip: { x: 0, y: i * vh, width: vw, height: vh } })
+          outputs.png.push(png)
+        }
+      }
       await ctx.close()
     }
     const result = { ...summary, pageInches: { w: +pageW.toFixed(4), h: +pageH.toFixed(4) }, dpi: dpi || null, ...outputs, browserFrom: pw.from }
     if (args.json) console.log(JSON.stringify(result, null, 2))
     else {
-      for (const [k, v] of Object.entries(outputs)) console.log(`  wrote ${v}  (${(statSync(v).size / 1024).toFixed(0)} KB)`)
+      for (const v of Object.values(outputs).flat()) console.log(`  wrote ${v}  (${(statSync(v).size / 1024).toFixed(0)} KB)`)
       if (summary.mode === 'print') console.log(`  page ${result.pageInches.w} × ${result.pageInches.h} in · trim ${summary.trimInches.w} × ${summary.trimInches.h} · bleed ${summary.bleedInches} · ${summary.colourSpace}`)
       else console.log(`  ${summary.garment} / ${summary.zone} · art ${summary.artInches.w} × ${summary.artInches.h} in on ${summary.garmentColour}`)
     }

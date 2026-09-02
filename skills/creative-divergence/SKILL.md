@@ -1,6 +1,6 @@
 ---
 name: creative-divergence
-description: "Use when visual work needs to be genuinely original rather than competent — 'this looks generic', 'it looks like every other app', 'make it unique', 'this is AI slop', 'I want something nobody has seen', 'design something impressive', 'it has no personality', or when starting any hero, landing page, game UI, dashboard, brand surface, or art direction where looking distinctive is the actual goal. Also use when a design is technically fine but forgettable. Runs a divergence protocol: extract the subject's own visual DNA, generate structurally different directions with explicit operators, test each for genericness, then commit to one. Not a substitute for visual-design-mastery, which judges whether the result is good."
+description: "Use when the work must look genuinely original rather than merely competent — 'this looks generic', 'it looks like every other app', 'make it unique', 'this is AI slop', 'I want something nobody has seen', 'design something impressive', 'it has no personality', or when starting any hero, landing page, game UI, dashboard, brand surface, or art direction where looking distinctive is the actual goal. Also use when a piece is technically fine but forgettable. Runs a divergence protocol: extract the subject's own DNA, generate structurally different directions with explicit operators, test each for genericness, then commit to one. Not a substitute for visual-design-mastery, which judges whether the result is good."
 ---
 
 # Creative divergence

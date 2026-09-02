@@ -137,7 +137,10 @@ one committed to with the reason. This is not paperwork; it is the step that get
 the head", and a direction that was never written down was never compared with anything. The
 author of this skill skipped it on the first card made with it and shipped the centroid — the
 example in `examples/business-card/directions.md` shows the artifact, including the discarded
-directions.
+directions. It is checked, not just asked: a hook reports any physical design written with no
+`directions.md` beside it, the moment it is written. Type is the other thing to decide here —
+[`references/type-for-print.md`](references/type-for-print.md) lists the faces already on each
+OS that print well, and how to set them.
 
 **1 · Author at physical size.** HTML with an `@page` rule and every dimension in `in`, `mm` or
 `pt`; or an SVG whose `width`/`height` carry units and whose `viewBox` matches. The document
@@ -161,7 +164,12 @@ slug on every side, the marks sitting in the slug and pointing at the trim corne
 `card-front.png` at 300 dpi for review. `--size` may be a named preset (`business-card-us`,
 `a5`, `letter`, `dl` …). Output is RGB; see the limitation below.
 
-**3 · Gate.** `node tools/print-lint.mjs card-front.html --trim 3.5x2in --bleed 0.125in` fails on:
+For a two-sided piece, give both files and get one two-page PDF with a PNG per page:
+`node tools/print-render.mjs front.html back.html --size business-card-us --marks --png 300 --out card`.
+
+**3 · Gate.** `node tools/print-lint.mjs card-front.html --trim 3.5x2in --bleed 0.125in` (or the
+whole directory: `node tools/print-lint.mjs ./card --size business-card-us`, so a side is never
+forgotten) fails on:
 type below 6 pt; stroke/border below 0.25 pt; a raster placed below 300 dpi; no `@page` size
 or a size that is not trim + 2×bleed; pixel units used for physical dimensions. A warning names
 any colour whose chroma is likely outside CMYK. **A design that fails the lint is not finished**,
@@ -170,9 +178,11 @@ whatever it looks like.
 **4 · Deliver.** The PDF, the PNG preview, and the spec sheet. For a two-sided piece, two PDFs
 or one two-page file — say which in the sheet.
 
-A finished card in exactly this form — front, back, spec sheet, passing the lint — is in
-[`examples/business-card/`](examples/business-card/). Read it for the shape before authoring
-the first one; do not copy its design.
+Two finished pieces in exactly this form — directions written first, the design, the spec sheet,
+passing the lint — are in [`examples/business-card/`](examples/business-card/) and
+[`examples/poster/`](examples/poster/) (the three-distance rule and a two-ink Riso, with the
+misregistration drawn). Read them for the shape before authoring the first one; do not copy
+their designs.
 
 **Limitation, stated plainly:** Chromium writes **RGB** PDFs with fonts embedded as subsets
 (not outlined). Online services (Moo, Vistaprint, Printful and most digital shops) accept them

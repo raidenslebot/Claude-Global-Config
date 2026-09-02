@@ -8,8 +8,12 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createRequire } from 'node:module'
 import { lint, colours, MINIMUMS, PRESETS } from '../print-lint.mjs'
 import { PRESETS as RENDER_PRESETS } from '../print-render.mjs'
+import { REPO } from '../paths.mjs'
+
+const require_child = () => createRequire(import.meta.url)('node:child_process')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'print-lint-'))
@@ -96,6 +100,16 @@ test('an SVG in physical units is checked through its viewBox; one in pixels fai
   assert.ok(rules(px, 'fail').includes('size'))
 })
 
+test('an SVG whose comment holds a double hyphen fails as malformed XML — Chromium would refuse it silently', (t) => {
+  const d = scratch(t)
+  const good = `<svg xmlns="http://www.w3.org/2000/svg" width="4in" height="4in" viewBox="0 0 400 400"><!-- mockup: print-render mark.svg, zone left-chest --><text font-size="40" x="20" y="200">Mark</text></svg>`
+  const bad = good.replace('zone left-chest', '--zone left-chest')
+  assert.deepEqual(rules(lint(file(d, 'good.svg', good), {}), 'fail'), [])
+  const r = lint(file(d, 'bad.svg', bad), {})
+  assert.ok(rules(r, 'fail').includes('xml'), JSON.stringify(r.findings))
+  assert.match(r.findings.find((f) => f.rule === 'xml').msg, /"--"/)
+})
+
 test('the method raises the bar: 7.5pt type passes on paper and fails for screen print and embroidery', (t) => {
   const d = scratch(t)
   const p = file(d, 'tee.html', GOOD_CARD)
@@ -123,6 +137,21 @@ test('high-chroma colours warn about the CMYK gamut, muted ones do not', () => {
   assert.equal(hot.filter((c) => c.chroma > 0.14).length, 3)
   const calm = colours('color: #1b1b1f; background: #f2ede4; fill: oklch(0.7 0.05 30)')
   assert.equal(calm.filter((c) => c.chroma > 0.14).length, 0)
+})
+
+test('a directory lints every design in it, and one bad side fails the whole piece', (t) => {
+  const d = scratch(t)
+  file(d, 'front.html', GOOD_CARD)
+  file(d, 'back.html', GOOD_CARD.replace('font: 7.5pt/1.35', 'font: 5pt/1.35'))
+  file(d, 'directions.md', '# not a design')
+  const { spawnSync } = require_child()
+  const r = spawnSync(process.execPath, [join(REPO, 'tools', 'print-lint.mjs'), d, '--size', 'business-card-us'], { encoding: 'utf8', timeout: 60000 })
+  assert.equal(r.status, 1, r.stdout)
+  assert.match(r.stdout, /1\/2 files pass/)
+  assert.match(r.stdout, /back\.html/)
+  assert.match(r.stdout, /front\.html/)
+  const ok = spawnSync(process.execPath, [join(REPO, 'tools', 'print-lint.mjs'), join(d, 'front.html'), '--size', 'business-card-us'], { encoding: 'utf8', timeout: 60000 })
+  assert.equal(ok.status, 0, ok.stdout)
 })
 
 test('the lint and the renderer agree on every preset, and each matches the documented table', () => {

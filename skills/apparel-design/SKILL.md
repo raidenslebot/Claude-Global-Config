@@ -117,16 +117,32 @@ template.
 ## Mockups, locally and at true scale
 
 Placement and size are judged on the body, so they are seen before ordering. This config ships
-vector garment flats — tee, hoodie, cap, tote — in [`assets/`](assets/), drawn at real garment
-dimensions with the print zones marked. Composite the artwork onto one at true scale:
+vector garment flats — tee (front and back), long sleeve, hoodie, polo, jersey, cap, beanie,
+tote — in [`assets/`](assets/), drawn at real garment dimensions with the print zones marked
+(a sleeve zone is rotated to lie along the arm, and the art rotates with it). Composite the
+artwork onto one at true scale:
 
 ```
-node tools/print-render.mjs artwork.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150
+node tools/print-render.mjs artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150
+node tools/print-render.mjs artwork.svg --mockup tee --zone left-chest --art-width 3.5in --garment "#1c1c1e" --png 150 --presentation
 ```
+
+`--art-width` is the size on the placement sheet; without it the art fills the zone, which is
+the *maximum*, not the plan. One more thing the lint now catches because it bit here: an SVG
+comment that contains `--` (a pasted command line) is invalid XML, and the browser refuses the
+whole file — the mockup shows a broken image and nothing says why.
 
 The result is a PNG of the flat with the art at the size it will actually print, on the garment
-colour it will actually be on. Photographic mockups are not shipped (they would be assets from
+colour it will actually be on. `--presentation` adds a studio ground, a cast shadow, a fabric
+grain on the garment, and multiplies the ink into a *light* garment (an opaque ink on a dark one
+sits on top, so no blend) — enough to show a client, restrained enough that the art is still
+judged and not the effect. Photographic mockups are not shipped (they would be assets from
 somewhere else); the flat is the honest review tool for placement, scale and colour.
+
+A finished piece in exactly this form — directions written first, front and back artwork,
+placement sheet, mockups, passing the lint for its method — is in
+[`examples/harbor-swim-club/`](examples/harbor-swim-club/). Read it for the shape; do not copy
+its design.
 
 ## Slop to recoil from
 

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24in" height="30in" viewBox="0 0 24 30" data-garment="jersey" data-view="back">
+  <!-- Athletic jersey, BACK view, flat at true scale (inches): the name arches above a large number. V-neck, dropped shoulders, side panels. Front zones are the tee's; this flat is the back. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.32px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <path class="body" d="
+      M 7.0 0.9  C 8.8 0.4 15.2 0.4 17.0 0.9
+      L 23.2 4.8  L 21.4 9.6  L 18.4 8.6
+      L 18.4 29.6  L 5.6 29.6  L 5.6 8.6
+      L 2.6 9.6  L 0.8 4.8  Z" />
+    <!-- back neck (shallow) -->
+    <path class="body" d="M 9.0 0.75 C 10.0 1.7 14.0 1.7 15.0 0.75 C 13.6 0.45 10.4 0.45 9.0 0.75 Z" />
+    <path class="seam" d="M 8.8 1.1 C 10.0 2.2 14.0 2.2 15.2 1.1" />
+    <!-- side panels -->
+    <path class="seam" d="M 5.6 8.6 L 6.8 29.6 M 18.4 8.6 L 17.2 29.6" />
+    <path class="seam" d="M 2.6 9.6 L 5.6 8.6 M 21.4 9.6 L 18.4 8.6" />
+  </g>
+  <g id="zones">
+    <!-- name arc: a strip 2.5in tall, 12in wide, 3in below the collar -->
+    <rect class="zone" x="6" y="4.5" width="12" height="2.5" /><text class="zone-label" x="6.15" y="4.95">name (arched)</text>
+    <!-- number: 8in tall on adult, centred, top 1in below the name -->
+    <rect class="zone" x="7.5" y="8" width="9" height="8" /><text class="zone-label" x="7.65" y="8.45">number</text>
+    <rect class="zone" x="7.5" y="24" width="9" height="3" /><text class="zone-label" x="7.65" y="24.45">hem-sponsor</text>
+  </g>
+</svg>

@@ -104,6 +104,33 @@ test('a mockup places the art at true scale in the named zone on the garment fla
   assert.ok(big.json.artInches.w <= 4 && big.json.artInches.h <= 2.25, JSON.stringify(big.json.artInches))
 })
 
+test('two designs render to one two-page PDF with a PNG per page', { skip: !BROWSER && 'no browser installed' }, (t) => {
+  const d = scratch(t)
+  writeFileSync(join(d, 'front.html'), CARD)
+  writeFileSync(join(d, 'back.html'), CARD.replace('Ada Vance', 'back'))
+  const r = render(['front.html', 'back.html', '--size', 'business-card-us', '--marks', '--png', '40', '--out', 'card'], d)
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.json.pages, 2)
+  const pdf = readFileSync(join(d, 'card.pdf'), 'latin1')
+  const pageObjects = (pdf.match(/\/Type\s*\/Page\b/g) || []).length
+  assert.equal(pageObjects, 2, `expected two /Page objects, found ${pageObjects}`)
+  for (const n of [1, 2]) {
+    const px = pngSize(join(d, `card-${n}.png`))
+    assert.ok(Math.abs(px.w - 4.25 * 40) <= 2 && Math.abs(px.h - 2.75 * 40) <= 2, `page ${n} PNG ${px.w}×${px.h}`)
+  }
+})
+
+test('a rotated zone and --presentation render, and the summary records both', { skip: !BROWSER && 'no browser installed' }, (t) => {
+  const d = scratch(t)
+  writeFileSync(join(d, 'mark.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="3in" height="1in" viewBox="0 0 300 100"><rect width="300" height="100" fill="#f2ede4"/></svg>')
+  const r = render(['mark.svg', '--mockup', 'long-sleeve', '--zone', 'sleeve-long', '--garment', '#f4efe4', '--presentation', '--png', '20'], d)
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(r.json.presentation, true)
+  assert.equal(r.json.zoneInches.rotate, -16, 'the sleeve zone is rotated in zones.json and that reaches the render')
+  const px = pngSize(join(d, 'mark.png'))
+  assert.ok(Math.abs(px.w - 26 * 20) <= 2 && Math.abs(px.h - 29 * 20) <= 2, `flat is 26×29in — got ${px.w}×${px.h}`)
+})
+
 test('bad input is refused with a reason, not rendered wrong', { skip: !BROWSER && 'no browser installed' }, (t) => {
   const d = scratch(t)
   writeFileSync(join(d, 'card.html'), CARD)

@@ -28,6 +28,19 @@
       "tag":       { "x": 9.5,  "y": 3.2, "w": 3,  "h": 3 }
     }
   },
+  "long-sleeve": {
+    "file": "long-sleeve.svg",
+    "width": 26,
+    "height": 29,
+    "collarSeamY": 3.6,
+    "zones": {
+      "full-front":  { "x": 7,    "y": 7,    "w": 12, "h": 14 },
+      "left-chest":  { "x": 14.5, "y": 7,    "w": 4,  "h": 4 },
+      "sleeve-long": { "x": 20.4, "y": 5.2,  "w": 3,  "h": 11, "rotate": -16 },
+      "sleeve-long-right": { "x": 2.6, "y": 5.2, "w": 3, "h": 11, "rotate": 16 },
+      "hem-left":    { "x": 15,   "y": 24.5, "w": 4,  "h": 2.5 }
+    }
+  },
   "hoodie": {
     "file": "hoodie.svg",
     "width": 24,
@@ -42,6 +55,29 @@
       "full-back":  { "x": 5.5,  "y": 8,   "w": 13,  "h": 14 }
     }
   },
+  "polo": {
+    "file": "polo.svg",
+    "width": 22,
+    "height": 29,
+    "collarSeamY": 4.6,
+    "zones": {
+      "left-chest":  { "x": 12.4, "y": 7.4, "w": 4, "h": 4 },
+      "right-chest": { "x": 5.6,  "y": 7.4, "w": 4, "h": 4 },
+      "sleeve-left": { "x": 18.2, "y": 6.4, "w": 3, "h": 3 },
+      "sleeve-right":{ "x": 0.8,  "y": 6.4, "w": 3, "h": 3 }
+    }
+  },
+  "jersey": {
+    "file": "jersey.svg",
+    "width": 24,
+    "height": 30,
+    "collarSeamY": 2.2,
+    "zones": {
+      "name":        { "x": 6,   "y": 4.5, "w": 12, "h": 2.5 },
+      "number":      { "x": 7.5, "y": 8,   "w": 9,  "h": 8 },
+      "hem-sponsor": { "x": 7.5, "y": 24,  "w": 9,  "h": 3 }
+    }
+  },
   "cap": {
     "file": "cap.svg",
     "width": 8,
@@ -50,6 +86,14 @@
       "cap-front": { "x": 2,   "y": 1.6, "w": 4,   "h": 2.25 },
       "cap-side":  { "x": 5.8, "y": 2.4, "w": 2,   "h": 1 },
       "cap-back":  { "x": 2.75, "y": 4.2, "w": 2.5, "h": 1 }
+    }
+  },
+  "beanie": {
+    "file": "beanie.svg",
+    "width": 10,
+    "height": 9,
+    "zones": {
+      "cuff": { "x": 3.5, "y": 6.4, "w": 3, "h": 1.6 }
     }
   },
   "tote": {

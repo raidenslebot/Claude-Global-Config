@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="26in" height="29in" viewBox="0 0 26 29" data-garment="long-sleeve" data-view="front">
+  <!-- Adult unisex long-sleeve tee, front, flat at true scale (inches). Sleeves lie flat to the sides; the vertical sleeve zone is the placement that reads walking past. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .rib  { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.32px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <path class="body" d="
+      M 8.6 0.9  C 10.2 0.4 15.8 0.4 17.4 0.9
+      L 21.4 3.6  L 25.4 16.8  L 22.6 17.6  L 19.2 8.6
+      L 19.2 28.6  L 6.8 28.6  L 6.8 8.6
+      L 3.4 17.6  L 0.6 16.8  L 4.6 3.6  Z" />
+    <path class="body" d="M 10.2 0.75 C 11.2 2.9 14.8 2.9 15.8 0.75 C 14.6 0.45 11.4 0.45 10.2 0.75 Z" />
+    <path class="seam" d="M 10.0 1.1 C 11.2 3.6 14.8 3.6 16.0 1.1" />
+    <path class="seam" d="M 6.8 8.6 L 6.8 28.6 M 19.2 8.6 L 19.2 28.6" />
+    <path class="seam" d="M 4.6 3.6 L 6.8 8.6 M 21.4 3.6 L 19.2 8.6" />
+    <!-- cuffs -->
+    <rect class="rib" x="0.6" y="16.8" width="2.9" height="1.1" transform="rotate(-14 2.05 17.35)" />
+    <rect class="rib" x="22.5" y="16.8" width="2.9" height="1.1" transform="rotate(14 23.95 17.35)" />
+    <path class="seam" d="M 6.8 28.0 L 19.2 28.0" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="7" y="7" width="12" height="14" /><text class="zone-label" x="7.15" y="7.45">full-front</text>
+    <rect class="zone" x="14.5" y="7" width="4" height="4" /><text class="zone-label" x="14.65" y="7.45">left-chest</text>
+    <!-- vertical sleeve: from 1in below the shoulder seam toward the cuff, along the sleeve's axis -->
+    <rect class="zone" x="20.4" y="5.2" width="3" height="11" transform="rotate(-16 21.9 10.7)" /><text class="zone-label" x="20.2" y="5.0" transform="rotate(-16 21.9 10.7)">sleeve-long</text>
+    <rect class="zone" x="2.6" y="5.2" width="3" height="11" transform="rotate(16 4.1 10.7)" /><text class="zone-label" x="2.4" y="5.0" transform="rotate(16 4.1 10.7)">sleeve-long</text>
+    <rect class="zone" x="15" y="24.5" width="4" height="2.5" /><text class="zone-label" x="15.15" y="24.95">hem-left</text>
+  </g>
+</svg>

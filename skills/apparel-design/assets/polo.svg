@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="22in" height="29in" viewBox="0 0 22 29" data-garment="polo" data-view="front">
+  <!-- Adult pique polo, front, flat at true scale (inches): collar, three-button placket. Left chest embroidery is the classic; the sleeve is the second zone. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.32px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <path class="body" d="
+      M 6.6 1.4  C 8.2 0.9 13.8 0.9 15.4 1.4
+      L 21.2 4.7  L 19.4 9.5  L 16.8 8.7
+      L 16.8 28.6  L 5.2 28.6  L 5.2 8.7
+      L 2.6 9.5  L 0.8 4.7  Z" />
+    <!-- collar: two points meeting at the placket -->
+    <path class="body" d="M 7.6 1.2 L 9.2 4.6 L 11 3.2 L 12.8 4.6 L 14.4 1.2 C 12.6 0.5 9.4 0.5 7.6 1.2 Z" />
+    <!-- placket -->
+    <path class="seam" d="M 10.2 3.4 L 10.2 8.6 L 11.8 8.6 L 11.8 3.4" />
+    <circle class="seam" cx="11" cy="5.0" r="0.14" /><circle class="seam" cx="11" cy="6.4" r="0.14" /><circle class="seam" cx="11" cy="7.8" r="0.14" />
+    <path class="seam" d="M 5.2 8.7 L 5.2 28.6 M 16.8 8.7 L 16.8 28.6" />
+    <path class="seam" d="M 2.6 9.5 L 5.2 8.7 M 19.4 9.5 L 16.8 8.7" />
+    <path class="seam" d="M 5.2 28.0 L 16.8 28.0" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="12.4" y="7.4" width="4" height="4" /><text class="zone-label" x="12.55" y="7.85">left-chest</text>
+    <rect class="zone" x="5.6" y="7.4" width="4" height="4" /><text class="zone-label" x="5.75" y="7.85">right-chest</text>
+    <rect class="zone" x="18.2" y="6.4" width="3" height="3" /><text class="zone-label" x="18.3" y="6.8">sleeve</text>
+    <rect class="zone" x="0.8" y="6.4" width="3" height="3" /><text class="zone-label" x="0.9" y="6.8">sleeve</text>
+  </g>
+</svg>

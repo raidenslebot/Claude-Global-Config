@@ -1,0 +1,15 @@
+PIECE:        Night Market poster, single side
+TRIM:         18 x 24 in           BLEED: 0.25 in (large format)     SAFE: 0.25 in
+STOCK:        uncoated, natural white, 100–120 gsm (a Riso-friendly text weight)
+PROCESS:      Risograph, 2 colours, 2 passes
+INK:          1. Fluorescent Orange (Riso) — the word, the times, the tab note
+              2. Blue (Riso) — everything else, printed second; a small misregistration is
+                 intended and is drawn into the file, so do not tighten registration to fix it
+FINISH:       none      PERFORATION: score a horizontal perforation 2.45 in above the trim foot
+              (the dashed line in the file) so the strip tears off
+QUANTITY:     150
+FILES:        poster.pdf (RGB, trim + bleed, crop marks in a 0.25 in slug, fonts embedded)
+              poster.png (proof). The orange on screen approximates the fluorescent ink and the
+              lint flags it as out of gamut — expected; print the named ink.
+NOTES:        Halftone plume behind the word is drawn as dots at 0.16 in pitch; please keep it
+              as supplied rather than re-screening.

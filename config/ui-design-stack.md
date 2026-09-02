@@ -57,9 +57,10 @@ Physical media are not screens, and have their own technique layer and a real ou
   HTV constraints, placement zones with real dimensions, garment colour as part of the artwork,
   SVG garment flats for a true-scale mockup.
 - **`tools/print-render.mjs`** renders HTML/SVG authored in physical units to a PDF at trim +
-  bleed (crop marks in a slug) and a PNG proof at a real dpi, or composites artwork onto a
-  garment flat — through the headless Chromium already installed for the Playwright MCP. No
-  account, nothing fetched. **`tools/print-lint.mjs`** is the gate: type under the minimum,
+  bleed (crop marks in a slug; several files become one multi-page PDF) and a PNG proof at a
+  real dpi, or composites artwork onto one of nine garment flats at true scale
+  (`--presentation` for a reviewable studio render) — through the headless Chromium already
+  installed for the Playwright MCP. No account, nothing fetched. **`tools/print-lint.mjs`** is the gate: type under the minimum,
   hairlines, rasters under 300 dpi, a page sized in pixels or without bleed, all **fail**.
   Taste first (`visual-design-mastery/references/print-and-physical.md`), concept next
   (`creative-divergence`), then the technique skill, then render, then lint.

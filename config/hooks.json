@@ -80,6 +80,12 @@
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-verify.js\"",
             "timeout": 10,
             "statusMessage": "Verifying written file"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-print-directions.js\"",
+            "timeout": 10,
+            "statusMessage": "Checking a physical design has written directions"
           }
         ]
       },

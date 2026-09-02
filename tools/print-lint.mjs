@@ -16,7 +16,7 @@
 // That means it sees declared values, not computed ones: a font-size set in a stylesheet it
 // cannot follow is a warning, not a pass.
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -87,6 +87,18 @@ export function lint(file, opts = {}) {
   const findings = []
   const fail = (rule, msg) => findings.push({ level: 'fail', rule, msg })
   const warn = (rule, msg) => findings.push({ level: 'warn', rule, msg })
+
+  // 0. An SVG has to be well-formed XML before anything else matters, and the one malformation
+  //    that reaches this pipeline in practice is a double hyphen inside a comment (a command
+  //    line pasted into `<!-- -->` with its --flags). Chromium then refuses the whole file, the
+  //    mockup shows a broken-image icon, and nothing else here would have said why.
+  if (isSvg) {
+    for (const m of text.matchAll(/<!--([\s\S]*?)-->/g)) {
+      if (/--/.test(m[1])) { fail('xml', 'an XML comment contains "--", which is illegal inside <!-- --> — the SVG will not load; spell the flags out or move the command to a sidecar'); break }
+    }
+    const opens = (text.match(/<svg\b/g) || []).length, closes = (text.match(/<\/svg>/g) || []).length
+    if (opens !== closes) fail('xml', `unbalanced <svg> (${opens} open, ${closes} close) — the file will not parse`)
+  }
 
   // 1. A physical size is declared, in physical units.
   let declared = null
@@ -249,23 +261,39 @@ usage: print-lint <design.html|svg> [--size <preset> | --trim WxH<unit>] [--blee
 exit:  0 clean · 1 a finding that would fail on press · 2 bad input`)
     return args.help ? 0 : 2
   }
-  const file = resolve(args._[0])
-  if (!existsSync(file)) { console.error(`print-lint: no such file — ${file}`); return 2 }
+  // One file, several files, or a directory (every .html/.svg in it — a two-sided piece is
+  // two files, and they are linted together or one side gets forgotten).
+  const files = []
+  for (const p of args._) {
+    const abs = resolve(p)
+    if (!existsSync(abs)) { console.error(`print-lint: no such file — ${abs}`); return 2 }
+    if (statSync(abs).isDirectory()) {
+      for (const f of readdirSync(abs).filter((f) => /\.(html?|svg)$/i.test(f)).sort()) files.push(join(abs, f))
+    } else files.push(abs)
+  }
+  if (!files.length) { console.error('print-lint: nothing to lint (no .html or .svg found)'); return 2 }
   const opts = { method: args.method || 'paper' }
   if (args.size) opts.size = String(args.size)
   if (args.trim) { const m = String(args.trim).match(/^([\d.]+)\s*[x×]\s*([\d.]+)\s*(in|mm|cm|pt)$/i); if (!m) { console.error('print-lint: --trim wants WxH<unit>, e.g. 3.5x2in'); return 2 } opts.trim = { w: toIn(m[1], m[3]), h: toIn(m[2], m[3]) } }
   if (args.bleed) { const m = String(args.bleed).match(/^([\d.]+)\s*(in|mm|cm|pt)$/i); if (!m) { console.error('print-lint: --bleed wants a length, e.g. 0.125in'); return 2 } opts.bleed = toIn(m[1], m[2]) }
-  let r
-  try { r = lint(file, opts) } catch (e) { console.error(`print-lint: ${e.message}`); return 2 }
-  if (args.json) console.log(JSON.stringify(r, null, 2))
-  else {
-    console.log(`PRINT-LINT  ${file}  ·  ${r.method}`)
-    for (const f of r.findings) console.log(`  ${f.level === 'fail' ? 'FAIL' : 'warn'}  ${f.rule.padEnd(7)} ${f.msg}`)
-    const fails = r.findings.filter((f) => f.level === 'fail').length
-    const warns = r.findings.length - fails
-    console.log(`\n  ${fails} would fail on press · ${warns} to check\n  ${r.ok ? 'Passes the physical checks. The taste layer decides the rest.' : 'Not print-ready. Fix every FAIL before rendering.'}`)
+  const results = []
+  for (const file of files) {
+    try { results.push(lint(file, opts)) } catch (e) { console.error(`print-lint: ${e.message}`); return 2 }
   }
-  return r.ok ? 0 : 1
+  if (args.json) console.log(JSON.stringify(results.length === 1 ? results[0] : results, null, 2))
+  else {
+    for (const r of results) {
+      console.log(`PRINT-LINT  ${r.file}  ·  ${r.method}`)
+      for (const f of r.findings) console.log(`  ${f.level === 'fail' ? 'FAIL' : 'warn'}  ${f.rule.padEnd(7)} ${f.msg}`)
+      const fails = r.findings.filter((f) => f.level === 'fail').length
+      const warns = r.findings.length - fails
+      console.log(`  ${fails} would fail on press · ${warns} to check\n`)
+    }
+    const allOk = results.every((r) => r.ok)
+    console.log(results.length > 1 ? `  ${results.filter((r) => r.ok).length}/${results.length} files pass. ` : '  ',
+      allOk ? 'Passes the physical checks. The taste layer decides the rest.' : 'Not print-ready. Fix every FAIL before rendering.')
+  }
+  return results.every((r) => r.ok) ? 0 : 1
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main())

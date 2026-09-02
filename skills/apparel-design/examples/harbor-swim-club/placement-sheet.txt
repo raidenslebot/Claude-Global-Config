@@ -1,0 +1,14 @@
+GARMENT:      heavyweight unisex tee, 100% ring-spun cotton (e.g. Bella+Canvas 3001 or shop
+              equivalent)                                              COLOUR: Navy
+METHOD:       screen print, 1 colour, plastisol; no underbase (cream on navy — one hit, flash,
+              second hit if the first is not fully opaque)
+INK:          Pantone 7499 C (cream). Match to #efe9dc on the mockups.
+PLACEMENT:    front — left-chest: 3.5 in wide, top edge 3.5 in below the collar seam, centred
+              over the wearer's left chest (front-mark.svg)
+              back — full-back: 11 in wide, top edge 4.5 in below the collar, centred
+              (back-tide.svg)
+SIZES:        S–2XL: art as supplied. Youth S–L: scale both to 80%.
+FILES:        front-mark.svg, back-tide.svg (vector, one spot colour; please outline the fonts
+              in your RIP — the files reference system faces), mockup PNGs, directions.md
+NOTES:        The tide rows on the back are the design; please do not re-align or tidy them.
+              Strike-off / photo proof before the run.

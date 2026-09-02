@@ -25,10 +25,42 @@ and the flats in `assets/` carry these zones at true scale.
 | `spine` | 2–3 in | up to 16 in, vertical | centred, from the yoke down |
 | `tag` (inside neck) | 3 in | 3 in | inside, below the collar, replacing the label |
 
-## Long sleeve
+## Long sleeve — flat 26 × 29 in, `--mockup long-sleeve`
 
-As tee, plus `sleeve-long`: **3 × 12–14 in**, vertical, from 1 in below the shoulder seam
-toward the cuff. Reads walking past; the best-value placement in apparel.
+As tee (`full-front`, `left-chest`, `hem-left`), plus `sleeve-long`: **3 × 11–14 in**, along
+the sleeve from 1 in below the shoulder seam toward the cuff. The zone is *rotated* to lie on
+the arm (`sleeve-long-right` mirrors it) and the mockup rotates the art with it. Reads walking
+past; the best-value placement in apparel.
+
+## Polo — flat 22 × 29 in, `--mockup polo`
+
+| Zone | Width | Height | Position |
+|---|---|---|---|
+| `left-chest` | 3.5–4 in | 3.5–4 in | 3–4 in below the collar seam, beside the placket — **embroidery** is the norm |
+| `right-chest` | same | same | mirror; a second mark (a sponsor, a year) |
+| `sleeve-left` / `sleeve-right` | 3 in | 3 in | centred, 1 in above the sleeve hem |
+
+Pique holds embroidery well and small screen-print detail badly. Keep the mark ≥ 0.25 in
+letter height and let the placket be; nothing prints across it.
+
+## Jersey (back) — flat 24 × 30 in, `--mockup jersey`
+
+| Zone | Width | Height | Position |
+|---|---|---|---|
+| `name` | up to 12 in | 2.5 in | arched, top edge **3 in below the collar** |
+| `number` | up to 9 in | **8 in** tall (adult; 6 in youth) | centred, 1 in below the name |
+| `hem-sponsor` | up to 9 in | 3 in | above the hem |
+
+Numbers are usually **HTV or sublimation**; block or athletic faces with open counters, one or
+two colours with a contrasting outline of ≥ 0.25 in. Front zones are the tee's.
+
+## Beanie — flat 10 × 9 in, `--mockup beanie`
+
+| Zone | Width | Height | Position |
+|---|---|---|---|
+| `cuff` | **max 3 in** | **max 1.6 in** | centred on the folded cuff; embroidery or a woven label |
+
+Knit stretches and the surface is coarse: a bold mark, nothing under 2 mm, no small text.
 
 ## Hoodie — flat 24 × 28 in, `--mockup hoodie`
 

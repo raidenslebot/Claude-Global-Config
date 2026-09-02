@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3.5in" height="3.5in" viewBox="0 0 350 350">
+  <!--
+    Left-chest mark, one colour (cream, Pantone 7499 C) for a navy tee. Screen print: the ring is a
+    16-unit stroke (= 0.16 in, about 11.5 pt), the letters about 0.5 in tall, well above the 1 pt / 8 pt
+    minimums, so it also survives embroidery on the cap. Fill is the ink; the garment is the ground.
+    Mockup: print-render front-mark.svg, mockup tee, zone left-chest, art width 3.5in, garment #1f2a44, presentation
+    Gate:   print-lint front-mark.svg, method screen
+    (A double hyphen is illegal inside an XML comment, so the flags are spelled out here; the
+    exact commands are in directions.md and placement-sheet.txt.)
+  -->
+  <circle cx="175" cy="140" r="104" fill="none" stroke="#efe9dc" stroke-width="16"/>
+  <!-- the waterline: one bar through the ring, the way a tow-float sits half under -->
+  <rect x="71" y="136" width="208" height="8" fill="#efe9dc"/>
+  <text x="175" y="318" text-anchor="middle" font-family="Bahnschrift, 'Arial Narrow', Arial, sans-serif" font-weight="700" font-size="54" letter-spacing="9" fill="#efe9dc">HARBOR</text>
+</svg>

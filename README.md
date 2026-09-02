@@ -55,7 +55,7 @@ Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-n
 | Phase | What |
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
-| **Hooks** | 16 hooks merged into `settings.json`, each pinned to an absolute Node path |
+| **Hooks** | 17 hooks merged into `settings.json`, each pinned to an absolute Node path |
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
 | **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
@@ -93,9 +93,17 @@ zones in inches, garment colour as artwork, SVG garment flats). And the output i
 
 ```bash
 node tools/print-render.mjs card.html --size business-card-us --marks --png 300   # PDF at trim+bleed, PNG proof
-node tools/print-lint.mjs   card.html --size business-card-us                     # fails on what the press would reject
-node tools/print-render.mjs mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150
+node tools/print-render.mjs front.html back.html --size business-card-us --marks  # one two-page PDF
+node tools/print-lint.mjs   ./card --size business-card-us                        # every side; fails on what the press would reject
+node tools/print-render.mjs mark.svg --mockup tee --zone left-chest --garment "#1c1c1e" --png 150 --presentation
 ```
+
+Nine garment flats ship for mockups (tee front and back, long sleeve, hoodie, polo, jersey, cap,
+beanie, tote), and a hook reports any physical design written without a `directions.md` beside
+it — the divergence protocol has to be on disk before the first line of markup. Three worked
+examples ship in that exact form — a letterpress card, a two-ink Riso poster, a screen-printed
+tee — each with its directions (including the discarded ones), its artwork, and its spec or
+placement sheet, so the shape of a finished piece is on disk before the first one is authored.
 
 The renderer drives the headless Chromium already installed for the Playwright MCP — nothing
 new to install, no account. It writes RGB and says so; the skill says what to hand an offset shop.

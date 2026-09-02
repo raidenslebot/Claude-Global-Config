@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10in" height="9in" viewBox="0 0 10 9" data-garment="beanie" data-view="front">
+  <!-- Cuffed knit beanie, front, flat at true scale (inches). The cuff carries the mark — embroidery or a woven label; knit stretches, so the zone is small and the detail coarse. -->
+  <style>
+    .body { fill: var(--garment, #d9d6cf); stroke: #2b2b2b; stroke-width: 0.03; stroke-linejoin: round; }
+    .seam { fill: none; stroke: #2b2b2b; stroke-width: 0.02; stroke-dasharray: 0.12 0.08; opacity: 0.55; }
+    .zone { fill: none; stroke: #c0392b; stroke-width: 0.03; stroke-dasharray: 0.2 0.12; }
+    .zone-label { font: 0.28px "Helvetica Neue", Arial, sans-serif; fill: #c0392b; }
+  </style>
+  <g id="garment">
+    <!-- crown -->
+    <path class="body" d="M 1.2 6.2 C 1.2 1.0 8.8 1.0 8.8 6.2 Z" />
+    <!-- rib lines on the crown -->
+    <path class="seam" d="M 5 1.2 L 5 6.2 M 3.4 1.6 C 3.7 3.2 3.8 4.8 3.8 6.2 M 6.6 1.6 C 6.3 3.2 6.2 4.8 6.2 6.2" />
+    <!-- cuff -->
+    <path class="body" d="M 1.0 6.0 L 9.0 6.0 L 9.0 8.6 C 6.5 8.9 3.5 8.9 1.0 8.6 Z" />
+    <path class="seam" d="M 1.0 6.0 L 9.0 6.0" />
+  </g>
+  <g id="zones">
+    <rect class="zone" x="3.5" y="6.4" width="3" height="1.6" /><text class="zone-label" x="3.62" y="6.75">cuff (3 × 1.6 max)</text>
+  </g>
+</svg>
