@@ -41,13 +41,14 @@ does not exist:
 ### Fails the build, the install, or the commit
 
 **E1 — No credential reaches the tree.**
-`.githooks/pre-commit:8` execs `tools/scan-secrets.mjs`; the `Secret scan` step in
-`.github/workflows/ci.yml` runs the same scan first, ungated, before any later step can cache or log.
-Failure looks like: `git commit` aborts with the scanner's finding list (redacted — `cli.test.mjs:323-331`
-asserts neither report echoes the secret); in CI the job stops at step 1.
+`.githooks/pre-commit:8` execs `tools/scan-secrets.mjs`, and `install.mjs` wires it on every
+machine by setting `core.hooksPath`. Failure looks like: `git commit` aborts with the scanner's
+finding list (redacted — `cli.test.mjs:323-331` asserts neither report echoes the secret).
 Pinned by `cli.test.mjs:295-373` (planted key fails, entropy sweep has teeth, `.gitignore` covers
 the three forbidden files, the repo's own tree scans clean).
-**Caveat, and it is severe:** only the CI half is portable. See **A6**.
+**The caveat that used to sit here is resolved, and in the direction that matters:** this gate was
+once portable only through CI, and there is no CI now — but the local half became portable when
+**A6** was closed, so the gate travels with the repo instead of with a runner.
 
 **E2 — A generated hook that does not parse.**
 `tools/install.mjs:152-156` runs `node --check` on every hook it writes; a failure calls `fail()`,
@@ -137,10 +138,13 @@ doctor.mjs".
 Frontmatter `model:` overrides inheritance for every session including a pinned one, so a single
 "helpful" pin silently defeats the routing rule.
 
-**E17 — argo's test suite runs in CI.**
-The `argo test suite` step in `.github/workflows/ci.yml` runs `npm test`, and it can fail the build.
-That script is `argo/test/run.js`, which hands node explicit file paths, so on the Node 20 the job
-pins a real failure cannot hide behind a "pattern not found" error from an unexpanded glob.
+**E17 — argo's test suite is runnable by one command, on any supported Node.**
+`argo/package.json` declares `"test": "node test/run.js"`, which hands node explicit file paths.
+The glob it replaced only expanded on Node 21+, so on Node 20 a real failure hid behind a
+"pattern not found" message that exited 0 — the suite looked green and had not run.
+**This is weaker than the others and is listed honestly:** nothing forces it. The Stop hook
+(**E19**) runs the declared test command at the end of a turn and reports what it says, which is
+what actually causes it to run; there is no build to fail, because this repo has no CI.
 
 ### Detects and reports, but never fails
 
@@ -303,7 +307,7 @@ Not gateable, and the file already says so. Whether a given task warranted deleg
 ### A6 — The pre-commit gate is not installed by the installer
 
 **Stated:** `.githooks/pre-commit:3` — *"Wired by: git config core.hooksPath .githooks (install.mjs
-does this)"*. `README.md:174` — "Run it before every push; CI runs it on every commit."
+does this)"*, and README's security section, which claimed the hook ran on every commit.
 
 **Evidence of absence:**
 `grep -rn "hooksPath" . --include=*.mjs --include=*.js --include=*.md --include=*.yml --include=*.sh --include=*.ps1`
@@ -313,14 +317,20 @@ once; `.git/hooks/` contains only `.sample` files.
 
 **Consequence:** on every fresh clone, one of the four gates
 `skills/standard-of-work/SKILL.md:19-20` cites as having held with zero escapes does not exist. The
-failure mode it guards is publishing a live OAuth token
-(`tools/scan-secrets.mjs:6-12`, `.github/workflows/ci.yml:22-25`).
+failure mode it guards is publishing a live OAuth token (`tools/scan-secrets.mjs:6-12`).
 
 **Feasibility: trivial, zero false positives.** `git config core.hooksPath .githooks` is
 repo-local, idempotent, and reversible. `git config --get core.hooksPath` is a read. See the
 ranking.
 
 ### A7 — CI runs neither the root test suite nor any non-Linux job
+
+**Status: withdrawn 2026-09-01 — there is no CI.** The workflow was deleted at the owner's
+request; this repo does not use GitHub Actions. The root-suite half of the finding is answered
+locally (the Stop hook runs the declared test command every turn, and both suites run from one
+command each). The non-Linux half is **not answered by anything** and is an accepted limitation:
+see `docs/gap-analysis.md` G1, and `skills/cross-platform` for how to catch that bug class
+without a second runner. The evidence below is the record of the original finding.
 
 **Evidence.** `.github/workflows/ci.yml:14` — `runs-on: ubuntu-latest`, one job. `grep -n "runs-on\|matrix"`
 over `.github/` returns exactly that one line and no `matrix` at all. The only `npm test` in the
@@ -449,10 +459,12 @@ From `docs/architecture.md`, each stated as a decision and each unasserted:
   positive to think about (a legitimate elapsed-time measurement), so scope it to files that write
   output.
 
-Also unasserted: nothing in `tools/test/` reads `.github/workflows/ci.yml`, `install.sh`,
-`install.ps1`, or `.githooks/` (`grep -rn "ci\.yml\|install\.sh\|install\.ps1\|githooks" tools/test/`
-→ one unrelated hit at `model-policy.test.mjs:115`). Four of the repo's own gates are themselves
-ungated against deletion.
+Partly closed since: `tools/test/line-endings.test.mjs` now reads `.gitattributes` and every
+tracked file carrying a shebang — which is how it asserts `.githooks/pre-commit` and `install.sh`
+are stored and checked out with LF, the one property whose loss makes both unexecutable on Linux.
+Their *behaviour* is still unasserted, as is `install.ps1` entirely. `.github/workflows/ci.yml` has
+left the list by being deleted rather than tested. So: two of the repo's own gates remain ungated
+against deletion, down from four.
 
 ---
 
@@ -552,7 +564,7 @@ misfire, because a gate that misfires gets switched off and that is worse than n
 
 | # | Item | Harm | Safe-gate feasibility | Verdict |
 |---|---|---|---|---|
-| 1 | A7 — CI runs no root tests, one OS | High | Trivial, no false positives | **Done** — two-OS matrix + root suite gate |
+| 1 | A7 — CI runs no root tests, one OS | High | Trivial, no false positives | **Withdrawn** — no CI; root suite runs locally, second OS uncovered |
 | 2 | A10 — orphan hooks invisible | High | Trivial, no false positives | **Done** — `hook-registration.test.mjs` |
 | 3 | A6 — pre-commit not installed | High | Trivial, no false positives | **Done** — `install.mjs` sets `core.hooksPath` |
 | 4 | A2 — wire `react-doctor.mjs` | Medium-high | High; the hook is already written | **Done** — registered on PostToolUse |
@@ -565,32 +577,21 @@ misfire, because a gate that misfires gets switched off and that is worse than n
 
 ### Build these three first
 
-**1. Make the existing tests run, on both platforms.**
-Edit `.github/workflows/ci.yml`. Add to the `checks` job:
+**1. ~~Make the existing tests run, on both platforms.~~ Superseded — this repo has no CI.**
+The original recommendation was a two-OS GitHub Actions matrix. That is no longer the plan: the
+workflow was removed at the owner's request, so the recommendation is recorded here rather than
+followed, and the finding is marked withdrawn under **A7**.
 
-```yaml
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-```
+What replaced the runnable half: `tools/run-tests.mjs` and `argo/test/run.js` hand node explicit
+file paths, so one command runs each suite identically on Node 20 and 24, under `sh` and under
+`cmd.exe`; the Stop hook runs the declared test command at the end of every turn.
 
-and a step, after the secret scan, with no `continue-on-error` and no `|| true`:
-
-```yaml
-      - name: Root test suite
-        run: node tools/run-tests.mjs
-```
-
-Add `shell: bash` to the existing argo step (`ci.yml:57`), whose body is POSIX `sh`
-(`if [ -f package-lock.json ]`) and will not survive the Windows leg otherwise.
-
-*What it checks:* the 94 assertions that already exist, including every POSIX-separator and
-Windows-path gate, on the platform each was written for. `commit 23afa56` fixed two bugs that were
+What nothing replaced: the second platform. `commit 23afa56` fixed two bugs that were
 platform-conditional in **opposite directions** — every hook dead on POSIX, every `npm` call dead
-on Windows. A single Linux runner cannot observe the second, and nothing automatic currently
-observes the first. Cost: hours, zero session tokens, zero false positives.
+on Windows — and one machine can observe at most half of that class. Anyone with the other
+platform should run both suites there before trusting a portability claim; `skills/cross-platform`
+lists the techniques that make each hazard provable without owning the machine
+(env-as-parameter, platform-as-parameter, empty-PATH spawn, byte-level line-ending checks).
 
 **2. Close the orphan-hook hole in both directions.**
 

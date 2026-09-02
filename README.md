@@ -195,7 +195,8 @@ never carry it.** Three defences:
 1. `.gitignore` denies `.credentials.json`, every `.env`, `.claude.json`, keys and PEM blocks.
 2. `tools/sync.mjs` tracks an explicit allowlist — it copies only the files it is told to.
 3. `tools/scan-secrets.mjs` scans for token patterns and high-entropy strings, and fails if a
-   denied file is present or untracked. Run it before every push; CI runs it on every commit.
+   denied file is present or untracked. The pre-commit hook runs it on every commit, and
+   `install.mjs` wires that hook by setting `core.hooksPath`, so a fresh clone gets it too.
 
 ```bash
 node tools/scan-secrets.mjs
@@ -209,7 +210,7 @@ The repo is the source of truth. After editing `~/.claude` by hand, pull the cha
 
 ```bash
 node tools/sync.mjs           # live -> repo, machine paths templatized
-node tools/sync.mjs --check   # report drift, write nothing (CI / pre-commit)
+node tools/sync.mjs --check   # report drift, write nothing (run before a push)
 ```
 
 Machine-specific paths are stored as `{{TOKENS}}` (`{{NODE}}`, `{{CONFIG_ROOT}}`,

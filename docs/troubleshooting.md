@@ -180,22 +180,27 @@ plugin already provides.
 
 ---
 
-## `npm ci` fails in CI
+## `npm test` reports success but ran no tests
 
-**Symptom.** The CI job fails immediately with `npm ci` can only install packages when your
-package.json and package-lock.json are in sync / no lockfile found.
+**Symptom.** A suite "passes" in seconds with no test names in the output, or prints
+`Could not find '...'` / `pattern not found` and still exits 0. The first sign is usually a
+test count that stopped changing while tests were being added.
 
-**Cause.** `npm ci` requires a committed `package-lock.json`. `argo` declares zero dependencies,
-so no lockfile was ever generated, and there is nothing for `ci` to install from.
+**Cause.** The test script passed a *glob* to Node's runner — `node --test "test/**/*.test.js"`.
+Node only expands globs itself on 21+. On Node 20 the pattern reaches the runner literally, it
+matches nothing, and the run is empty rather than failed. A shell glob is no more portable: npm
+runs scripts through `sh` on POSIX (which expands) and `cmd.exe` on Windows (which does not), so
+the same script silently behaves differently on the two platforms. Handing the runner a
+*directory* has its own trap: on some builds `node --test <dir>` resolves the directory as a
+module and dies with `Cannot find module`.
 
-**Fix.** Fall back to `npm install` when no lockfile is present, rather than committing an empty
-lockfile to satisfy a command that has nothing to do. `.github/workflows/ci.yml` does exactly
-this, with `--ignore-scripts` either way since nothing here needs a postinstall step.
+**Fix.** Hand the runner explicit file paths — the one form every supported version accepts.
+`tools/run-tests.mjs` and `argo/test/run.js` do exactly this: read the test directory, filter,
+resolve to absolute paths, and spawn `node --test <path> <path> …`. Both take an optional
+substring filter (`node tools/run-tests.mjs paths`) so a single file is still easy to run.
 
-A related trap in the same job: `npm test` passes a glob to Node's test runner, and Node only
-expands globs itself on 21+. On the pinned Node 20 the runner is handed the `test/` directory
-instead, which it walks recursively — otherwise a real test failure hides behind a
-"pattern not found" message that exits 0.
+**How to notice it at all.** Compare the reported test count against the number of `test(` calls
+on disk. A suite that cannot lose tests silently is worth more than one that runs slightly faster.
 
 ---
 

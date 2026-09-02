@@ -37,10 +37,20 @@ ranking follows from it: the missing artifacts are gates, not prose.
 
 ## G1. The repo's gates do not run the repo's checks
 
-**Status: closed 2026-09-01.** `.github/workflows/ci.yml` runs an ubuntu + windows matrix with
-`fail-fast: false`, a gating `node tools/run-tests.mjs` step, and argo's suite through an
-explicit-path runner (`argo/test/run.js`); both suites also pass under Node 20 locally. The
-evidence below is kept as the record of why.
+**Status: half closed, half withdrawn — 2026-09-01.** The *tests do not run automatically* half is
+closed locally: `argo/test/run.js` and `tools/run-tests.mjs` hand node explicit file paths (the
+glob this repo relied on never expanded on Node 20, so the job could not have worked anyway), the
+Stop hook `config/hooks/stop-verify.js` runs the project's declared test command at the end of
+every turn, and `install.mjs` now wires the pre-commit secret gate through `core.hooksPath`.
+
+The *second operating system* half is **withdrawn, not solved.** This repo does not use GitHub
+Actions — the workflow was deleted at the owner's request — so nothing automatic runs the suites
+on an OS other than the author's. That is a real, accepted limitation: the platform-conditional
+bug class described below can still only be caught by someone running the suites on the other
+platform by hand. `skills/cross-platform` exists to make that failure mode recognisable without a
+runner, and its verification section is written for exactly that constraint.
+
+The evidence below is kept as the record of why.
 
 **Gap.** CI runs neither the root test suite nor any non-Linux job, so the two verification
 mechanisms that would have caught the platform-conditional bugs are manual.
@@ -64,11 +74,11 @@ about to claim done, and it was satisfied — `23afa56` and `c806e5a` both state
 truthfully, and the count is now 53. The discipline held. What was missing is the check that
 runs when nobody invokes it, on a machine that is not this one.
 
-**Intervention — CI change.** Not a skill; a skill cannot execute on a Windows runner. In
-`.github/workflows/ci.yml`: add `strategy.matrix.os: [ubuntu-latest, windows-latest]` with
-`runs-on: ${{ matrix.os }}`, and add a `node tools/run-tests.mjs` step that is allowed to fail
-the build. Roughly eight lines of YAML. Note that the `argo` step's shell script body is
-POSIX `sh`; it needs `shell: bash` to survive the Windows leg.
+**Intervention — CI change. Superseded; see the status above.** The original plan was a two-OS
+matrix with a gating `node tools/run-tests.mjs` step. It is recorded here because the reasoning
+still holds for anyone who forks this repo and does use a runner: a skill cannot execute on a
+Windows machine, so only a second runner closes the platform half. On this repo there is no
+runner, and the limitation is stated rather than papered over.
 
 **Resident token cost.** Zero.
 
@@ -250,8 +260,8 @@ because it says it was verified.
 
 **Intervention — script, reusing what exists.** ~40 lines: parse the caveats table, call the
 existing `fetchSource({ type: 'npm', package })`, print rows where live differs from recorded.
-Add it to the CI job from G1 as a non-blocking step so the drift is visible without gating a
-merge on npm's uptime.
+Run it by hand rather than on a schedule, so a check that depends on npm's uptime can never
+become a red mark on work that is fine.
 
 **Resident token cost.** Zero.
 
@@ -283,9 +293,9 @@ self-applying. G5 should be attached to some other visit to `library/`, not sche
 
 **A second self-verification skill.** `verification-before-completion` is installed, thorough,
 and was *satisfied* by both fix commits — each states a true, freshly measured test count. The
-gap is that CI runs no tests and no Windows job (G1), which is a YAML change. Adding a skill
-here would also put a second set of triggers against the one that works, which `doctor.mjs`'s
-contention check exists to prevent.
+gap was never the discipline; it was that nothing ran the tests on a second platform (G1), which
+no skill can fix. Adding a skill here would also put a second set of triggers against the one
+that works, which `doctor.mjs`'s contention check exists to prevent.
 
 **Escaping and parser boundaries.** Owned by `skills/string-boundaries/SKILL.md`, excluded by
 brief, and good. Its item 4 — "a validator written from the same assumption as the code cannot

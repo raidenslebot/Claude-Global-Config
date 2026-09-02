@@ -62,17 +62,22 @@ not launch by hand.
 - **Prove the link contract with a real link in a tmpdir.** Symlink on POSIX, `mklink /J` on
   Windows, pointing at a directory holding a sentinel file. Run the remover. Assert the sentinel
   survives and the link is gone — and run it again with a trailing separator on the path, the
-  spelling that deleted through on Windows. `docs/enforcement-audit.md` A8 names this as the
-  test `uninstall.mjs` still lacks.
+  spelling that deleted through on Windows. `tools/test/uninstall.test.mjs` does the first half
+  against a real junction; the trailing-separator spelling is unreachable there because the
+  tool builds every path with `join()`, which is itself the reason it is safe.
 - **Check bytes, not appearance.** `git ls-files --eol <script>` shows index and worktree
   endings; `tr -cd '\r' < f | wc -c` must print 0 for anything with a shebang. An editor shows
   CRLF and LF identically.
 - **Run the runtime prover.** `node tools/doctor.mjs` resolves each hook interpreter, stats
   each script, and separates a dead link from a missing skill. It is the check that would have
   caught the weeks-dead hooks on day one.
-- **Both OSes in CI, `fail-fast: false`.** `.github/workflows/ci.yml` runs
-  `[ubuntu-latest, windows-latest]`; its comment records eight bugs that were
-  platform-conditional in opposite directions, so one OS catches at most half.
+- **Run the suite on the other OS before claiming portability, and if you cannot, say so.**
+  Eight bugs in this repo were platform-conditional in *opposite* directions — every hook dead
+  on POSIX, every `npm` call dead on Windows — so one machine observes at most half the class.
+  A two-OS CI matrix is the usual answer; where there is no CI, the honest substitute is the
+  techniques above (env-as-parameter, platform-as-parameter, empty-PATH spawn, byte-level
+  checks), which make each hazard provable on a machine you do own, plus a stated limitation
+  instead of an assumed pass.
 
 ## Slop to recoil from
 
