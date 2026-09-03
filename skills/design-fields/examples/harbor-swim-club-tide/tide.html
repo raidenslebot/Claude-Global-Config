@@ -76,7 +76,7 @@
   .m { position: absolute; left: 0; width: 62%; height: 2px; background: color-mix(in oklab, var(--ink) 78%, transparent) }
   .m.metre { width: 100%; height: 3px }
   .m span { position: absolute; right: -0.15rem; top: 0.42rem; transform: translateX(100%);
-            font: 500 clamp(0.7rem, 1.4vw, 0.85rem)/1 'JetBrains Mono', ui-monospace, monospace;
+            font: 500 clamp(0.75rem, 1.4vw, 0.85rem)/1 'JetBrains Mono', ui-monospace, monospace;
             font-variant-numeric: tabular-nums; color: color-mix(in oklab, var(--ink) 80%, transparent) }
 
   /* The sea. A hard gradient stop is a real waterline that can be animated, and multiply lets the
@@ -103,7 +103,9 @@
   .datum .lead { flex: 1; height: 1px; background: var(--ink) }
   .datum b { font: 500 clamp(1.35rem, 3.4vw, 2.1rem)/1 'JetBrains Mono', ui-monospace, monospace;
              font-variant-numeric: tabular-nums; white-space: nowrap }
-  .datum b i { font-style: normal; font-size: 0.5em; color: var(--faint); padding-left: 0.25em }
+  /* Half the number, but never below 12px: on a phone the number clamps to its floor and half
+     of that floor is 10.8px, which is a size nobody chose. */
+  .datum b i { font-style: normal; font-size: max(0.5em, 0.75rem); color: var(--faint); padding-left: 0.25em }
 
   .mhw { position: absolute; left: 40%; right: -14%; bottom: 78%; border-top: 1px solid var(--ink);
          padding-top: 0.35rem; pointer-events: none; color: var(--faint) }

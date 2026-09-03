@@ -226,7 +226,9 @@ function auditInPage({ mobile }) {
   if (mobile) {
     const inSentence = (el) => {
       if (!el.parentElement) return false
-      if (getComputedStyle(el).display !== 'inline') return false
+      // Anything that flows in a line of text: inline, inline-block, inline-flex. A link styled
+      // inline-block for its underline offset is still a link inside a sentence.
+      if (!/^inline/.test(getComputedStyle(el).display)) return false
       // Twenty characters is about four words: a sentence, not a label and not a bullet.
       return ownText(el.parentElement).replace(/\s+/g, ' ').trim().length >= 20
     }
@@ -468,6 +470,23 @@ export const tagTextRunsInPage = (opts) => {
   return runs
 }
 
+/** Put every animation where it comes to rest, so the two shots are of the same page. A finite
+ *  animation is finished — its settled state IS the design; an endless one is only paused,
+ *  because it has no end to go to. */
+export const settleAnimationsInPage = () => {
+  let n = 0
+  for (const a of document.getAnimations()) {
+    try {
+      let iterations = 1
+      try { iterations = a.effect.getTiming().iterations } catch { /* assume finite */ }
+      if (iterations === Infinity) a.pause()
+      else a.finish()
+      n++
+    } catch { /* one that will not settle keeps running, and the shots differ where it is */ }
+  }
+  return n
+}
+
 /** Make every glyph transparent without disturbing anything that is painted behind it. */
 export const hideGlyphsInPage = () => {
   const s = document.createElement('style')
@@ -506,12 +525,19 @@ export const measureInkFromPixels = async ([withGlyphs, ground, runs]) => {
 
   const out = []
   for (const run of runs) {
-    const w = Math.min(run.w, a.width - run.x), h = Math.min(run.h, a.height - run.y)
-    if (w < 2 || h < 2 || run.x < 0 || run.y < 0) { out.push({ ...run, measured: false }); continue }
+    // Clamped to the canvas rather than refused. A headline that bleeds off the edge — the
+    // commonest deliberate move there is — has a negative left, and refusing it reported the
+    // biggest word on the piece as "could not be measured".
+    const x0 = Math.max(0, run.x), y0 = Math.max(0, run.y)
+    // The intersection of the two shots. Cleared canvas reads as opaque black, so a region
+    // present in one image and not the other invents a ground that is nowhere on the page.
+    const iw = Math.min(a.width, b.width), ih = Math.min(a.height, b.height)
+    const w = Math.min(run.x + run.w, iw) - x0, h = Math.min(run.y + run.h, ih) - y0
+    if (w < 2 || h < 2) { out.push({ ...run, measured: false }); continue }
     cv.width = w; cv.height = h
-    cx.clearRect(0, 0, w, h); cx.drawImage(a, run.x, run.y, w, h, 0, 0, w, h)
+    cx.clearRect(0, 0, w, h); cx.drawImage(a, x0, y0, w, h, 0, 0, w, h)
     const A = cx.getImageData(0, 0, w, h).data
-    cx.clearRect(0, 0, w, h); cx.drawImage(b, run.x, run.y, w, h, 0, 0, w, h)
+    cx.clearRect(0, 0, w, h); cx.drawImage(b, x0, y0, w, h, 0, 0, w, h)
     const B = cx.getImageData(0, 0, w, h).data
 
     // The glyph pixels are the ones that changed, and they are used to find the GROUND — the
@@ -608,6 +634,8 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
       // Contrast from the painted pixels. Two full-page shots, one with the glyphs and one
       // without, and the difference between them is the ink on its real ground.
       try {
+        // Settled first: the pair has to be two shots of one page.
+        await page.evaluate(settleAnimationsInPage)
         const runs = await page.evaluate(tagTextRunsInPage)
         if (runs.length) {
           const shotWith = await page.screenshot({ type: 'png', fullPage: true })

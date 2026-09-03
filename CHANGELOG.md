@@ -5,6 +5,38 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.24.0 — 2026-09-02
+
+The audit measures the page at rest, and measures the parts of it that hang off the edge.
+
+- **A headline that bleeds off the canvas is measured, not excused.** Any run with a negative
+  left was refused outright and reported as "could not be measured" — a warning that looks like
+  nothing and is a hole. It was the biggest word on a shipped social post, and measured, it
+  failed. The run is clamped to the canvas now.
+- **Contrast is measured on the design at rest.** Two screenshots of a page that is still moving
+  are two screenshots of two pages: an animation on `width` reflowed the document between them,
+  the pair came back at different heights, and any run past the shorter one was measured against
+  cleared canvas — read as opaque black, reported at 1.11:1, on a page with nothing black on it.
+  Finite animations are finished (their settled state *is* the design), endless ones paused, and
+  the sampled region is the intersection of the two shots. This also made the audit's own test
+  suite deterministic; it had been failing about one run in three.
+- **A tap target is in a sentence whether it is `inline` or `inline-block`.** A link styled
+  inline-block for its underline offset is still a link in a sentence, which is the case WCAG
+  exempts.
+
+**Two shipped examples were wrong, and the sharper audit is what found them.**
+
+- *Night Market* chose its orange against the paper swatch — 3.1:1, comfortably over the 3:1
+  large-text bar. But the grain layer and the blue ghost pull the paper under that word to
+  `#e4dcca`, where the same ink reads **2.72:1**. The word's ink is two steps deeper now:
+  3.36:1 where it actually sits. A colour chosen against its swatch is a colour chosen against a
+  ground that exists nowhere on the page.
+- *Tide* set a unit label at `0.5em` of a number that clamps to its floor on a phone — 10.8px, a
+  size nobody chose, arrived at by multiplication — and floored its gauge scale at 11.2px. Both
+  now hold 12px at the bottom and are untouched everywhere the viewport is wide enough to matter.
+
+Both reviews carry the new pass: the loop is the deliverable, not just the file.
+
 ## 1.23.0 — 2026-09-02
 
 Every design this package ships as a reference now passes the gates this package ships. Five of

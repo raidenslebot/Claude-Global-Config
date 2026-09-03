@@ -43,3 +43,23 @@ variable, which is what makes it a series.
 **Considered and not made:** a drawn steam plume behind the word, as on the poster. In a feed
 at a thumb's distance it would be texture over the one thing that has to read. The loop ends
 here.
+
+## Pass 4 — the ground the reader sees
+
+The audit learned to measure a run that bleeds off the canvas. The word does exactly that, so
+until now the biggest thing on the piece came back "could not be measured" — a warning that
+looks like nothing and is a hole. Measured, it fails: **2.72:1**.
+
+Pass 1 chose `#ef4a0f` because it read 3.1:1 *against the paper swatch*. But the paper under
+this word is not the swatch. The grain layer sits over everything and the blue ghost multiplies
+into it, and the ground the word actually stands on is `#e4dcca` — a hair darker, and the hair
+is the whole margin. The declared number passed; the reader's number did not.
+
+**Change.** The word's ink two steps deeper, `#d63f0b`: 3.36:1 where the word sits and 3.80:1
+on bare paper, so it clears the bar on the ground it is actually printed on rather than on the
+one named in the token. It is still the hot ink; the ghost, the crop and the board are
+untouched. All three posts pass at 1080 × 1350 with no failures and no warnings.
+
+The lesson generalises past this piece: a colour chosen against its swatch is a colour chosen
+against a ground that does not exist anywhere on the page. Anything laid over it — grain, a
+scrim, a blend, an opacity — moves the number, and only the pixels know by how much.

@@ -120,3 +120,23 @@ moved from 19 to 18 with no change to the design, which is the number becoming h
 the piece becoming worse.
 
 `cgc check tide.html` → **every gate clean**, and the board is unchanged to look at.
+
+## Pass 7 — the sizes the phone actually renders
+
+Two things the audit named once it was measuring the phone properly, both the same mistake:
+a size written as a ratio, checked at the size the desktop happens to produce.
+
+**The unit beside each number** was `0.5em` of a number set in `clamp(1.35rem, 3.4vw, 2.1rem)`.
+On a 390px phone the clamp sits on its 21.6px floor, so half of it is **10.8px** — a size nobody
+chose, arrived at by multiplication. It is now `max(0.5em, 0.75rem)`: still half the number
+everywhere the number is large, and never below 12px.
+
+**The staff-gauge scale** floored at `0.7rem` — 11.2px, and these are the labels that say what
+the drawing means. Floor raised to `0.75rem`. Nothing above the floor moved: on any viewport
+wide enough for the `vw` term to win, both are exactly as they were.
+
+**The footer link** stopped being reported: it is an inline-block link inside a sentence, which
+is the case WCAG exempts, and the audit was reading only `display: inline` as "in a sentence".
+That was the tool's error, not the page's.
+
+No failures and no warnings at 1440 × 900 or 390 × 844.

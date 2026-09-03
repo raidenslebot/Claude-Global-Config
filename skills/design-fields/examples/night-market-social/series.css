@@ -6,7 +6,11 @@
 
 :root {
   --paper: #f2e9d6;
-  --orange: #ef4a0f;     /* the poster's fluorescent ink one step deeper: the screen cannot fluoresce, and at #ff5a1f the word was 2.6:1 on this paper; this is 3.1:1 */
+  --orange: #d63f0b;     /* the poster's fluorescent ink two steps deeper. The screen cannot fluoresce, and the
+                            number that matters is measured on the PAINTED ground, not the declared one: the grain
+                            layer and the blue ghost pull the paper under this word to #e4dcca, where #ff5a1f read
+                            2.3:1 and #ef4a0f — which measured 3.1:1 against the paper swatch — read 2.72:1. This
+                            is 3.36:1 where the word actually sits, and 3.80:1 on bare paper. */
   --orange-ink: #c8420f; /* the same ink pressed harder — 4.1:1 on the paper, so the times and the price read */
   --blue: #1a3a6b;
   --word: "Big Shoulders Display", "Arial Narrow", sans-serif;

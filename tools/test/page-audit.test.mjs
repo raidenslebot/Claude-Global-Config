@@ -306,3 +306,29 @@ test('a tap target is exempt only inside a sentence, not beside any word at all'
   assert.match(tap[0].msg, /1 control\(s\) under 24/)
   rmSync(d, { recursive: true, force: true })
 })
+
+test('contrast is measured on the page at rest, not on whichever frame the shutter caught', { skip }, async (t) => {
+  // An animation on `width` reflows the document, so the two shots came back at different
+  // heights and any run past the shorter one was measured against cleared canvas — read as
+  // black, reported at 1.11:1, on a page with nothing black on it at all.
+  const d = scratch(t)
+  const f = join(d, 'reflow.html')
+  writeFileSync(f, `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Reflow</title><style>
+    body{margin:0;padding:24px;background:#fff;color:#222;font-family:serif;font-size:18px;line-height:1.5}
+    .grow{animation:grow 4s linear both;background:#eee;height:400px}
+    @keyframes grow{from{width:10px}to{width:1400px}}
+    .after{color:#777}
+    </style></head><body>
+    <p>A paragraph before the growing block, long enough to be measured properly.</p>
+    <div class="grow"></div>
+    <p class="after">${'A paragraph after it, which is where the page got taller as the block grew. '.repeat(6)}</p>
+    </body></html>`)
+  for (let i = 0; i < 3; i++) {
+    const r = await audit(f, { mobile: false })
+    const contrast = r.results.flatMap((v) => v.findings).filter((x) => x.rule === 'contrast')
+    assert.equal(contrast.filter((x) => /#000000/.test(x.msg)).length, 0,
+      'nothing on this page is black; a black ground means the pixels came from cleared canvas')
+    for (const c of contrast) assert.doesNotMatch(c.msg, /could not be measured/)
+  }
+})
