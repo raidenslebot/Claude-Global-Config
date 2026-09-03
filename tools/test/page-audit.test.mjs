@@ -5,7 +5,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -331,4 +331,25 @@ test('contrast is measured on the page at rest, not on whichever frame the shutt
       'nothing on this page is black; a black ground means the pixels came from cleared canvas')
     for (const c of contrast) assert.doesNotMatch(c.msg, /could not be measured/)
   }
+})
+
+test('a directory, an empty file and a binary are refused; an SVG is sent where it belongs', { skip }, async (t) => {
+  // Chromium renders a directory as a file listing and a binary as mojibake, and every tool here
+  // then reported success over it: "no failures" about a folder index. And a raw SVG threw a
+  // stack trace — createElement in an XML document makes a namespace-less element with no
+  // .style, and there is no <body> to hang a probe on.
+  const d = scratch(t)
+  mkdirSync(join(d, 'adir'))
+  writeFileSync(join(d, 'empty.html'), '')
+  writeFileSync(join(d, 'bin.html'), Buffer.from([0x00, 0x01, 0xff, 0xfe]))
+  writeFileSync(join(d, 'mark.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#eee"/></svg>')
+  const run = (f) => spawnSync(process.execPath, [join(REPO, 'tools', 'page-audit.mjs'), join(d, f)], { encoding: 'utf8', timeout: 120000 })
+  for (const [f, says] of [['adir', /is a directory/], ['empty.html', /is empty/], ['bin.html', /not a text file/], ['mark.svg', /questions about a page/]]) {
+    const r = run(f)
+    assert.equal(r.status, 1, `${f} should be refused, got ${r.status}: ${r.stdout}`)
+    assert.match(r.stderr, says)
+    assert.doesNotMatch(r.stderr + r.stdout, /\n\s+at [A-Za-z_$]/, `${f} printed a stack trace`)
+  }
+  // The SVG refusal names somewhere to go, because not answering is not the same as no answer.
+  assert.match(run('mark.svg').stderr, /cgc icons|cgc print-lint/)
 })

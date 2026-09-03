@@ -5,8 +5,8 @@
 // target machine. This is what makes the repo work on a setup that is not this one.
 
 import { homedir, platform } from 'node:os'
-import { existsSync, readFileSync, mkdirSync, openSync, writeSync, closeSync, statSync, unlinkSync } from 'node:fs'
-import { join, resolve, dirname } from 'node:path'
+import { existsSync, readFileSync, statSync, mkdirSync, openSync, writeSync, closeSync, unlinkSync } from 'node:fs'
+import { join, resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 
@@ -190,4 +190,30 @@ export function acquireUpdateLock() {
 export function withUpdateLock(fn) {
   const release = acquireUpdateLock()
   try { return fn() } finally { release() }
+}
+
+/** Is this local path something a browser should be pointed at?
+ *
+ *  Chromium renders a directory as a file listing and a binary file as mojibake, and every tool
+ *  here then reports success over it: a PDF of a folder index, a proof PNG of nothing, an audit
+ *  that says "no failures" about a file with no text in it. Silence reads as approval, and a
+ *  render is the loudest silence there is.
+ *
+ *  A URL is not checked — the server decides what it serves. Returns null when the source is
+ *  fine, or the sentence to print when it is not. */
+export function unrenderable(src) {
+  // Two characters minimum, or a Windows drive letter reads as a URL scheme and every local
+  // path on this platform is waved through unchecked.
+  if (/^[a-z][a-z0-9+.-]+:/i.test(src)) return null           // a URL, or file: — the caller's own business
+  let st
+  try { st = statSync(src) } catch { return null }           // missing is the caller's own message
+  if (st.isDirectory()) return `${basename(src)} is a directory, not a design. Name the file inside it.`
+  if (st.size === 0) return `${basename(src)} is empty — there is nothing here to judge, and "no failures" about an empty file is not a pass.`
+  let head
+  try { head = readFileSync(src) } catch { return null }
+  const scan = head.subarray(0, 4096)
+  // A NUL byte in the first pages is the one reliable mark of a binary. Every format these
+  // tools take — HTML, SVG, CSS — is text, and none of them contains one.
+  if (scan.includes(0)) return `${basename(src)} is not a text file — a browser will render it as mojibake and this would report on that.`
+  return null
 }

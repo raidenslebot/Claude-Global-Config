@@ -30,6 +30,7 @@ import { join, resolve, dirname, basename, extname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { findPlaywright } from './print-render.mjs'
 import { DESKTOP, MOBILE } from './screen-render.mjs'
+import { unrenderable } from './paths.mjs'
 
 // Replaces the clock before the page's own scripts see one. Everything that animates reads time
 // from performance.now (GSAP's ticker, Motion, every rAF loop) or from rAF itself; both now
@@ -151,7 +152,9 @@ window.__cgcMeasured = (async () => {
   const imgs = [...document.images]
   await Promise.all(imgs.map((i) => i.decode().catch(() => {})))
   const W = 320
-  const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true })
+  // Namespaced deliberately: in an SVG document createElement makes an SVG element called
+  // "canvas", which has no getContext, and auditing any .svg threw a stack trace.
+  const cv = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas'), cx = cv.getContext('2d', { willReadFrequently: true })
   const lumas = []
   for (const img of imgs) {
     const h = Math.max(1, Math.round(W * (img.naturalHeight || 1) / (img.naturalWidth || 1)))
@@ -283,6 +286,7 @@ export async function main(argv = process.argv.slice(2)) {
   const src = args._[0]
   const isUrl = /^https?:\/\//i.test(src)
   if (!isUrl && !existsSync(resolve(src))) { console.error(`motion-render: no such file — ${src}`); return 1 }
+  if (!isUrl) { const why = unrenderable(resolve(src)); if (why) { console.error(`motion-render: ${why}`); return 1 } }
   const url = isUrl ? src : pathToFileURL(resolve(src)).href
 
   const pw = findPlaywright()

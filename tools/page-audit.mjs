@@ -16,10 +16,11 @@
 // but a page that fails here is not finished, whatever it looks like.
 
 import { existsSync, realpathSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, basename } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { findPlaywright } from './print-render.mjs'
 import { DESKTOP, MOBILE } from './screen-render.mjs'
+import { unrenderable } from './paths.mjs'
 
 // ── the in-page audit ─────────────────────────────────────────────────────────
 // Serialised into the page by Playwright, so it must be self-contained: no outer references.
@@ -31,7 +32,9 @@ function auditInPage({ mobile }) {
 
   // Any CSS colour → sRGB. Computed values of oklch()/color-mix() stay in their own space, so a
   // canvas does the conversion the browser already knows.
-  const cv = document.createElement('canvas'); cv.width = cv.height = 1
+  // Namespaced deliberately: in an SVG document createElement makes an SVG element called
+  // "canvas", which has no getContext, and auditing any .svg threw a stack trace.
+  const cv = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas'); cv.width = cv.height = 1
   const ctx = cv.getContext('2d', { willReadFrequently: true })
   const rgba = (c) => {
     ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = c
@@ -120,7 +123,7 @@ function auditInPage({ mobile }) {
     }
     return into
   }
-  const everything = deep(document, [document.body].filter(Boolean))
+  const everything = deep(document, [document.body || document.documentElement].filter(Boolean))
   const all = everything.filter((el) => el.namespaceURI === HTML)
   // One character is a badge, a counter, a close glyph or a chevron — exactly the runs most
   // likely to be too small or too faint, and they were all being skipped.
@@ -155,13 +158,16 @@ function auditInPage({ mobile }) {
     const f = getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '')
     if (f && !GENERIC.test(f) && !faces.has(f)) faces.set(f, el)
   }
-  const probe = document.createElement('span')
+  // A raw SVG document has no <body> and its createElement makes a namespace-less element
+  // with no .style — the probe has to be built as HTML and hung on whatever root exists.
+  const root = document.body || document.documentElement
+  const probe = document.createElementNS('http://www.w3.org/1999/xhtml', 'span')
   // Wide and narrow glyphs, upper, lower and figures — the fallback sample when an element's
   // own text is too short. (Built from pieces: one long alphabet string reads as a secret to
   // the entropy scanner.)
   const ALPHABET = ['mmmmmmmmmm', 'lllllllllll', 'ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789'].join('')
   probe.style.cssText = 'position:absolute;left:-9999px;top:0;font-size:40px;white-space:nowrap;visibility:hidden'
-  document.body.appendChild(probe)
+  root.appendChild(probe)
   const width = (fam) => { probe.style.fontFamily = fam; return probe.getBoundingClientRect().width }
   for (const [face, el] of faces) {
     const own = ownText(el).replace(/\s+/g, ' ')
@@ -249,12 +255,12 @@ function auditInPage({ mobile }) {
   const add = (c, w, role) => { const k = hex(c); const e = pal.get(k) || { c, w: 0, roles: new Set() }; e.w += w; e.roles.add(role); pal.set(k, e) }
   const pageArea = Math.max(1, de.scrollWidth * de.scrollHeight)
   // The page's own ground: html's background under body's, over the canvas white.
-  add(groundChain(document.body).g, pageArea, 'ground')
+  add(groundChain(document.body || document.documentElement).g, pageArea, 'ground')
   for (const el of all) {
     if (!visible(el)) continue
     const cs = getComputedStyle(el)
     const bg = rgba(cs.backgroundColor)
-    if (bg[3] > 0.5 && el !== document.body) { const r = el.getBoundingClientRect(); add(over(bg, groundChain(el.parentElement || el).g), r.width * r.height, 'ground') }
+    if (bg[3] > 0.5 && el !== (document.body || document.documentElement)) { const r = el.getBoundingClientRect(); add(over(bg, groundChain(el.parentElement || el).g), r.width * r.height, 'ground') }
   }
   for (const el of textEls) {
     const cs = getComputedStyle(el); const fg = rgba(cs.color); if (fg[3] === 0) continue
@@ -441,7 +447,7 @@ export const tagTextRunsInPage = (opts) => {
     return into
   }
   const runs = []
-  const els = deep(document, [document.body].filter(Boolean))
+  const els = deep(document, [document.body || document.documentElement].filter(Boolean))
   for (const el of els) {
     const text = own(el)
     if (!text) continue
@@ -489,7 +495,7 @@ export const settleAnimationsInPage = () => {
 
 /** Make every glyph transparent without disturbing anything that is painted behind it. */
 export const hideGlyphsInPage = () => {
-  const s = document.createElement('style')
+  const s = document.createElementNS('http://www.w3.org/1999/xhtml', 'style')
   s.id = '__cgc_hide_glyphs'
   s.textContent = '*, *::before, *::after { color: transparent !important;'
     + ' -webkit-text-fill-color: transparent !important; text-shadow: none !important;'
@@ -510,7 +516,7 @@ export const measureInkFromPixels = async ([withGlyphs, ground, runs]) => {
     i.src = src
   })
   const [a, b] = await Promise.all([load(withGlyphs), load(ground)])
-  const cv = document.createElement('canvas')
+  const cv = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas')
   const cx = cv.getContext('2d', { willReadFrequently: true })
 
   const lum = (r, g, bl) => {
@@ -761,6 +767,16 @@ export async function main(argv = process.argv.slice(2)) {
   if (args.help || args._.length !== 1) { console.log(HELP); return args.help ? 0 : 1 }
   const src = args._[0]
   if (!/^https?:/i.test(src) && !existsSync(resolve(src))) { console.error(`page-audit: no such file — ${src}`); return 1 }
+  { const why = unrenderable(resolve(src)); if (why) { console.error(`page-audit: ${why}`); return 1 } }
+  // Every question here is an HTML-page question, and a raw SVG document answers none of them
+  // honestly: it has no body, an HTML probe hung inside it is never laid out, so the face check
+  // reports every face as missing. A false failure is worse than no answer, so say where to go.
+  if (/\.svgz?$/i.test(src)) {
+    console.error(`page-audit: ${basename(src)} is an SVG document, and these are questions about a page — measure, tap targets, viewport overflow, a face falling back.`)
+    console.error('  A set of them: cgc icons <folder>.  One going to press: cgc print-lint <file>.')
+    console.error('  To audit the drawing as the reader meets it, put it in the page it belongs to and audit that.')
+    return 1
+  }
   const pw = findPlaywright()
   if (!pw) { console.error('page-audit: playwright-core not found. Install the Playwright MCP server (node tools/install.mjs --only=mcp) — it brings the browser this tool renders with.'); return 2 }
   let viewport = null

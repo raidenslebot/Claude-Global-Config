@@ -5,6 +5,32 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.31.0 — 2026-09-02
+
+Every tool, fed the four inputs a real user produces by accident: a path that does not exist, an
+empty file, a directory, and something that is not text. Twenty runs. Two real defects.
+
+**A directory and a binary were rendered, and the result reported as success.** Chromium renders
+a folder as a file listing and a binary as mojibake, so `cgc print` wrote a PDF of a directory
+index, `cgc render` wrote a proof PNG of one, and `cgc audit` said *no failures* about a file
+with no text in it. A render is the loudest silence there is: a proof of nothing looks exactly
+like a proof. All four browser tools now refuse a directory, an empty file and a non-text file,
+each in one line. A URL is never checked — the server decides what it serves.
+
+**`cgc audit` on an SVG threw a stack trace.** `document.createElement` in an XML document makes
+a namespace-less element with no `.style`, and there is no `<body>` to hang a probe on, so the
+first thing the audit did was crash. The in-page code is namespace-safe now, which it should
+have been anyway — an HTML page containing inline SVG runs the same code.
+
+But making it *run* on a raw SVG was not the same as making it *right*: an HTML probe inside an
+SVG root is never laid out, so the face check reported every face as missing. A false failure is
+worse than no answer, so `cgc audit` refuses an SVG document and names where it belongs —
+`cgc icons` for a set, `cgc print-lint` for one going to press, and for the drawing as a reader
+meets it, put it in the page it belongs to and audit that.
+
+No stack traces and no runaway exit codes across the whole sweep, which is the contract several
+of these tools state in their own headers and none of them was keeping.
+
 ## 1.30.0 — 2026-09-02
 
 Two more kinds of dead instruction, now impossible to ship.

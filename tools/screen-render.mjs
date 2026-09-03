@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { join, resolve, dirname, basename, extname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { findPlaywright } from './print-render.mjs'
+import { unrenderable } from './paths.mjs'
 
 export const DESKTOP = { width: 1440, height: 900 }
 export const MOBILE = { width: 390, height: 844 }
@@ -109,6 +110,7 @@ export async function main(argv = process.argv.slice(2)) {
   const src = args._[0]
   const url = /^https?:\/\//i.test(src) ? src : pathToFileURL(resolve(src)).href
   if (!/^https?:/i.test(src) && !existsSync(resolve(src))) { console.error(`screen-render: no such file — ${src}`); return 1 }
+  { const why = unrenderable(resolve(src)); if (why) { console.error(`screen-render: ${why}`); return 1 } }
 
   const pw = findPlaywright()
   if (!pw) {

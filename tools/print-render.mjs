@@ -25,6 +25,7 @@ import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 // One answer to "how big does this file say it is", shared with the gate.
 import { declaredSize } from './print-lint.mjs'
+import { unrenderable } from './paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '..')
@@ -307,6 +308,7 @@ export async function main(argv = process.argv.slice(2)) {
   const srcs = args._.map((p) => resolve(p))
   const src = srcs[0]
   for (const s of srcs) if (!existsSync(s)) { console.error(`print-render: no such file — ${s}`); return 1 }
+  for (const s of srcs) { const why = unrenderable(s); if (why) { console.error(`print-render: ${why}`); return 1 } }
   if (srcs.length > 1 && args.mockup) { console.error('print-render: a mockup takes one artwork file'); return 1 }
 
   const pw = findPlaywright()
