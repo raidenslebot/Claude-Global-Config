@@ -55,6 +55,48 @@ function runInstall() {
   return r.status === 0
 }
 
+// ── the lock ─────────────────────────────────────────────────────────────────
+// Sessions start together. Four of them starting at once each ran `git pull` in the same
+// clone, and git answered every one of them "fatal: Cannot fast-forward to multiple branches"
+// — one process reading FETCH_HEAD while another rewrites it. Every session then reported the
+// OLD version and carried on, which is exactly what a stale version line looks like: healthy.
+// Anyone running more than one session at a time was pinned to whatever version they had.
+//
+// So the writing half — the pull, and the install that follows it — happens under an exclusive
+// lock. Waiting is bounded and never fatal: a session that cannot get the lock proceeds anyway
+// rather than hanging on someone else's git.
+const LOCK = path.join(STATE, 'update.lock')
+const LOCK_STALE_MS = 5 * 60 * 1000
+const LOCK_WAIT_MS = 30 * 1000
+
+function sleep(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch { /* no sleep, so spin once */ }
+}
+
+/** Run `fn` with the update lock held, waiting for another session rather than racing it. */
+function withLock(fn) {
+  let held = false
+  const deadline = Date.now() + LOCK_WAIT_MS
+  while (Date.now() < deadline) {
+    try {
+      fs.mkdirSync(path.dirname(LOCK), { recursive: true })
+      const fd = fs.openSync(LOCK, 'wx')
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }))
+      fs.closeSync(fd)
+      held = true
+      break
+    } catch (e) {
+      if (e.code !== 'EEXIST') break            // cannot lock at all: do the work unguarded
+      // A holder that died leaves its lock behind. After five minutes it is not a holder.
+      try {
+        if (Date.now() - fs.statSync(LOCK).mtimeMs > LOCK_STALE_MS) { fs.unlinkSync(LOCK); continue }
+      } catch { continue }
+      sleep(250)
+    }
+  }
+  try { return fn() } finally { if (held) { try { fs.unlinkSync(LOCK) } catch { /* already gone */ } } }
+}
+
 // ── 1. update ────────────────────────────────────────────────────────────────
 function update() {
   const gitDir = path.join(REPO, '.git')
@@ -207,9 +249,10 @@ function main() {
   const announce = source === 'startup' || source === 'resume'
 
   let u
-  try { u = update() } catch (e) { u = { status: 'failed', error: e.message } }
+  // The pull and the install it triggers are the only writers here; both run under the lock.
+  try { u = withLock(update) } catch (e) { u = { status: 'failed', error: e.message } }
   let v = null
-  try { v = verify() } catch { v = null }
+  try { v = withLock(verify) } catch { v = null }
   let t = null
   try { t = selfTest(u.head || out(git(['rev-parse', 'HEAD']))) } catch { t = null }
 

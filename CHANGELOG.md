@@ -5,6 +5,34 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.27.0 — 2026-09-02
+
+**Sessions that start together now all update.** This is the root cause of the complaint that
+started this work — a session opening with an old version line while the repo was current.
+
+Four sessions starting at once each ran `git pull` in the same clone, and git answered every
+one of them:
+
+```
+fatal: Cannot fast-forward to multiple branches
+```
+
+— one process reading `FETCH_HEAD` while another rewrites it. The hook reported *update failed*
+and carried on with the version it had. Every one of those sessions then said `CGC v<old>
+enabled`, which is indistinguishable from a healthy line. Anyone who runs more than one Claude
+session at a time was pinned to whatever version they happened to have, indefinitely, and the
+only symptom was a number nobody looks at twice.
+
+The writing half — the pull, and the install that follows it — now runs under an exclusive
+lock. Waiting is bounded at thirty seconds and never fatal: a session that cannot take the lock
+proceeds anyway rather than hanging on someone else's git, and a lock left behind by a session
+that died is treated as abandoned after five minutes. Reading stays unserialised.
+
+Reproduced before it was fixed and after: four hooks fired at once against a clone at 1.24.0
+all reported 1.24.0 and left the clone where it was; with the lock, all four report 1.26.0 and
+the clone is at the new commit. The regression test spawns four real processes — an earlier
+draft used `spawnSync`, which runs them one after another and proves nothing.
+
 ## 1.26.0 — 2026-09-02
 
 Asking a command what it does is no longer the same as asking it to do it, and a render in the

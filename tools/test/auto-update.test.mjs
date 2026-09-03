@@ -6,10 +6,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, spawn } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'session-start-cgc.js')
@@ -220,4 +220,47 @@ test('the version is semver and the changelog leads with it', () => {
   const log = readFileSync(join(REPO, 'CHANGELOG.md'), 'utf8')
   const first = (log.match(/^## (\S+)/m) || [])[1]
   assert.equal(first, v, `CHANGELOG.md must lead with ${v} — bump package.json and add the entry together`)
+})
+
+test('sessions that start together all update: the pull is not raced', async (t) => {
+  // Four sessions starting at once each ran `git pull` in the same clone, and git answered
+  // every one of them "fatal: Cannot fast-forward to multiple branches" — one process reading
+  // FETCH_HEAD while another rewrites it. Every session then reported the OLD version and
+  // carried on, which is exactly what a stale version line looks like: healthy. Anyone running
+  // more than one session at a time was pinned to whatever version they happened to have.
+  const w = world(t)
+  w.release('1.1.0', 'Add the thing')
+  // spawnSync would run these one after another and prove nothing: the race needs four real
+  // processes in flight at once.
+  const runs = await Promise.all([0, 1, 2, 3].map((i) => new Promise((res) => {
+    const p = spawn(process.execPath, [HOOK], {
+      env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config },
+    })
+    let stdout = '', stderr = ''
+    p.stdout.on('data', (d) => { stdout += d })
+    p.stderr.on('data', (d) => { stderr += d })
+    p.on('close', (status) => res({ status, stdout, stderr }))
+    p.stdin.end(JSON.stringify({ source: i % 2 ? 'resume' : 'startup' }))
+  })))
+  for (const [i, r] of runs.entries()) {
+    assert.equal(r.status, 0, `session ${i} must exit 0: ${r.stderr}`)
+    const line = JSON.parse(r.stdout).systemMessage
+    assert.match(line, /v1\.1\.0/, `session ${i} reported a stale version: ${line}`)
+    assert.doesNotMatch(line, /update failed|multiple branches/, `session ${i}: ${line}`)
+  }
+  assert.equal(head(w.friend), head(w.author), 'the clone actually moved')
+})
+
+test('a lock left behind by a session that died does not pin the next one forever', (t) => {
+  const w = world(t)
+  w.release('1.1.0', 'Add the thing')
+  // A holder that is six minutes old is not a holder.
+  const lock = join(w.config, '.cgc', 'update.lock')
+  mkdirSync(join(w.config, '.cgc'), { recursive: true })
+  writeFileSync(lock, JSON.stringify({ pid: 999999, at: Date.now() - 6 * 60 * 1000 }))
+  const old = new Date(Date.now() - 6 * 60 * 1000)
+  utimesSync(lock, old, old)
+  const { line } = fire(w, w.friend)
+  assert.match(line, /updated 1\.0\.0 → 1\.1\.0/, `a stale lock must not block the update: ${line}`)
+  assert.equal(existsSync(lock), false, 'and the lock is released')
 })
