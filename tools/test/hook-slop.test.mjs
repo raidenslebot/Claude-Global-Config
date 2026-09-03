@@ -4,7 +4,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -124,7 +124,7 @@ test('a clean but conventional page is reported for what it never tried', (t) =>
     '<p>Figures for the three months to March, with the prior year alongside for comparison.</p>',
     '<div class="row"><div class="item"><h2>Receipts</h2><p>Up on the year by a little over a tenth.</p></div>',
     '<div class="item"><h2>Outgoings</h2><p>Flat, once the one-off legal fee is set aside.</p></div>',
-    '<div class="item"><h2>Reserve</h2><p>Eleven months of cover at the current rate.</p></div></div>',
+    '<div class="item"><p>Eleven months of cover at the current rate.</p></div></div></div>',
     '<p class="note">Prepared from the bank export; the workings are in the appendix.</p>',
     '</div></body></html>',
   ].join('\n'), 'utf8')
@@ -142,4 +142,42 @@ test('a short fragment is not asked to be ambitious', (t) => {
   const file = join(dir, 'button.css')
   writeFileSync(file, '.btn { color: #333; padding: 8px 12px; border-radius: 4px }', 'utf8')
   assert.equal(fire(file), null)
+})
+
+test('the test-path exclusion works on the platform this runs on', (t) => {
+  // It was written with a forward-slash-only class and unescaped dots, so on Windows the whole
+  // directory half matched nothing — while `latest.css` was silently exempted, because the
+  // pattern read it as "a" + "test" + "." + "css".
+  const dir = scratch(t)
+  const page = [
+    '<!doctype html><style>',
+    'body{font-family:Georgia,serif;background:#f4f1ea;color:#1c1a17;margin:0}',
+    '.wrap{max-width:60rem;margin:0 auto;padding:4rem 2rem}',
+    'h1{font-size:2.75rem;line-height:1.1;font-weight:400;margin:0 0 1rem}',
+    'p{font-size:1.05rem;line-height:1.6;max-width:62ch;color:#3a3630}',
+    '.row{display:flex;gap:1.75rem;margin-top:3rem;flex-wrap:wrap}',
+    '.item{flex:1 1 14rem;border-top:1px solid #cdc7bb;padding-top:1rem}',
+    '</style><div class="wrap"><h1>Quarterly ledger</h1>',
+    '<p>Figures for the three months to March, with the prior year alongside.</p>',
+    '<div class="row"><div class="item"><p>Receipts up a tenth.</p></div>',
+    '<div class="item"><p>Outgoings flat.</p></div>',
+    '<div class="item"><p>Eleven months of cover.</p></div></div></div>',
+    '<p>' + 'The workings are set out in the appendix, with the bank export beside them. '.repeat(14) + '</p>',
+  ].join('\n')
+
+  // A file whose NAME merely contains "test" is an ordinary file and must still be reported.
+  const ordinary = join(dir, 'latest.html')
+  writeFileSync(ordinary, page, 'utf8')
+  assert.ok(fire(ordinary), 'latest.html is not a test file')
+
+  // A real test path is skipped, with the separator this platform actually uses.
+  const testDir = join(dir, 'tests')
+  mkdirSync(testDir, { recursive: true })
+  const inTests = join(testDir, 'page.html')
+  writeFileSync(inTests, page, 'utf8')
+  assert.equal(fire(inTests), null, `a file under a tests directory must be skipped: ${inTests}`)
+
+  const spec = join(dir, 'hero.test.html')
+  writeFileSync(spec, page, 'utf8')
+  assert.equal(fire(spec), null, 'a .test. file is skipped')
 })

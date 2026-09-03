@@ -76,7 +76,7 @@ export const MEDIA = [
       T('wide-gamut', 'material', 2, /display-p3|color\(\s*display-p3|color-gamut/i, 'display-p3 — colours that do not exist in sRGB, on a wide-gamut display. Many current monitors are sRGB only, so the sRGB value is the design and this is the bonus.'),
       T('mask', 'material', 3, /(?:-webkit-)?mask-image\s*:|(?:-webkit-)?mask\s*:\s*(?:linear|radial|conic|url)|background-clip\s*:\s*text/i, 'gradient and image masks — an edge that is not a rectangle, type that fades into the page, a reveal that wipes. The alternative to wrapping it in another card.'),
       T('blend', 'material', 3, /mix-blend-mode\s*:|background-blend-mode\s*:/i, 'blend modes — ink that reacts to what is under it: multiply for print behaviour, difference for a headline that inverts across an image.'),
-      T('layered-shadow', 'depth', 1, /box-shadow\s*:[^;{}]*?(?:\)|#[0-9a-f]{3,8})\s*,[^;{}]*?(?:\)|#[0-9a-f]{3,8})\s*,/i, 'layered shadows — four or five stacked at increasing blur, which is what light actually does. A single 20px blur is the giveaway.'),
+      T('layered-shadow', 'depth', 1, /box-shadow\s*:[^;{}]{0,200}?(?:\)|#[0-9a-f]{3,8})\s*,/i, 'layered shadows — four or five stacked at increasing blur, which is what light actually does. A single 20px blur is the giveaway.'),
       T('depth-stack', 'depth', 3, /perspective\s*:|transform-style\s*:\s*preserve-3d|translateZ\(|rotate[XY]\(/i, 'a real z axis — perspective and preserved 3D, so layers sit at different distances rather than being painted on one plane.'),
       T('backdrop', 'depth', 1, /backdrop-filter\s*:/i, 'backdrop-filter beyond the glass card — a legibility scrim, a sticky bar that stays readable over anything.'),
       T('svg-filter', 'generative', 3, /feTurbulence|feDisplacementMap|feColorMatrix|filter\s*:\s*url\(#/i, 'SVG filters — generated grain (feTurbulence), a warped edge (feDisplacementMap), a true duotone (feColorMatrix). Texture computed rather than a stock overlay.'),
@@ -109,7 +109,7 @@ export const MEDIA = [
       T('popover-dialog', 'response', 2, /\bpopover\b|<dialog|showModal\(/i, 'native popover and <dialog> — top layer, light dismiss and focus handling for free.'),
       T('scroll-snap', 'response', 1, /scroll-snap-(?:type|align)\s*:/i, 'scroll snap — a run of items that lands where it should, natively.'),
       T('selection-surfaces', 'response', 1, /::selection|caret-color\s*:|accent-color\s*:|cursor\s*:\s*url\(/i, '::selection, caret-color, accent-color, a custom cursor — the parts of the UI the browser owns, carrying your palette.'),
-      T('data-driven-style', 'variation', 3, /setProperty\(\s*['"]--|style\.setProperty|style=\{\{[^}]*\$\{|attr\(/i, 'style driven by data or state — the piece differs per row, per value, per user, instead of rendering one fixed picture.'),
+      T('data-driven-style', 'variation', 3, /setProperty\(\s*['"]--|style\.setProperty|style=\{\{[^}]*\$\{|setAttribute\(\s*['"]style|\bstyle\s*=\s*["'][^"']*\$\{/i, 'style driven by data or state — the piece differs per row, per value, per user, instead of rendering one fixed picture.'),
       T('theme-variation', 'variation', 1, /light-dark\(|color-scheme\s*:|prefers-color-scheme/i, 'light-dark() and colour scheme — the piece has more than one appearance.'),
     ],
   },
@@ -138,7 +138,7 @@ export const MEDIA = [
       T('pixel-manipulation', 'generative', 3, /getImageData|putImageData|createImageData/i, 'working the pixels directly — dithering, palette mapping, feedback, displacement. What canvas can do that the DOM cannot.'),
       T('noise-field', 'generative', 3, /simplex|perlin|noise\d?D|\bfbm\b|value ?noise/i, 'a noise field — one function producing a thousand coherent marks nobody had to draw.'),
       T('particles', 'generative', 2, /particles?\b|emitter\b/i, 'a particle or agent system — emergent texture from a simple per-agent rule.'),
-      T('physics-sim', 'response', 3, /velocity|acceleration|\bdamping\b|gravity/i, 'simulation — velocity, damping and forces, so movement is derived rather than keyframed.'),
+      T('physics-sim', 'response', 3, /velocity\s*[-+*/]?=|\.v[xy]\s*[-+*/]?=|acceleration\s*[-+*/]?=|\bdamping\s*[=:]|gravity\s*[=:]/i, 'simulation — velocity, damping and forces, so movement is derived rather than keyframed.'),
       T('canvas-pattern', 'material', 2, /createPattern|createRadialGradient|createConicGradient/i, 'patterns and non-linear gradients as paint sources.'),
       T('offscreen', 'depth', 2, /OffscreenCanvas|drawImage\(\s*(?:canvas|buffer|off|this\.buf)/i, 'a second buffer — trails, feedback, blur passes and layering a single context cannot do.'),
       T('path2d', 'structure', 1, /new Path2D|isPointInPath/i, 'Path2D — reusable geometry, and real hit-testing on a drawn shape.'),
@@ -181,7 +181,7 @@ export const MEDIA = [
       T('morph-skin', 'time', 2, /morphTargetInfluences|SkinnedMesh|AnimationMixer/i, 'morph targets and skinned animation — geometry that deforms rather than transforms.'),
       T('procedural-geo', 'generative', 3, /BufferGeometry\(\)|setAttribute\(\s*['"]position|MarchingCubes|ParametricGeometry/i, 'geometry built in code — shape derived from a rule or from data rather than loaded.'),
       T('raycast-interaction', 'response', 2, /Raycaster|onPointerOver|useCursor/i, 'raycast interaction — the scene answers the pointer.'),
-      T('seeded-scene', 'variation', 2, /\bseed\b|Math\.random\(\)/i, 'a seeded arrangement — different every load, reproducible on demand.'),
+      T('seeded-scene', 'variation', 2, /\bseed(?:ed)?\b|mulberry32|xorshift|\bPRNG\b/i, 'a seeded arrangement — different every load, and reproducible from the number alone. An unseeded Math.random() is only the first half of that.'),
       T('scene-type', 'type', 2, /TextGeometry|troika|Text3D|<Text\b/i, 'type in the scene, set rather than pasted on a plane.'),
     ],
   },
@@ -231,10 +231,10 @@ export const MEDIA = [
       T('truecolor', 'material', 3, /[34]8;2;|truecolou?r|\bhex\(|setRgb|rgbToAnsi/i, '24-bit colour — the 16-colour palette is a constraint from 1985, not a style.'),
       T('box-drawing', 'structure', 2, /[─-╿]/u, 'box-drawing characters — real rules and frames instead of dashes and pipes.'),
       T('block-braille', 'generative', 3, /[▀-▟]|[⠀-⣿]/u, 'block and braille glyphs — a 2×4 pixel grid per cell, which is how a terminal draws a real chart or an image.'),
-      T('gradient-text', 'material', 2, /gradient|interpolate[\s\S]{0,20}colou?r/i, 'a gradient across a run of text or a bar — colour as data, not decoration.'),
+      T('gradient-text', 'material', 2, /gradient(?!\s*\()|interpolate[\s\S]{0,20}colou?r|lerpColou?r/i, 'a gradient across a run of text or a bar — colour as data, not decoration.'),
       T('sparkline', 'generative', 2, /sparkline|histogram|[▁-█]{3}/u, 'sparklines and inline histograms — data in the width of a word.'),
       T('alt-screen', 'structure', 2, /\?1049h|alternate ?screen|smcup|altScreen/i, 'the alternate screen — a full-screen application that leaves the scrollback intact on exit.'),
-      T('frame-loop', 'time', 3, /cursor ?up|render ?loop|\b2J\b|clearLine|moveCursor|cursorTo|\bredraw\b|\[\d*A\b/i, 'redraw in place — a live view rather than a wall of appended lines.'),
+      T('frame-loop', 'time', 3, /cursor ?up|render ?loop|\b2J\b|clearLine|moveCursor|cursorTo|\bredraw\b|\[\d+A\b/i, 'redraw in place — a live view rather than a wall of appended lines.'),
       T('mouse-input', 'response', 2, /\?100[06]h|mouse ?event|enableMouse/i, 'mouse reporting — a TUI that can be clicked.'),
       T('width-aware', 'structure', 2, /stringWidth|wcwidth|unicode[_ ]?width/i, 'grapheme-aware width — the difference between a table that aligns and one that shears on emoji or CJK.'),
       T('degrade', 'variation', 2, /NO_COLOR|isTTY|supportsColor|\bTERM\b/i, 'degrading honestly with no TTY or no colour, instead of writing escapes into a log file.'),
@@ -252,7 +252,7 @@ export const MEDIA = [
       T('small-multiples', 'structure', 3, /facet|small ?multiple|trellis/i, 'small multiples — one shape repeated across a dimension. Almost always better than the dual-axis chart it replaces.'),
       T('bespoke-mark', 'generative', 3, /d3\.(?:arc|line|area|symbol|linkHorizontal)|customMark/i, 'a mark drawn for this data rather than a bar or a line picked from a menu.'),
       T('state-transition', 'time', 3, /\.transition\(\)|enter\(\)[\s\S]{0,200}?exit\(\)/i, 'transitions between data states — object constancy, so the reader can follow a value moving.'),
-      T('interaction-detail', 'response', 2, /brush|\bzoom\b|tooltip|voronoi/i, 'brushing, zoom or a Voronoi hit layer — detail on demand rather than everything at once.'),
+      T('interaction-detail', 'response', 2, /d3\.brush|brush[XY]?\s*\(|d3\.zoom|\.call\(\s*zoom|tooltip|voronoi|Delaunay/i, 'brushing, zoom or a Voronoi hit layer — detail on demand rather than everything at once.'),
       T('uncertainty', 'material', 3, /confidence|error ?bar|interval|stddev|quantile/i, 'uncertainty drawn — an estimate presented as a point is a claim the data cannot support.'),
       T('data-driven-layout', 'variation', 2, /d3\.(?:force|hierarchy|treemap|pack|stack)/i, 'layout computed from the data — force, hierarchy, treemap or pack rather than a fixed frame.'),
       T('depth-encoding', 'depth', 2, /opacity[\s\S]{0,40}(?:scale|data)|z ?index[\s\S]{0,40}sort|overplot/i, 'layering that handles overplotting — sorted draw order or alpha that encodes density.'),
@@ -277,6 +277,16 @@ export const MEDIA = [
 ]
 
 // ── Project extension ────────────────────────────────────────────────────────────────────────
+// A regex has no timeout in JavaScript, so a nested quantifier in somebody's extension file
+// could hang the tool outright — thirty seconds on forty characters. There is no way to bound
+// the engine, so the pattern itself is refused before it is ever run.
+const RUNAWAY = /\([^()]*[+*][^()]*\)\s*[+*]|\[[^\]]*\]\s*[+*]\s*[+*]/
+export function safeRe(source, flags = 'i') {
+  if (source.length > 400) throw new Error('pattern is over 400 characters')
+  if (RUNAWAY.test(source)) throw new Error(`pattern has a nested quantifier and could hang: ${source.slice(0, 60)}`)
+  return new RegExp(source, flags)
+}
+
 function loadExtensions(cwd) {
   const roots = [
     join(cwd, '.cgc', 'techniques.json'),
@@ -289,16 +299,22 @@ function loadExtensions(cwd) {
       const raw = JSON.parse(readFileSync(p, 'utf8'))
       for (const m of raw.media || []) {
         if (!m || !m.id || !Array.isArray(m.techniques)) continue
+        // Each medium is its own attempt. One unparseable pattern used to abort the rest of
+        // the file, so a good medium defined after a bad one vanished without a word.
+        try {
         media.push({
           id: String(m.id), label: String(m.label || m.id), source: p,
           exts: Array.isArray(m.exts) ? m.exts.map((e) => String(e).toLowerCase()) : [],
-          detect: new RegExp(String(m.detect || 'a^'), 'i'),
+          detect: safeRe(String(m.detect || 'a^')),
           techniques: m.techniques.filter((t) => t && t.id && t.re).map((t) => T(
             String(t.id), DIMS.includes(t.dim) ? t.dim : 'material',
-            [1, 2, 3].includes(t.lift) ? t.lift : 2, new RegExp(String(t.re), 'i'), String(t.what || t.id))),
+            [1, 2, 3].includes(t.lift) ? t.lift : 2, safeRe(String(t.re)), String(t.what || t.id))),
         })
+        } catch (e) {
+          process.emitWarning(`techniques: medium "${m.id}" in ${p} was skipped — ${e.message}`)
+        }
       }
-    } catch { /* a broken extension file is ignored, never fatal */ }
+    } catch { /* an unreadable or unparseable file is ignored, never fatal */ }
   }
   return media
 }
@@ -360,12 +376,21 @@ export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
   }
 }
 
-function walk(p, out = []) {
-  const st = statSync(p)
+function walk(p, out = [], seen = new Set()) {
+  let st
+  try { st = statSync(p) } catch { return out }
   if (st.isDirectory()) {
-    for (const e of readdirSync(p)) {
+    // A junction that points at its own parent is a loop, and the OS reparse limit turns it
+    // into a wrong diagnosis rather than a crash. Remember where we have been.
+    let key = p
+    try { key = realpathSync(p) } catch { /* a dangling link is simply skipped */ }
+    if (seen.has(key)) return out
+    seen.add(key)
+    let entries = []
+    try { entries = readdirSync(p) } catch { return out }
+    for (const e of entries) {
       if (e === 'node_modules' || e === '.git' || e.startsWith('.')) continue
-      walk(join(p, e), out)
+      walk(join(p, e), out, seen)
     }
   } else if (EXTS.has(extname(p).toLowerCase())) out.push(p)
   return out
@@ -408,7 +433,9 @@ export function main(argv = process.argv.slice(2)) {
 
   const files = []
   for (const p of args._) {
-    try { walk(resolve(p), files) } catch { console.error(`techniques: no such file — ${p}`); return 1 }
+    const abs = resolve(p)
+    if (!existsSync(abs)) { console.error(`techniques: no such file — ${p}`); return 1 }
+    try { walk(abs, files) } catch (e) { console.error(`techniques: could not read ${p} — ${e.message}`); return 1 }
   }
   if (!files.length) { console.error('techniques: nothing to read — no design or source files at those paths'); return 1 }
 
@@ -416,7 +443,8 @@ export function main(argv = process.argv.slice(2)) {
   let exts = ''
   for (const f of files) { try { text += readFileSync(f, 'utf8') + '\n'; exts += extname(f) + '\n' } catch {} }
   const m = measure(text, { ext: exts })
-  const min = args.min ? Number(args.min) : 0
+  const min = args.min === undefined ? 0 : Number(args.min)
+  if (!Number.isFinite(min) || min < 0) { console.error(`techniques: --min wants a number, got "${args.min}"`); return 1 }
 
   if (args.json) {
     console.log(JSON.stringify({

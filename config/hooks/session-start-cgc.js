@@ -91,10 +91,17 @@ function update(always) {
   const before = version()
   const pull = git(['pull', '--ff-only', '--quiet', 'origin', main], 60000)
   if (pull.status !== 0) {
-    const err = String(pull.stderr || '').trim().split('\n').filter(Boolean).pop() || 'unknown error'
+    // Keep the lines that name the problem. The last line of a failed pull is always
+    // "Aborting", which tells the reader nothing at all.
+    const lines = String(pull.stderr || '').trim().split('\n').map((s) => s.trim()).filter(Boolean)
+    const err = lines.filter((l) => !/^Aborting$/i.test(l)).slice(0, 3).join(' ') || lines.pop() || 'unknown error'
     // Name the version it is stuck below, because the version alone reads as healthy.
     const target = (() => { try { return JSON.parse(out(git(['show', `origin/${main}:package.json`])) || '{}').version } catch { return '' } })()
-    const dirty = Boolean(out(git(['status', '--porcelain', '--untracked-files=no'])))
+    // An untracked file the pull would overwrite is a local change too, and the tracked-only
+    // probe is blind to exactly that case — which is how one kind of block became DEGRADED and
+    // the other a calm report of the same situation.
+    const dirty = Boolean(out(git(['status', '--porcelain'])))
+      || /untracked working tree files|local changes|would be overwritten/i.test(lines.join(' '))
     return finish({ status: dirty ? 'dirty' : 'failed', head, remote, main, target, error: err })
   }
   const subjects = out(git(['log', '--format=%s', `${head}..${remote}`])).split('\n').filter(Boolean)

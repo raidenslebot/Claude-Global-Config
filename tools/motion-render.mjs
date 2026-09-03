@@ -13,7 +13,8 @@
 //
 // So this steps the page through its own timeline under a VIRTUAL CLOCK and photographs it.
 // performance.now, Date.now and requestAnimationFrame are replaced before a single line of page
-// script runs, so GSAP, Motion, and any hand-rolled rAF loop advance exactly when told to; CSS
+// script runs — along with setTimeout and setInterval — so GSAP, Motion, a timer-triggered
+// class flip and any hand-rolled rAF loop all advance exactly when told to; CSS
 // animations, transitions and Web Animations are paused and scrubbed by currentTime. The result
 // is deterministic: the same page yields the same frames on any machine, at any speed.
 //
@@ -42,10 +43,42 @@ export const CLOCK = `(() => {
   try { Date.now = () => EPOCH + now } catch {}
   window.requestAnimationFrame = (cb) => { const i = ++id; queue.set(i, cb); return i }
   window.cancelAnimationFrame = (i) => { queue.delete(i) }
+
+  // Timers run on the same virtual clock. Without this, an animation triggered by
+  // setTimeout advances at whatever speed the capture happens to run at, which is the
+  // opposite of the determinism this tool exists to provide.
+  const timers = new Map()
+  const realTimeout = window.setTimeout.bind(window)
+  window.setTimeout = (fn, ms) => {
+    const i = ++id
+    timers.set(i, { fn, at: now + Math.max(0, Number(ms) || 0), every: 0 })
+    return i
+  }
+  window.setInterval = (fn, ms) => {
+    const i = ++id
+    const every = Math.max(1, Number(ms) || 1)
+    timers.set(i, { fn, at: now + every, every })
+    return i
+  }
+  window.clearTimeout = (i) => { timers.delete(i) }
+  window.clearInterval = (i) => { timers.delete(i) }
+  void realTimeout
   window.__cgcClock = {
     now: () => now,
     advance(dt) {
       now += dt
+      // Timers first, in time order, so a callback that schedules an animation has done so
+      // before the frame is drawn. The guard stops a zero-delay interval spinning forever.
+      for (let guard = 0; guard < 5000; guard++) {
+        let pick = null
+        for (const [i, timer] of timers) {
+          if (timer.at <= now && (!pick || timer.at < pick.timer.at)) pick = { i, timer }
+        }
+        if (!pick) break
+        if (pick.timer.every) pick.timer.at += pick.timer.every
+        else timers.delete(pick.i)
+        try { pick.timer.fn() } catch {}
+      }
       // A callback that schedules another frame must not run twice in one step.
       const due = [...queue.entries()]
       queue.clear()
@@ -55,14 +88,19 @@ export const CLOCK = `(() => {
   }
   // Scrub every declarative animation to the same instant. A transition that has not started
   // yet has no Animation object, which is why the clock above matters as much as this does.
+  const started = new WeakMap()
   window.__cgcScrub = (t) => {
     let n = 0
     for (const a of document.getAnimations()) {
       try {
+        // The first instant this animation is seen is the instant it began. Scrubbing it to
+        // the absolute capture time would run it as though it had started with the page.
+        if (!started.has(a)) started.set(a, t)
         a.pause()
+        const local = Math.max(0, t - started.get(a))
         const timing = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null
-        const end = timing && Number.isFinite(timing.endTime) ? timing.endTime : t
-        a.currentTime = Math.min(t, end)
+        const end = timing && Number.isFinite(timing.endTime) ? timing.endTime : local
+        a.currentTime = Math.min(local, end)
         n++
       } catch {}
     }
@@ -127,6 +165,17 @@ window.__cgcMeasured = (async () => {
   }
   const change = [0]
   let maxDelta = 0
+  // The first frame against the last: the only quantity that can be compared like for like
+  // between a full capture and a two-frame reduced-motion capture.
+  let endDelta = 0
+  if (lumas.length > 1) {
+    const a = lumas[0], b = lumas[lumas.length - 1]
+    if (a.length === b.length && a.length) {
+      let s = 0
+      for (let p = 0; p < a.length; p++) s += Math.abs(a[p] - b[p])
+      endDelta = s / a.length / 255
+    }
+  }
   for (let i = 1; i < lumas.length; i++) {
     const a = lumas[i - 1], b = lumas[i]
     const n = Math.min(a.length, b.length)
@@ -155,14 +204,14 @@ window.__cgcMeasured = (async () => {
     + '<path d="' + path + '" stroke="#b4541f" stroke-width="2.5" fill="none"/>'
     + pts.map((p) => '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="#b4541f"/>').join('')
   document.getElementById('verdict').textContent = (total < 0.0008 && maxDelta < 10) ? 'NOTHING MOVED' : 'change ' + total.toFixed(3) + ' · peak Δ ' + maxDelta.toFixed(0)
-  return { change, cum, total, peak, maxDelta }
+  return { change, cum, total, peak, maxDelta, endDelta }
 })()
 </script>`
 }
 
 // Everything below reads the curve, never the source. A straight cumulative line is linear
 // motion; a single tall bar is a jump cut; a flat tail is padding at the end of the duration.
-export function readCurve({ change, cum, total, maxDelta = 0 }, { duration, frames }) {
+export function readCurve({ change, cum, total, maxDelta = 0 }, { duration, frames, scroll = false }) {
   const findings = []
   const n = cum.length
   const at = (frac) => {
@@ -191,7 +240,10 @@ export function readCurve({ change, cum, total, maxDelta = 0 }, { duration, fram
   else if (signed > 0.04 && half < 0.42) easing = 'ease-out'
   else if (signed < -0.04 && half > 0.58) easing = 'ease-in'
   else easing = 'ease-in-out'
-  if (easing === 'linear') {
+  // A scroll capture is sampled at even scroll positions, so its cumulative curve is a straight
+  // line BY CONSTRUCTION, and it has no duration to be too slow or too fast against. Only the
+  // findings that are true of any capture apply to it.
+  if (easing === 'linear' && !scroll) {
     findings.push({ id: 'linear', level: 'fail', note: `the measured curve is a straight line (deviation ${dev.toFixed(3)}) — nothing in the physical world starts and stops at full speed. Give it an ease: cubic-bezier(.2,.8,.2,1) for something arriving, cubic-bezier(.4,0,1,1) for something leaving.` })
   }
   const settle = at(0.95)
@@ -203,12 +255,12 @@ export function readCurve({ change, cum, total, maxDelta = 0 }, { duration, fram
   for (let i = 1; i < n && still(change[i]); i++) headFrames++
   const deadTail = Math.round(tailFrames / steps * 100)
   const deadHead = Math.round(headFrames / steps * 100)
-  if (deadTail >= 40) findings.push({ id: 'dead-tail', level: 'warn', note: `the last ${deadTail}% of the timeline is frozen — ${tailFrames} of ${steps} frames show no change at all. The animation is finished well before the duration is; shorten it to what the eye actually sees.` })
-  if (deadHead >= 25) findings.push({ id: 'dead-head', level: 'warn', note: `the first ${deadHead}% of the timeline is frozen. A delay before a response reads as lag, not as choreography — unless it is a stagger, in which case stagger it visibly.` })
+  if (deadTail >= 40 && !scroll) findings.push({ id: 'dead-tail', level: 'warn', note: `the last ${deadTail}% of the timeline is frozen — ${tailFrames} of ${steps} frames show no change at all. The animation is finished well before the duration is; shorten it to what the eye actually sees.` })
+  if (deadHead >= 25 && !scroll) findings.push({ id: 'dead-head', level: 'warn', note: `the first ${deadHead}% of the timeline is frozen. A delay before a response reads as lag, not as choreography — unless it is a stagger, in which case stagger it visibly.` })
   const peakShare = Math.max(...change) / total
   if (peakShare > 0.6 && n >= 6) findings.push({ id: 'jump-cut', level: 'fail', note: `one frame carries ${Math.round(peakShare * 100)}% of the whole change — this snaps, it does not move. Whatever changes state is switching, not animating: check for display, or a property that cannot be interpolated.` })
-  if (duration <= 90) findings.push({ id: 'too-fast', level: 'warn', note: `${duration} ms is below the threshold where the eye reads motion as motion — it registers as a flicker. 120–200 ms for a small state change, 200–400 ms for something entering.` })
-  if (duration >= 1400 && settle >= 1200) findings.push({ id: 'too-slow', level: 'warn', note: `${settle} ms of motion is long enough to be waited on. Anything the user triggered should be finished inside 400 ms; reserve the long timeline for something they chose to watch.` })
+  if (duration <= 90 && !scroll) findings.push({ id: 'too-fast', level: 'warn', note: `${duration} ms is below the threshold where the eye reads motion as motion — it registers as a flicker. 120–200 ms for a small state change, 200–400 ms for something entering.` })
+  if (duration >= 1400 && settle >= 1200 && !scroll) findings.push({ id: 'too-slow', level: 'warn', note: `${settle} ms of motion is long enough to be waited on. Anything the user triggered should be finished inside 400 ms; reserve the long timeline for something they chose to watch.` })
   return { findings, moved, easing, settle, deadHead, deadTail, deviation: +dev.toFixed(3) }
 }
 
@@ -257,7 +309,14 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const { chromium } = pw.module
-  const browser = await chromium.launch({ headless: true })
+  let browser
+  try {
+    browser = await chromium.launch({ headless: true })
+  } catch (e) {
+    console.error(`motion-render: the browser could not be launched — ${String(e.message || e).split('\n')[0]}`)
+    console.error('Install it with: cgc install --only=mcp   (playwright-core ships no browsers of its own)')
+    return 2
+  }
   const shot = []
   const reducedShot = []
   // A scroll capture legitimately changes as the page moves, so there is nothing to compare.
@@ -287,7 +346,7 @@ export async function main(argv = process.argv.slice(2)) {
       }
 
       const height = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - window.innerHeight))
-      const count = reduced ? 2 : frames
+      const count = frames
       let prev = 0
       for (let i = 0; i < count; i++) {
         const t = Math.round(duration * i / (count - 1))
@@ -322,12 +381,18 @@ export async function main(argv = process.argv.slice(2)) {
 
   // The reduced-motion pair goes through the same instrument: two frames, one number.
   let reducedSheet = null
-  if (checkReduced && reducedShot.length === 2) {
+  if (checkReduced && reducedShot.length >= 2) {
     reducedSheet = join(frameDir, 'sheet-reduced.html')
     writeFileSync(reducedSheet, sheetHtml(reducedShot, { title: 'reduced motion', viewport: '', trigger: '' }), 'utf8')
   }
 
-  const browser2 = await chromium.launch({ headless: true })
+  let browser2
+  try {
+    browser2 = await chromium.launch({ headless: true })
+  } catch (e) {
+    console.error(`motion-render: the browser could not be launched — ${String(e.message || e).split('\n')[0]}`)
+    return 2
+  }
   let measured
   let reducedTotal = null
   const sheetPng = `${outBase}-motion.png`
@@ -342,14 +407,22 @@ export async function main(argv = process.argv.slice(2)) {
     }
   } finally { await browser2.close() }
 
-  const read = readCurve(measured, { duration: scrolling ? frames * 100 : duration, frames })
-  // It moved for everyone, and it moved just as much for the viewer who asked it not to.
-  if (reducedTotal !== null && read.moved && reducedTotal > 0.0008) {
-    read.findings.push({
-      id: 'reduced-motion',
-      level: 'fail',
-      note: `the same motion still plays under prefers-reduced-motion (change ${reducedTotal.toFixed(3)} against ${measured.total.toFixed(3)}). For a viewer with a vestibular disorder this is not a preference, it is symptoms. Wrap the movement in @media (prefers-reduced-motion: no-preference), or reduce it to an opacity change.`,
-    })
+  const read = readCurve(measured, { duration, frames, scroll: scrolling })
+  // It moved for everyone, and it moved JUST AS MUCH for the viewer who asked it not to. Both
+  // sides of this comparison are first-frame-against-last, because the reduced capture is two
+  // frames and the full one is a dozen: comparing a single difference against a sum of twelve
+  // would fail every page that reduces its motion instead of removing it, which is the remedy
+  // this finding recommends.
+  const fullPath = measured.total || 0
+  if (reducedTotal !== null && read.moved && fullPath > 0.0008) {
+    const ratio = reducedTotal / fullPath
+    if (reducedTotal > 0.0008 && ratio >= 0.5) {
+      read.findings.push({
+        id: 'reduced-motion',
+        level: 'fail',
+        note: `under prefers-reduced-motion the page still travels ${Math.round(ratio * 100)}% as far as it does normally (${reducedTotal.toFixed(3)} against ${fullPath.toFixed(3)}, summed across the same frames). For a viewer with a vestibular disorder that is not a preference being ignored, it is symptoms. Wrap the movement in @media (prefers-reduced-motion: no-preference), or reduce it to an opacity change. Cutting the animation so the element simply arrives passes this, because there is then no path to travel.`,
+      })
+    }
   }
 
   const result = {
@@ -363,7 +436,9 @@ export async function main(argv = process.argv.slice(2)) {
 
   console.log(`  ${sheetPng}`)
   console.log(`  ${frames} frames · ${scrolling ? 'scroll-driven' : `${duration} ms`} · ${trigger}`)
-  if (read.moved) {
+  if (read.moved && scrolling) {
+    console.log(`  the page changes as it scrolls (total ${measured.total.toFixed(3)}) — a scroll capture has no duration, so easing and settle do not apply to it`)
+  } else if (read.moved) {
     console.log(`  measured easing: \x1b[1m${read.easing}\x1b[0m (deviation from linear ${read.deviation}) · settles at ${read.settle} ms`)
   }
   for (const f of read.findings) {

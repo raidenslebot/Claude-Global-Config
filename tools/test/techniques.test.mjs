@@ -272,3 +272,69 @@ test('a real piece spanning a few media is still detected', () => {
   assert.ok(m.media.length >= 2 && m.media.length < 5)
   assert.equal(m.detected, true)
 })
+
+test('a word in a comment, a variable name or a CSS function is not a technique', () => {
+  // Each of these flipped a whole DIMENSION on the headline output from one incidental match.
+  const cases = [
+    ['const RE = /[A-Z]{2,}/g\nrequire("chalk").red("x")\nprocess.stdout.write("\x1b[38;2;1;2;3m")', '.js', 'frame-loop'],
+    ['.hero { background: linear-gradient(#fff, #000) }', '.css', 'gradient-text'],
+    ['$(".card").attr("data-id")', '.js', 'data-driven-style'],
+    ['// velocity of the camera\nconst ctx = c.getContext("2d")', '.js', 'physics-sim'],
+    ['import * as d3 from "d3"; const brush = 5; d3.scaleLog()', '.js', 'interaction-detail'],
+    ['import * as THREE from "three"; const s = Math.random()', '.js', 'seeded-scene'],
+    ['.c { box-shadow: 0 4px 20px rgba(0,0,0,.08) }', '.css', 'layered-shadow'],
+  ]
+  for (const [src, ext, id] of cases) {
+    assert.ok(!measure(src, { ext }).usedIds.has(id), `${id} must not fire on: ${src.slice(0, 46)}`)
+  }
+  // And the real thing still does.
+  assert.ok(measure('.c { box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 8px 24px rgba(0,0,0,.12) }', { ext: '.css' })
+    .usedIds.has('layered-shadow'), 'two stacked shadows ARE a layered shadow')
+})
+
+test('a runaway pattern in an extension file is refused, not run', async () => {
+  const { safeRe } = await import('../techniques.mjs')
+  assert.throws(() => safeRe('(a+)+$'), /nested quantifier/, 'a regex has no timeout, so it cannot be allowed to run')
+  assert.throws(() => safeRe('([a-z]*)*x'), /nested quantifier/)
+  assert.throws(() => safeRe('x'.repeat(500)), /over 400 characters/)
+  assert.ok(safeRe('gl_FragColor|@fragment\b') instanceof RegExp, 'an ordinary pattern is fine')
+})
+
+test('one bad medium in an extension file does not take the others with it', async () => {
+  const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const dir = mkdtempSync(join(tmpdir(), 'tech-bad-'))
+  mkdirSync(join(dir, '.cgc'), { recursive: true })
+  writeFileSync(join(dir, '.cgc', 'techniques.json'), JSON.stringify({
+    media: [
+      { id: 'good1', label: 'Good one', detect: 'aaa', techniques: [{ id: 't1', dim: 'material', lift: 2, re: 'aaa', what: 'the first one, defined before the bad medium.' }] },
+      { id: 'bad', label: 'Bad', detect: '([a-z]+', techniques: [{ id: 't2', dim: 'material', lift: 2, re: 'bbb', what: 'a medium whose detect pattern will not compile at all.' }] },
+      { id: 'good2', label: 'Good two', detect: 'ccc', techniques: [{ id: 't3', dim: 'material', lift: 2, re: 'ccc', what: 'the second one, defined after the bad medium.' }] },
+    ],
+  }), 'utf8')
+  const ids = registry(dir).map((m) => m.id)
+  assert.ok(ids.includes('good1'), 'the medium before the broken one survives')
+  assert.ok(ids.includes('good2'), 'and so does the one after it — a file must not be half applied in silence')
+  assert.ok(!ids.includes('bad'), 'the broken one is skipped')
+})
+
+test('a directory that contains a loop is walked, not declared missing', async () => {
+  const { mkdtempSync, writeFileSync, symlinkSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { spawnSync } = await import('node:child_process')
+  const dir = mkdtempSync(join(tmpdir(), 'tech-loop-'))
+  writeFileSync(join(dir, 'a.css'), ':root { --x: oklch(0.2 0 0) }', 'utf8')
+  try { symlinkSync(dir, join(dir, 'self'), 'junction') } catch { return }  // no privilege: nothing to test
+  const r = spawnSync(process.execPath, [TOOL, dir, '--json'], { encoding: 'utf8', timeout: 60000 })
+  assert.equal(r.status, 0, `a self-junction must not abort the run: ${r.stderr}`)
+  const j = JSON.parse(r.stdout)
+  assert.equal(j.files, 1, 'the real file beside the junction is still measured')
+})
+
+test('--min wants a number, and says so', () => {
+  const bad = spawnSync(process.execPath, [TOOL, TOOL, '--min', 'abc'], { encoding: 'utf8', timeout: 30000 })
+  assert.equal(bad.status, 1)
+  assert.match(bad.stderr, /--min wants a number/)
+})

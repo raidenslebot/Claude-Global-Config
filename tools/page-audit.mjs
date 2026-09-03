@@ -370,7 +370,14 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
   if (!pw) throw new Error('playwright-core not found')
   const url = /^https?:\/\//i.test(src) ? src : pathToFileURL(resolve(src)).href
   const { chromium } = pw.module
-  const browser = await chromium.launch({ headless: true })
+  let browser
+  try {
+    browser = await chromium.launch({ headless: true })
+  } catch (e) {
+    const err = new Error(`the browser could not be launched — ${String(e.message || e).split('\n')[0]}`)
+    err.code = 2
+    throw err
+  }
   const results = []
   try {
     const vps = [viewport || DESKTOP]
@@ -424,7 +431,17 @@ export async function main(argv = process.argv.slice(2)) {
     if (!m) { console.error('page-audit: --viewport wants WxH, e.g. 1440x900'); return 1 }
     viewport = { width: +m[1], height: +m[2] }
   }
-  const r = await audit(src, { mobile: Boolean(args.mobile), viewport, pw })
+  let r
+  try {
+    r = await audit(src, { mobile: Boolean(args.mobile), viewport, pw })
+  } catch (e) {
+    if (e && e.code === 2) {
+      console.error(`page-audit: ${e.message}`)
+      console.error('Install it with: cgc install --only=mcp   (playwright-core ships no browsers of its own)')
+      return 2
+    }
+    throw e
+  }
   if (args.json) { console.log(JSON.stringify(r, null, 2)); return r.ok ? 0 : 1 }
   for (const v of r.results) {
     const fails = v.findings.filter((f) => f.level === 'fail').length, warns = v.findings.filter((f) => f.level === 'warn').length

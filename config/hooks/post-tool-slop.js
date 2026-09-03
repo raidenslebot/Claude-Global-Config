@@ -10,6 +10,10 @@
 // It reports; it never vetoes. Silent on physical designs (print-lint owns those), on non-design
 // files, and on anything it cannot read. Exit 0 always.
 
+// A reader that hangs up raises EPIPE asynchronously on the socket, where a try/catch around
+// main() cannot reach it. This hook exits 0 always, and that has to survive a closed pipe.
+process.stdout.on('error', () => {})
+
 const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
@@ -28,7 +32,7 @@ const DESIGN_EXTS = new Set([...EXTS,
   '.svg', '.glsl', '.frag', '.vert', '.wgsl', '.shader', '.hlsl',
   '.swift', '.kt', '.dart', '.cs', '.gd', '.js', '.ts', '.mjs'])
 // A test, a fixture or a scratch script is not a design, however much markup it quotes.
-const TESTISH = /(?:^|[\/])(?:tests?|__tests__|spec|fixtures?|scratchpad|node_modules)[\/]|.(?:test|spec).[a-z]+$/i
+const TESTISH = /(?:^|[\\/])(?:tests?|__tests__|spec|fixtures?|scratchpad|node_modules)[\\/]|[\\/][^\\/]*\.(?:test|spec)\.[a-z]+$/i
 const PHYSICAL = /@page\s*\{[^}]*\bsize\s*:\s*[\d.]+\s*(?:in|mm|cm|pt)\b/i
 // Below this a file is a fragment, and asking a fragment to be ambitious is noise.
 const SUBSTANTIAL = 1200

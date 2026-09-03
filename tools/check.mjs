@@ -44,6 +44,18 @@ function run(tool, args) {
   return { status: r.status === null ? 1 : r.status, stdout: r.stdout || '', stderr: r.stderr || '', json }
 }
 
+// A gate that cannot run says so. It is never simply absent, because an absent gate reads as a
+// gate that passed — which is the one thing a summary must never imply.
+function unavailable(gate, r) {
+  const why = (r.stderr || '').split('\n').map((s) => s.trim()).filter(Boolean)[0] || `exit ${r.status}`
+  return {
+    gate,
+    level: 'skip',
+    line: `could not run — ${why.slice(0, 120)}`,
+    next: r.status === 2 ? 'cgc install --only=mcp   (playwright-core ships no browsers of its own)' : '',
+  }
+}
+
 function walk(p, out = []) {
   const st = statSync(p)
   if (st.isDirectory()) {
@@ -152,8 +164,8 @@ export async function main(argv = process.argv.slice(2)) {
           line: fails ? `${fails} failure${fails === 1 ? '' : 's'}` : warns ? `${warns} warning${warns === 1 ? '' : 's'}` : 'no failures',
           next: fails || warns ? `cgc audit "${file}" --mobile` : '',
         })
-      } else if (r.status === 2) {
-        gates.push({ gate: 'audit', level: 'skip', line: 'no browser — cgc install --only=mcp', next: '' })
+      } else {
+        gates.push(unavailable('audit', r))
       }
     }
 
@@ -168,8 +180,8 @@ export async function main(argv = process.argv.slice(2)) {
           line: j.easing === 'none' ? 'NOTHING MOVED' : `${j.easing} · settles at ${j.settleMs} ms`,
           next: (j.findings || []).length ? (j.findings.map((f) => f.id).join(', ') + ` — look at ${basename(j.sheet)}`) : `look at ${basename(j.sheet)}`,
         })
-      } else if (r.status === 2) {
-        gates.push({ gate: 'motion', level: 'skip', line: 'no browser — cgc install --only=mcp', next: '' })
+      } else {
+        gates.push(unavailable('motion', r))
       }
     }
 
@@ -209,9 +221,10 @@ export async function main(argv = process.argv.slice(2)) {
   const all = results.flatMap((r) => r.gates)
   const failed = all.filter((g) => g.level === 'fail')
   const warned = all.filter((g) => g.level === 'warn')
+  const skipped = all.filter((g) => g.level === 'skip')
 
   if (args.json) {
-    console.log(JSON.stringify({ ok: failed.length === 0, files: results.length, failed: failed.length, warned: warned.length, results }, null, 2))
+    console.log(JSON.stringify({ ok: failed.length === 0, files: results.length, failed: failed.length, warned: warned.length, skipped: skipped.length, results }, null, 2))
     return failed.length && args.strict ? 1 : 0
   }
 
@@ -230,10 +243,10 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`  ${C.red}${failed.length} gate${failed.length === 1 ? '' : 's'} failed${C.off}${warned.length ? ` · ${warned.length} warning${warned.length === 1 ? '' : 's'}` : ''}`)
     console.log(`  ${C.dim}Fix the worst one, then run this again. The first render is never the one shown.${C.off}\n`)
   } else if (warned.length) {
-    console.log(`  ${C.yellow}no failures${C.off} · ${warned.length} warning${warned.length === 1 ? '' : 's'}`)
+    console.log(`  ${C.yellow}no failures${C.off} · ${warned.length} warning${warned.length === 1 ? '' : 's'}${skipped.length ? ` · ${skipped.length} could not run` : ''}`)
     console.log(`  ${C.dim}Nothing here is broken. Now look at the render and name the weakest thing yourself — no gate can do that part.${C.off}\n`)
   } else {
-    console.log(`  ${C.green}every gate clean${C.off}`)
+    console.log(`  ${C.green}every gate clean${C.off}${skipped.length ? ` ${C.yellow}· ${skipped.length} could not run${C.off}` : ''}`)
     console.log(`  ${C.dim}Which is the floor, not the finish. Look at it, name the weakest thing, fix it, run this again — until a professional watching would have nothing left to say.${C.off}\n`)
   }
   return failed.length && args.strict ? 1 : 0

@@ -5,6 +5,89 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.17.0 — 2026-09-02
+
+An adversarial review of the new tools and hooks, reproduced against a scratch repository.
+Sixteen findings; the worst of them made a gate lie.
+
+- **A gate could vanish and be counted as passing.** `playwright-core` ships no browsers, so a
+  machine with the MCP server and no downloaded Chromium got a crash and exit 1 rather than the
+  documented exit 2 — and `cgc check`, which only knew about 2, dropped the audit and motion
+  rows entirely and printed **"every gate clean"** about a page it had never rendered. All four
+  browser tools now return 2 when the browser cannot launch, and a gate that cannot run prints
+  a row saying so with the reason. An absent gate reads as a gate that passed, which is the one
+  thing a summary must never imply.
+
+- **The reduced-motion check failed the remedy it recommends.** The reduced run was captured
+  at two frames and compared against the sum of a twelve-frame capture — different quantities.
+  An opacity fade, which the finding’s own note tells you to use, was reported as a failure at
+  five times less motion. Both sides are now the summed path over the same frames, which also
+  distinguishes the case endpoints cannot: `transition: none` leaves the element in the same
+  place at the end but travels no distance to get there, and now passes.
+
+- **The virtual clock did not cover timers, so the tool was not deterministic.** An animation
+  triggered by `setTimeout` advanced on real wall time, so the same page reported `NOTHING MOVED`
+  on a fast capture and animated correctly on a slow one. `setTimeout` and `setInterval` now run
+  on the same virtual clock, fired in time order before each frame.
+
+- **The scrub assumed every animation began at zero.** Anything created part-way through the
+  capture — a class flipped from a callback, a JS-triggered transition — was scrubbed to the
+  absolute capture time rather than to its own elapsed time, so it jumped most of its distance
+  in one frame and finished early. That manufactured jump-cut verdicts, corrupted the easing,
+  and made the delay-is-lag check unable to fire at all. Each animation is now scrubbed from
+  the instant it was first seen.
+
+- **A scroll capture was judged against a duration no page declared** (`frames × 100`), and then
+  told that its evenly spaced samples were "linear" and its invented 1600 ms was too slow. A
+  scroll capture has no duration, so the findings that need one no longer apply to it.
+
+- **The motion hook read `.3s` as 3000 ms** — the pattern required a digit before the decimal
+  point, which is the commonest way nobody writes it. It reported "3000 ms of motion is long
+  enough to be waited on" about a 300 ms transition, and its `break` then hid any real finding
+  later in the file. The same pattern was **quadratic**: unbounded and unanchored, so every bare
+  word "transition" in prose was a start position. A 355 KB article took 2.3 seconds and a 5 MB
+  one never finished; both are now milliseconds, and a test fails if it goes quadratic again.
+
+- **`border-top-color` was called a layout animation** because `\b` reads `top` inside it as a
+  word of its own. It is paint-only, and so is `border-bottom-color`.
+
+- **The test-path exclusion was dead on Windows**, the platform this runs on: the character
+  class held a forward slash only, so no directory ever matched — while `latest.css` and
+  `greatest.js` were silently exempted from the design report, because unescaped dots read
+  them as "a" + "test" + "." + "css".
+
+- **Six patterns fired on words rather than on code**, each flipping a whole dimension of the
+  headline output: a `[A-Z]` character class counted as a terminal redraw loop and silenced
+  "Does anything happen?"; `linear-gradient()` counted as a gradient across text; a jQuery
+  `.attr()` read counted as style driven by data; the word `velocity` in a comment counted as
+  a simulation; a variable named `brush` counted as a brush interaction; and bare `Math.random()`
+  counted as a seeded scene, which is the opposite of what that entry promises. A two-shadow
+  stack, meanwhile, was reported as never tried.
+
+- **An extension file could be half applied in silence.** One unparseable pattern threw out of
+  the whole loop, so every medium defined after it vanished with no word. Each medium is now
+  its own attempt, with a warning naming what was skipped. And because a regex has no timeout,
+  a nested quantifier in somebody’s file could hang the tool outright — such a pattern is now
+  refused before it is ever run.
+
+- **A directory containing a junction to itself was reported as not existing**, and the real
+  file beside it never measured: the walk followed links with no record of where it had been,
+  and the caller turned every filesystem error into "no such file".
+
+- **The session hook misreported an untracked-file block as DEGRADED** while reporting the
+  identical tracked-file case calmly, because it probed with `--untracked-files=no`, which by
+  definition cannot see the file that caused the abort. It also kept only the last line of
+  git’s error, which is always the word "Aborting"; the lines naming the files were discarded.
+
+- Also: both hooks exited 1 with a stack trace if their reader hung up, since EPIPE arrives
+  asynchronously where a try/catch cannot reach it, against a header promising exit 0 always;
+  and `--min abc` made every comparison false, so the gate failed whatever the piece did.
+
+**Nothing was found in the one category that must be impossible.** Five scratch repositories
+were driven through the real hook — a modified tracked file the pull changes, the same staged,
+an untracked file the pull would add, an unrelated local edit, and a clean tree. Every clashing
+case refused and left the work byte-identical; the unrelated edit fast-forwarded and survived.
+`update()` runs no reset, checkout, clean, stash or force anywhere.
 ## 1.16.0 — 2026-09-02
 
 An adversarial fact-check of the technique reference against MDN, caniuse and the platform

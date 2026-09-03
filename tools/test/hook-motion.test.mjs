@@ -97,3 +97,33 @@ test('a non-write tool and unreadable input never produce output', () => {
   assert.equal(bad.status, 0)
   assert.equal(bad.stdout.trim(), '')
 })
+
+test('a leading-dot duration is read as what it is', () => {
+  // `.3s` is the commonest way to write a short duration, and the pattern required a leading
+  // digit — so it read 300ms as 3000ms and produced a confident wrong finding about the most
+  // ordinary input there is.
+  const guard = '\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }'
+  assert.doesNotMatch(run('a.css', '.x { transition: transform .3s ease-out }' + guard), /slow \(L/, '.3s is 300ms')
+  assert.doesNotMatch(run('b.css', '.x { transition: opacity .5s ease-out }' + guard), /slow \(L/, '.5s is 500ms')
+  assert.doesNotMatch(run('c.css', '.x { transition: transform 0.3s ease-out }' + guard), /slow \(L/)
+  assert.match(run('d.css', '.x { transition: transform 2.4s ease-out }' + guard), /slow \(L1\) — 2400 ms/, 'a real 2.4s still reports')
+})
+
+test('a hyphenated paint property is not called a layout animation', () => {
+  const guard = '\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }'
+  assert.doesNotMatch(run('e.css', '.x { transition: border-top-color .2s ease-out }' + guard), /layout-animation/,
+    'border-top-color is paint only; \\b saw "top" as a word of its own')
+  assert.doesNotMatch(run('f.css', '.x { transition: border-bottom-color .2s ease-out }' + guard), /layout-animation/)
+  assert.match(run('g2.css', '.x { transition: height .2s ease-out }' + guard), /layout-animation/, 'height really is layout')
+  assert.match(run('h2.css', '.x { transition: margin-top .2s ease-out }' + guard), /layout-animation/, 'and so is margin-top')
+})
+
+test('the duration scan stays linear on prose that mentions transitions', () => {
+  // The pattern was quadratic — unbounded and unanchored, so every bare word "transition" was a
+  // start position. A 355KB article took 2.3 seconds; a 5MB one never finished at all.
+  const prose = '<style>.a{color:red}</style>\n' + 'the transition and the animation of a transition in an animation '.repeat(12000)
+  const started = Date.now()
+  run('prose.html', prose)
+  const ms = Date.now() - started
+  assert.ok(ms < 8000, `scanning 780KB of prose took ${ms}ms end to end — the pattern has gone quadratic again`)
+})
