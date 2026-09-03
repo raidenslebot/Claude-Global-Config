@@ -5,6 +5,31 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.14.0 — 2026-09-02
+
+The loop in one command, and two ways the medium detector was reading the wrong evidence.
+
+- **New command `cgc check <file|dir>` — every gate that applies, one verdict.** The loop had
+  four or five commands in it, which is exactly why it was run once and then remembered as
+  having been run. This reads the file and decides for itself: the ambition measure on any
+  design file, the fingerprint lint on web source, the rendered-page audit on a page, the frame
+  capture on a page that animates, the press gate on anything in physical units. One verdict,
+  with the next action under it. `--strict` makes it an exit code, `--skip` drops a gate, and a
+  directory is walked. The individual commands are still what you reach for when fixing one
+  thing; this is what answers "did you run the loop", which previously had five answers.
+
+- **A file’s own extension is evidence about the file; the same string in its TEXT is not.**
+  Medium detection matched both against one haystack, so any file that mentions `'.frag'` or
+  `'.css'` — a linter, a build script, this package’s own tools — was judged as a shader or a
+  stylesheet and handed advice about container queries. Extensions are now matched against the
+  extension and patterns against the content, and neither borrows the other’s evidence.
+
+- **A file that matches five or more media is a file ABOUT design, not a design.** The
+  catalogue itself contains every marker it looks for, as regex source; so do linters and docs
+  generators. A real piece spans two or three — a page with inline SVG and a print stylesheet —
+  so the count is the tell. Such a file is still measured when asked directly, and is never
+  reported at anybody unprompted. The test measures the catalogue itself, which makes it
+  self-verifying.
 ## 1.13.0 — 2026-09-02
 
 Proving the vocabularies work, and letting them speak outside the browser.

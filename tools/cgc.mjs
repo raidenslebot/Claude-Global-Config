@@ -28,6 +28,7 @@ const REPO = resolve(HERE, '..')
 
 // name → [module, one-line description]. The order is the order `cgc` prints.
 export const COMMANDS = {
+  check: ['check.mjs', 'the whole loop in one command: every gate that applies to this file'],
   lint: ['slop-lint.mjs', 'the fingerprint of AI-made screen design'],
   audit: ['page-audit.mjs', 'the rendered page, measured'],
   techniques: ['techniques.mjs', 'what a piece reaches for, and the capabilities it never tried'],

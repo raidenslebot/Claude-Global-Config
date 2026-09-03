@@ -67,7 +67,8 @@ const T = (id, dim, lift, re, what) => ({ id, dim, lift, re, what })
 export const MEDIA = [
   {
     id: 'web', label: 'web / CSS',
-    detect: /<style|<\/html>|className=|styled\.|@media\b|:root\s*\{|display\s*:\s*(?:flex|grid)|\.css\b|\.scss\b/i,
+    exts: ['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', '.svelte', '.astro'],
+    detect: /<style|<\/html>|className=|styled\.|@media\b|:root\s*\{|display\s*:\s*(?:flex|grid)/i,
     techniques: [
       T('oklch', 'material', 3, /\boklch\(|\boklab\(/i, 'oklch — perceptually even lightness, so a ramp steps evenly and two hues at the same L really match. Hex cannot express this, which is why hand-picked palettes drift.'),
       T('relative-color', 'material', 3, /(?:rgb|hsl|oklch|oklab|lch|lab)\(\s*from\s+/i, 'relative colour syntax — derive every tint, border and state from one source colour instead of pasting a new hex per state.'),
@@ -114,7 +115,8 @@ export const MEDIA = [
   },
   {
     id: 'svg', label: 'SVG',
-    detect: /<svg[\s>]|xmlns="http:\/\/www\.w3\.org\/2000\/svg"|\.svg\b/i,
+    exts: ['.svg'],
+    detect: /<svg[\s>]|xmlns="http:\/\/www\.w3\.org\/2000\/svg"/i,
     techniques: [
       T('svg-filter-primitive', 'generative', 3, /<feTurbulence|<feDisplacementMap|<feColorMatrix|<feComposite|<feMorphology/i, 'filter primitives — turbulence for grain, displacement for a torn edge, a colour matrix for duotone, morphology for chokes and spreads.'),
       T('pattern-fill', 'generative', 2, /<pattern[\s>]/i, 'a pattern fill — hatching, halftone or a tile drawn once and used as paint.'),
@@ -147,7 +149,8 @@ export const MEDIA = [
   },
   {
     id: 'shader', label: 'shader / GPU',
-    detect: /gl_FragColor|gl_Position|@fragment\b|getContext\(\s*["']webgl|ShaderMaterial|\.frag\b|\.glsl\b|\.wgsl\b|\.hlsl\b|HLSLPROGRAM/i,
+    exts: ['.glsl', '.frag', '.vert', '.wgsl', '.shader', '.hlsl'],
+    detect: /gl_FragColor|gl_Position|@fragment\b|getContext\(\s*["']webgl|ShaderMaterial|HLSLPROGRAM|CGPROGRAM/i,
     techniques: [
       T('sdf', 'structure', 3, /\bsdf\b|signed ?distance|smoothstep\s*\([^)]*length/i, 'signed distance fields — resolution-independent shapes with exact edges, unions, subtractions and glow for free.'),
       T('raymarch', 'depth', 3, /raymarch|ray ?march|rayDirection|marchStep/i, 'raymarching — real volume and depth from a distance function, not a textured quad.'),
@@ -184,6 +187,7 @@ export const MEDIA = [
   },
   {
     id: 'native', label: 'native / mobile UI',
+    exts: ['.swift', '.kt', '.dart'],
     detect: /import SwiftUI|struct\s+\w+\s*:\s*View\b|androidx\.compose|@Composable|package:flutter|StatelessWidget|StatefulWidget/i,
     techniques: [
       T('shared-element', 'time', 3, /matchedGeometryEffect|SharedTransitionLayout|Hero\s*\(|sharedElement/i, 'a shared-element transition — one element travelling between screens instead of two screens crossfading.'),
@@ -202,6 +206,7 @@ export const MEDIA = [
   },
   {
     id: 'game', label: 'game / engine',
+    exts: ['.cs', '.gd'],
     detect: /UnityEngine|MonoBehaviour|SpriteBatch|using Godot|extends (?:Node|Sprite|CharacterBody)|_process\s*\(|GetNode/i,
     techniques: [
       T('juice-scale', 'time', 3, /squash|stretch|punch|localScale|DOPunch/i, 'squash and stretch on hit, land and pickup — the cheapest juice there is, and the most missed.'),
@@ -286,6 +291,7 @@ function loadExtensions(cwd) {
         if (!m || !m.id || !Array.isArray(m.techniques)) continue
         media.push({
           id: String(m.id), label: String(m.label || m.id), source: p,
+          exts: Array.isArray(m.exts) ? m.exts.map((e) => String(e).toLowerCase()) : [],
           detect: new RegExp(String(m.detect || 'a^'), 'i'),
           techniques: m.techniques.filter((t) => t && t.id && t.re).map((t) => T(
             String(t.id), DIMS.includes(t.dim) ? t.dim : 'material',
@@ -314,12 +320,19 @@ export const TECHNIQUES = MEDIA.flatMap((m) => m.techniques.map((t) => ({ ...t, 
 
 export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
   const reg = registry(cwd)
-  const hay = ext ? `${text}\n${ext}` : text
-  let media = reg.filter((m) => m.detect.test(hay))
+  // The extensions of the files being measured, as their own evidence.
+  const exts = new Set(String(ext).split(/[\s,]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)
+    .map((e) => (e.startsWith('.') ? e : '.' + e)))
+  let media = reg.filter((m) => (m.exts || []).some((e) => exts.has(e)) || m.detect.test(text))
   // A file in no recognised medium is still measured against the broadest vocabulary rather
   // than being called empty — silence would read as approval. Callers that must not give web
   // advice to a file that is not web read `detected`.
-  const detected = media.length > 0
+  //
+  // A file that matches FIVE OR MORE media is a file ABOUT design, not a design: a linter, a
+  // catalogue, a docs generator, this tool itself. A real piece spans two or three at most —
+  // a page with inline SVG and a print stylesheet — so the count is the tell. It is still
+  // measured if asked directly; it is simply never reported at somebody unprompted.
+  const detected = media.length > 0 && media.length < 5
   if (!media.length) media = reg.filter((m) => m.id === 'web')
 
   const seen = new Map()

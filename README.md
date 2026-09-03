@@ -130,6 +130,19 @@ new to install, no account. It writes RGB and says so; the skill says what to ha
 
 
 
+### The loop, in one command
+
+```bash
+cgc check page.html          # every gate that applies to this file, one verdict
+cgc check ./src --strict     # exit 1 if any gate fails
+```
+
+It reads the file and decides what applies: the ambition measure on any design file, the
+fingerprint lint on web source, the rendered-page audit on a page, the frame capture on a page
+that animates, the press gate on anything in physical units. The individual commands below are
+what you reach for when fixing one thing; this is what answers "did you run the loop", which
+previously had five answers and therefore none.
+
 ### Ambition — what a piece never tried
 
 The lint above names what a piece should not have. That is half the problem. A page can carry

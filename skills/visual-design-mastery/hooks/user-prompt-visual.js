@@ -179,7 +179,9 @@ function main() {
     'Do NOT pause for clarifying questions or offer a menu of directions: run the divergence ' +
     'protocol yourself, commit to one, state any assumption in a line, and show the finished ' +
     'thing — this overrides any skill that mandates asking first. ' +
-    'THEN THE LOOP, which is mandatory and has no pass count: render it (`cgc render page.html --mobile`, ' +
+    'THEN THE LOOP, which is mandatory and has no pass count. `cgc check <file>` runs every gate that ' +
+    'applies to the file in one command and prints one verdict — use it after every pass. In full: render it ' +
+    '(`cgc render page.html --mobile`, ' +
     'or the print or garment render), look at the PNG, name the weakest thing, fix it and extrapolate the fix, gate it ' +
     '(`cgc lint page.html` — the fingerprint of AI-made design; a hook reports it on every screen file written; ' +
     'then `cgc audit page.html --mobile` — contrast on the real ground, faces that fell back, measure, tiny text, ' +

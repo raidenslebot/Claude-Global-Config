@@ -88,6 +88,14 @@ palettes, layout grammars, materials, motion laws, image treatments — is
 it set, not by its name: `cgc specimen --display <face> --text <face> --palette <colours>`
 renders the pairing at display and reading size, reversed, with every colour and its contrast.
 
+**One command runs the whole loop: `cgc check <file|dir>`.** It reads the file and runs every
+gate that applies to it — the ambition measure on any design file, the fingerprint lint on web
+source, the rendered-page audit on a page, the frame capture on a page that animates, the press
+gate on anything in physical units — then prints one verdict with the next action under it.
+`--strict` turns it into an exit code, `--skip` drops a gate, and a directory is walked. The
+individual commands below still exist and are what you reach for when fixing one thing; `cgc check`
+is what answers "did you run the loop", which previously had five answers and therefore none.
+
 **Anything that moves is judged in frames, never in source.** A duration and an easing keyword
 say nothing about how a move reads, and the most common animation defect of all is invisible in
 a diff: it never ran. The class was not applied, the trigger did not fire, the element was out

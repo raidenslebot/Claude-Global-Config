@@ -251,3 +251,24 @@ test('a fixture directory belongs to a medium that exists', async () => {
     assert.ok(ids.has(dir), `fixtures/media/${dir} names no medium — rename it or remove it`)
   }
 })
+
+test('a file ABOUT design is not mistaken for a design', async () => {
+  // This tool contains every marker it looks for, as regex source; so do linters, catalogues
+  // and docs generators. A real piece spans two or three media, so the count is the tell.
+  // The subject is the catalogue itself, which makes the test self-verifying.
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { REPO } = await import('../paths.mjs')
+  const self = readFileSync(join(REPO, 'tools', 'techniques.mjs'), 'utf8')
+  const m = measure(self, { ext: '.mjs' })
+  assert.ok(m.media.length >= 5, `it does match many media, which is the point (got ${m.media.length})`)
+  assert.equal(m.detected, false, 'and it must never be reported at anyone as a design')
+})
+
+test('a real piece spanning a few media is still detected', () => {
+  // A page with inline SVG and a print stylesheet is three, and entirely normal.
+  const page = '<style>@page{size:3.5in 2in}:root{--a:oklch(0.2 0 0)}</style><svg><path d="M0 0"/></svg>'
+  const m = measure(page, { ext: '.html' })
+  assert.ok(m.media.length >= 2 && m.media.length < 5)
+  assert.equal(m.detected, true)
+})
