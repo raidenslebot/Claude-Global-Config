@@ -338,3 +338,26 @@ test('--min wants a number, and says so', () => {
   assert.equal(bad.status, 1)
   assert.match(bad.stderr, /--min wants a number/)
 })
+
+test('a note about a technique is not the technique, and a script is a design only if it draws', () => {
+  // The comment naming a technique used to count as using it — which put a deck in the print
+  // medium because its stylesheet's header quoted the command line that exports it.
+  const noted = measure('/* we should use mix-blend-mode: multiply here one day */\n.a{color:#333}', { ext: '.css' })
+  assert.equal(noted.usedIds.has('blend'), false)
+  assert.ok(measure('.a{mix-blend-mode:multiply}', { ext: '.css' }).usedIds.has('blend'))
+
+  // A quoted sample is a quotation.
+  const quoting = measure('<pre><code>.x{backdrop-filter:blur(12px)}</code></pre>', { ext: '.html' })
+  assert.equal(quoting.usedIds.has('backdrop'), false)
+
+  // A build script mentioning design words is not a design; one that draws is.
+  assert.equal(measure("const msg = 'use a gradient here'\nexport function lint(){}", { ext: '.mjs' }).detected, false)
+  assert.equal(measure("const ctx=c.getContext('2d');ctx.beginPath();ctx.arc(1,2,3,0,6.28)", { ext: '.mjs' }).detected, true)
+})
+
+test('the width axis counts however it is written, and decided line breaks are typography', () => {
+  // font-stretch is the standards-preferred way to drive wdth, and how a real project writes it.
+  assert.ok(measure('h1{font-stretch:75%}', { ext: '.css' }).usedIds.has('variable-axes'))
+  assert.ok(measure("h1{font-variation-settings:'wdth' 92}", { ext: '.css' }).usedIds.has('variable-axes'))
+  assert.ok(measure('h1{text-wrap:balance}p{text-wrap:pretty}', { ext: '.css' }).usedIds.has('wrap-quality'))
+})

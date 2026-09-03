@@ -37,7 +37,7 @@
 // file rather than a matter of taste.
 
 import { readFileSync, statSync, readdirSync, existsSync, realpathSync } from 'node:fs'
-import { join, extname, resolve } from 'node:path'
+import { join, extname, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 
@@ -88,11 +88,14 @@ export const MEDIA = [
       T('grid-overlap', 'structure', 3, /grid-(?:area|column|row)\s*:\s*1\s*\/\s*1\b|grid-(row|column)\s*:\s*(\d+)\s*[;}][\s\S]{0,400}?grid-\1\s*:\s*\2\s*[;}]|z-index[\s\S]{0,80}margin-(?:top|left|bottom|right)\s*:\s*-|position\s*:\s*absolute[\s\S]{0,240}?(?:left|right|top|bottom)\s*:\s*-\d{1,3}(?:\.\d+)?(?:%|(?:r?em|vw|vh|px)\b)/i, 'deliberate overlap — two elements sharing one grid cell, or a negative margin with z-index. The fastest way out of a column of rectangles: let something break its box.'),
       T('shape-outside', 'structure', 2, /shape-outside\s*:/i, 'shape-outside — text flowing around a real silhouette instead of a rectangle.'),
       T('anchor-position', 'structure', 3, /anchor-name\s*:|position-anchor\s*:|position-area\s*:/i, 'CSS anchor positioning — tooltips and menus tethered to an element with no JS and no library. Newly Baseline and still partial in Firefox: without a fallback path the tooltip is not degraded, it is unpositioned.'),
-      T('variable-axes', 'type', 3, /font-variation-settings\s*:[^;}]*["'](?:slnt|wdth|ital|GRAD|YOPQ|CASL|MONO|SOFT|WONK)["']/i, 'variable font axes past weight and size — width, slant, grade. One family becomes a typographic system, and grade is how dark-mode text stops looking fat without any layout moving. Only wght, wdth, opsz, slnt and ital are registered: GRAD, CASL, MONO, SOFT and WONK are family-specific and fail SILENTLY on a family that does not have them.'),
+      // font-stretch is the standards-preferred way to drive wdth, and the way a real project
+      // writes it. Reading only font-variation-settings scored a width-axis deck at zero.
+      T('variable-axes', 'type', 3, /font-variation-settings\s*:[^;}]*["'](?:slnt|wdth|ital|GRAD|YOPQ|CASL|MONO|SOFT|WONK)["']|font-stretch\s*:\s*(?:\d{2,3}%|ultra-|extra-|semi-|condensed|expanded)/i, 'variable font axes past weight and size — width, slant, grade. One family becomes a typographic system, and grade is how dark-mode text stops looking fat without any layout moving. Only wght, wdth, opsz, slnt and ital are registered: GRAD, CASL, MONO, SOFT and WONK are family-specific and fail SILENTLY on a family that does not have them.'),
       T('optical-sizing', 'type', 2, /font-optical-sizing\s*:\s*none|font-variation-settings\s*:[^;}]*["']opsz["']/i, 'optical size controlled deliberately — the display cut at display size and the text cut at reading size. Note that font-optical-sizing: auto is the DEFAULT, so writing it out is not a decision; setting opsz by hand, or switching the tracking off, is.'),
       T('opentype', 'type', 2, /font-feature-settings\s*:|font-variant-(?:numeric|ligatures|caps|alternates)\s*:/i, 'OpenType features — stylistic sets, discretionary ligatures, tabular or old-style figures, small caps. The character the type designer drew and nobody switches on.'),
       T('text-stroke', 'type', 2, /-webkit-text-stroke|paint-order\s*:\s*stroke|text-box(?:-trim|-edge)?\s*:/i, 'outlined type and text-box trim — a wordmark that is a shape, and headings spaced from the letterforms rather than the line box.'),
       T('fluid-type', 'type', 2, /font-size\s*:\s*clamp\(|--[\w-]*(?:step|size|type|text|font|scale)[\w-]*\s*:\s*clamp\(/i, 'fluid type with clamp() — a scale that interpolates instead of three breakpoints of guessed pixels.'),
+      T('wrap-quality', 'type', 2, /text-wrap\s*:\s*(?:balance|pretty)|hyphenate-limit-chars\s*:|text-spacing-trim\s*:/i, 'the line breaks decided rather than accepted — text-wrap: balance on a heading so it never leaves one word alone, pretty on a paragraph so it never ends on a widow, hyphenation limits so a break is never two letters. The difference between typeset and poured.'),
       T('editorial-type', 'type', 2, /initial-letter\s*:|::first-letter|hanging-punctuation\s*:|writing-mode\s*:\s*(?:vertical|sideways)/i, 'drop caps, hanging punctuation, vertical running heads — editorial weight from one rule each. writing-mode is cross-engine; initial-letter has no Firefox support and hanging-punctuation is Safari only, so gate them and let the paragraph read without them.'),
       T('typed-property', 'time', 3, /@property\s+--/i, '@property — typed custom properties, the ONLY way to animate a gradient stop, an angle or a colour ramp. Unlocks motion CSS otherwise cannot do at all.'),
       T('scroll-driven', 'time', 3, /animation-timeline\s*:|scroll-timeline|view-timeline|animation-range\s*:/i, 'scroll-driven animation — animation-timeline: view(), tied to scroll by the compositor with no listener and no library. Gate it in @supports: with no timeline the same rule is an ordinary animation that runs once at load, so everything reveals at the same moment.'),
@@ -152,10 +155,14 @@ export const MEDIA = [
     exts: ['.glsl', '.frag', '.vert', '.wgsl', '.shader', '.hlsl'],
     detect: /gl_FragColor|gl_Position|@fragment\b|getContext\(\s*["']webgl|ShaderMaterial|HLSLPROGRAM|CGPROGRAM/i,
     techniques: [
-      T('sdf', 'structure', 3, /\bsdf\b|signed ?distance|smoothstep\s*\([^)]*length/i, 'signed distance fields — resolution-independent shapes with exact edges, unions, subtractions and glow for free.'),
+      // A distance function is named sdSphere or sdfSurface far more often than it is called
+      // "sdf" on its own — which is why this only ever matched the comment above the function.
+      T('sdf', 'structure', 3, /\bsdf?[A-Z_]\w*\s*\(|\bsdf\b|signed ?distance|ray ?march|smoothstep\s*\([^)]*length/i, 'signed distance fields — resolution-independent shapes with exact edges, unions, subtractions and glow for free.'),
       T('raymarch', 'depth', 3, /raymarch|ray ?march|rayDirection|marchStep/i, 'raymarching — real volume and depth from a distance function, not a textured quad.'),
       T('fbm-noise', 'generative', 3, /\bfbm\b|fractal ?brownian|octaves/i, 'fbm — layered noise at halving amplitude. Cloud, marble, terrain and smoke all come from this one loop.'),
-      T('domain-warp', 'generative', 3, /domain ?warp|noise\s*\(\s*p\s*\+\s*noise/i, 'domain warping — noise displacing the coordinates of noise. The step from procedural texture to something that looks made.'),
+      // Noise fed its own output, whatever the noise function is called and whether the inner
+      // call is nested in the argument or held in a variable named for what it does.
+      T('domain-warp', 'generative', 3, /domain ?warp|\b\w*(?:noise|fbm|turb\w*)\s*\([^()]*\b\w*(?:noise|fbm)\s*\(|\bwarp\w*\s*=[^;]*\b(?:noise|fbm|snoise)\s*\(/i, 'domain warping — noise displacing the coordinates of noise. The step from procedural texture to something that looks made.'),
       T('dither', 'material', 3, /bayer|dither|blue ?noise/i, 'dithering — banding removed, or leaned into as a visible halftone. Almost nobody does either.'),
       T('chromatic', 'material', 2, /chromatic|aberration/i, 'chromatic aberration and per-channel sampling — a lens rather than a filter.'),
       T('post-chain', 'material', 2, /EffectComposer|RenderPass|Bloom|postprocessing|renderTarget|framebuffer/i, 'a post chain — bloom, grade and grain on the rendered image, which is where most of the look lives.'),
@@ -255,7 +262,9 @@ export const MEDIA = [
       T('interaction-detail', 'response', 2, /d3\.brush|brush[XY]?\s*\(|d3\.zoom|\.call\(\s*zoom|tooltip|voronoi|Delaunay/i, 'brushing, zoom or a Voronoi hit layer — detail on demand rather than everything at once.'),
       T('uncertainty', 'material', 3, /confidence|error ?bar|interval|stddev|quantile/i, 'uncertainty drawn — an estimate presented as a point is a claim the data cannot support.'),
       T('data-driven-layout', 'variation', 2, /d3\.(?:force|hierarchy|treemap|pack|stack)/i, 'layout computed from the data — force, hierarchy, treemap or pack rather than a fixed frame.'),
-      T('depth-encoding', 'depth', 2, /opacity[\s\S]{0,40}(?:scale|data)|z ?index[\s\S]{0,40}sort|overplot/i, 'layering that handles overplotting — sorted draw order or alpha that encodes density.'),
+      // Alpha bound to a value, not set to a constant: the accessor is the tell, and it was
+      // only ever the word "overplotting" in a comment that made this match.
+      T('depth-encoding', 'depth', 2, /(?:fill-)?opacity["'\s]*[,:(][\s\S]{0,60}(?:=>|\bfunction\b|scale\w*\s*\(|\bdata)|z ?index[\s\S]{0,40}sort|overplot/i, 'layering that handles overplotting — sorted draw order or alpha that encodes density.'),
     ],
   },
   {
@@ -334,7 +343,20 @@ export function registry(cwd = process.cwd()) {
 // Flat view for callers that want every shipped technique regardless of medium.
 export const TECHNIQUES = MEDIA.flatMap((m) => m.techniques.map((t) => ({ ...t, medium: m.id })))
 
-export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
+/** Blank comments and quoted code, keeping the length so nothing downstream shifts. */
+export function blankProse(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, (m) => ' '.repeat(m.length))
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
+    .replace(/(<(pre|code|samp|textarea)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi,
+      (w, o, tag, body, c) => o + ' '.repeat(body.length) + c)
+    // A line comment, but only where one starts a line or follows whitespace: not the // in a URL.
+    .replace(/(^|[\s;{(])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length))
+}
+
+export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {
+  // A note ABOUT a technique is not the technique, and a code sample quoting one is a quotation.
+  const text = blankProse(raw)
   const reg = registry(cwd)
   // The extensions of the files being measured, as their own evidence.
   const exts = new Set(String(ext).split(/[\s,]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)
@@ -348,7 +370,15 @@ export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
   // catalogue, a docs generator, this tool itself. A real piece spans two or three at most —
   // a page with inline SVG and a print stylesheet — so the count is the tell. It is still
   // measured if asked directly; it is simply never reported at somebody unprompted.
-  const detected = media.length > 0 && media.length < 5
+  //
+  // A SCRIPT is a design only if it draws. A .js or .mjs file with no drawing surface anywhere
+  // in it — no canvas context, no scene graph, no selection it paints — is build tooling, and
+  // design advice about it is noise. This is what had a linter told to reach for anchor
+  // positioning because one of the sentences it prints contains the word "gradient".
+  const SCRIPT = new Set(['.js', '.mjs', '.cjs', '.ts'])
+  const scriptOnly = exts.size > 0 && [...exts].every((e) => SCRIPT.has(e))
+  const DRAWS = /getContext\s*\(\s*["'](?:2d|webgl2?|bitmaprenderer)|new\s+THREE\.|WebGLRenderer|createCanvas\s*\(|\bd3\s*\.[a-z]|\bp5\s*[.(]|\bctx\s*\.(?:fillRect|beginPath|drawImage|arc|moveTo|fillText)|\.append\s*\(\s*["'](?:svg|g|circle|rect|path|line)["']|\bgsap\s*\.|\banimate\s*\(\s*\[/i
+  const detected = media.length > 0 && media.length < 5 && !(scriptOnly && !DRAWS.test(text))
   if (!media.length) media = reg.filter((m) => m.id === 'web')
 
   const seen = new Map()
@@ -438,6 +468,20 @@ export function main(argv = process.argv.slice(2)) {
     try { walk(abs, files) } catch (e) { console.error(`techniques: could not read ${p} — ${e.message}`); return 1 }
   }
   if (!files.length) { console.error('techniques: nothing to read — no design or source files at those paths'); return 1 }
+
+  // The stylesheets and scripts a collected page links. Judged as markup alone a deck slide has
+  // no technique at all, because every one it uses lives one file away in the shared stylesheet.
+  for (const f of [...files]) {
+    if (!/\.html?$/i.test(f)) continue
+    let src = ''
+    try { src = readFileSync(f, 'utf8') } catch { continue }
+    for (const m of src.matchAll(/<(?:link\b[^>]*href|script\b[^>]*src)\s*=\s*["']([^"']+)["']/gi)) {
+      if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+      const p = resolve(dirname(f), decodeURIComponent(m[1].split('?')[0].split('#')[0]))
+      if (!/\.(?:css|m?js)$/i.test(p) || files.includes(p) || !existsSync(p)) continue
+      files.push(p)
+    }
+  }
 
   let text = ''
   let exts = ''

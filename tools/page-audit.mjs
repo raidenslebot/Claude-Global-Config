@@ -220,11 +220,18 @@ function auditInPage({ mobile }) {
   const de = document.documentElement
   if (de.scrollWidth > de.clientWidth + 1) push('overflow', mobile ? 'fail' : 'warn', `the page is ${de.scrollWidth}px wide in a ${de.clientWidth}px viewport — it scrolls sideways`)
 
-  // 6. Tap targets (phone only). A link inside running text is exempt, as WCAG exempts it —
-  // judged by whether the parent carries other text, not by its tag: a nav's <li><a> is a control.
+  // 6. Tap targets (phone only). WCAG exempts a target that sits IN A SENTENCE — which needs
+  // both halves: the control flows inline, and what surrounds it is running text rather than a
+  // label or a separator. "Any parent with any text" exempted a × beside the word Menu.
   if (mobile) {
+    const inSentence = (el) => {
+      if (!el.parentElement) return false
+      if (getComputedStyle(el).display !== 'inline') return false
+      // Twenty characters is about four words: a sentence, not a label and not a bullet.
+      return ownText(el.parentElement).replace(/\s+/g, ' ').trim().length >= 20
+    }
     const targets = [...document.querySelectorAll('a[href], button, input, select, textarea, [role="button"]')].filter(visible)
-      .filter((el) => !(el.parentElement && ownText(el.parentElement).length > 0))
+      .filter((el) => !inSentence(el))
     const small = targets.map((el) => ({ el, r: el.getBoundingClientRect() })).filter((x) => x.r.width < 44 || x.r.height < 44)
     const bad = small.filter((x) => x.r.width < 24 || x.r.height < 24)
     if (bad.length) push('tap-target', 'fail', `${bad.length} control(s) under 24×24px — a thumb cannot hit them`, ownText(bad[0].el) || bad[0].el.tagName.toLowerCase())
@@ -297,6 +304,18 @@ function runningAnimationsInPage() {
 // for six seconds, so entrances that finish before the audit looks are still on record, with
 // their timing and the properties they animate.
 function motionRecorderInit() {
+  // A sustained rAF loop that writes style is an animation, whatever it is called.
+  const raf = { frames: 0, writes: 0 }
+  const orig = window.requestAnimationFrame && window.requestAnimationFrame.bind(window)
+  if (orig) {
+    window.requestAnimationFrame = (cb) => orig((ts) => { raf.frames++; return cb(ts) })
+  }
+  try {
+    new MutationObserver((ms) => { for (const m of ms) if (m.attributeName === 'style') raf.writes++ })
+      // document, not documentElement: this runs before the root element exists.
+      .observe(document, { attributes: true, attributeFilter: ['style'], subtree: true })
+  } catch { /* no observer, no signal */ }
+  window.__pageAuditRaf = () => ({ ...raf })
   const seen = new Map()
   const rec = () => {
     let anims = []
@@ -398,7 +417,17 @@ Exit 1 on any FAIL; 2 when no browser is available.
 // true whatever produced them, and it needs no model of how the page was built.
 
 /** Tag every text run and return its box in PAGE coordinates. */
-export const tagTextRunsInPage = () => {
+export const tagTextRunsInPage = (opts) => {
+  // In pinned mode the shot is of the VIEWPORT, so the rects are viewport-relative and only
+  // text that travels with the viewport is worth measuring.
+  const pinnedOnly = Boolean(opts && opts.pinned)
+  const pinned = (el) => {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement || (n.getRootNode() || {}).host) {
+      const p = getComputedStyle(n).position
+      if (p === 'fixed' || p === 'sticky') return true
+    }
+    return false
+  }
   const HTML = 'http://www.w3.org/1999/xhtml'
   const own = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()
   const deep = (root, into) => {
@@ -420,12 +449,15 @@ export const tagTextRunsInPage = () => {
     // submerged gauge numeral or a decorative watermark is meant to be illegible, and the
     // information it stands for is carried in text that is not hidden.
     if (el.closest && el.closest('[aria-hidden="true"], [role="presentation"], [role="none"]')) continue
+    if (pinnedOnly && !pinned(el)) continue
     const r = el.getBoundingClientRect()
     if (r.width < 2 || r.height < 2) continue
+    // Off-screen after the scroll: not what the reader is looking at.
+    if (pinnedOnly && (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth)) continue
     const fs = parseFloat(cs.fontSize) || 16
     const weight = Number(cs.fontWeight) || 400
     runs.push({
-      x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY),
+      x: Math.round(r.left + (pinnedOnly ? 0 : window.scrollX)), y: Math.round(r.top + (pinnedOnly ? 0 : window.scrollY)),
       w: Math.round(r.width), h: Math.round(r.height),
       fs, large: fs >= 24 || (fs >= 18.66 && weight >= 700),
       colour: cs.color,
@@ -612,8 +644,50 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
         findings.push({ rule: 'contrast', level: 'warn', sample: '',
           msg: `contrast could not be measured from the pixels — ${String(e.message || e).slice(0, 80)}. Unmeasured is not the same as passing.` })
       }
+      // Pinned text meets content that was not under it at the top of the page. A header that
+      // is legible over its own hero and illegible over the article is the commonest version of
+      // this, and a full-page shot photographs it exactly once, at scroll 0.
+      try {
+        const room = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
+        if (room > 200) {
+          // All the way down: the position furthest from the one the full-page shot already
+          // photographed, and the one place a pinned bar is certain not to be over its own hero.
+          await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
+          await page.waitForTimeout(400)
+          const pin = await page.evaluate(tagTextRunsInPage, { pinned: true })
+          if (pin.length) {
+            const uri = (buf) => 'data:image/png;base64,' + buf.toString('base64')
+            const shot = await page.screenshot({ type: 'png' })
+            await page.evaluate(hideGlyphsInPage)
+            const bare = await page.screenshot({ type: 'png' })
+            await page.evaluate(() => { const s = document.getElementById('__cgc_hide_glyphs'); if (s) s.remove() })
+            const measured = await page.evaluate(measureInkFromPixels, [uri(shot), uri(bare), pin])
+            const bad = measured.filter((m) => m.measured && m.ratio < (m.large ? 3 : 4.5)).sort((a, b) => a.ratio - b.ratio)
+            for (const m of bad.slice(0, 4)) {
+              findings.push({ rule: 'contrast', level: 'fail', sample: m.text,
+                msg: `${m.ratio.toFixed(2)}:1 once the page is scrolled — this text is pinned (fixed or sticky) and now sits over content that was not under it at the top; needs ${m.large ? 3 : 4.5}:1` })
+            }
+          }
+          await page.evaluate(() => scrollTo(0, 0))
+          await page.waitForTimeout(150)
+        }
+      } catch (e) {
+        findings.push({ rule: 'contrast', level: 'warn', sample: '',
+          msg: `pinned text could not be measured while scrolled — ${String(e.message || e).slice(0, 80)}. Unmeasured is not the same as passing.` })
+      }
+
       const motion = await page.evaluate(() => (window.__pageAuditMotion ? window.__pageAuditMotion() : [])).catch(() => [])
       findings.push(...motionFindings(motion))
+      // A page can animate entirely from requestAnimationFrame — GSAP's default path and every
+      // hand-rolled loop — where document.getAnimations() reports nothing. Saying nothing here
+      // would read as "nothing moves", which is the one thing this must never say.
+      const raf = await page.evaluate(() => (window.__pageAuditRaf ? window.__pageAuditRaf() : null)).catch(() => null)
+      // Half a second of frames that each write style is a loop, not a one-off. Headless
+      // Chromium paces rAF slower than a screen does, so the bar is frames, not seconds.
+      if (raf && raf.frames >= 30 && raf.writes >= 15 && motion.length === 0) {
+        findings.push({ rule: 'motion', level: 'warn', sample: '',
+          msg: `${raf.frames} animation frames wrote inline style, and nothing appears in document.getAnimations() — this page animates from JavaScript and its timing cannot be read from here. Look at it with cgc motion.` })
+      }
       // focus
       const n = await page.evaluate(recordFocusablesInPage)
       const unseen = []
@@ -631,6 +705,21 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
       await p2.waitForTimeout(400)
       const running = await p2.evaluate(runningAnimationsInPage).catch(() => 0)
       if (running) findings.push({ rule: 'reduced-motion', level: 'warn', msg: `${running} animation(s) still run under prefers-reduced-motion: reduce`, sample: '' })
+      // A rAF loop honours the query only if its author asked, and no CSS API reports one. Two
+      // shots a second apart do — whatever is driving them.
+      try {
+        await p2.waitForTimeout(500)
+        const s1 = await p2.screenshot({ type: 'png' })
+        await p2.waitForTimeout(900)
+        const s2 = await p2.screenshot({ type: 'png' })
+        if (!s1.equals(s2)) {
+          findings.push({ rule: 'reduced-motion', level: 'warn', sample: '',
+            msg: 'the page is still changing a second apart under prefers-reduced-motion: reduce — something animates from JavaScript, canvas or media that the CSS animation API does not report. Playing video is allowed; a decorative loop is not.' })
+        }
+      } catch (e) {
+        findings.push({ rule: 'reduced-motion', level: 'warn', sample: '',
+          msg: `the page could not be photographed under reduce — ${String(e.message || e).slice(0, 60)}. Unmeasured is not the same as passing.` })
+      }
       await ctx2.close()
       results.push({ viewport: `${vp.width}x${vp.height}`, findings })
     }

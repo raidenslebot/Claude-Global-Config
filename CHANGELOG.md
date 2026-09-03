@@ -5,6 +5,72 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.23.0 — 2026-09-02
+
+Every design this package ships as a reference now passes the gates this package ships. Five of
+the six failed them before this release, and in every case the gate was asking a question that
+did not belong to the piece — the surest way to teach anyone to ignore a gate.
+
+**The accessibility gate sees motion it has no API for, and text where the reader meets it.**
+
+- **A page can animate entirely from JavaScript**, which is what GSAP's default path and every
+  hand-rolled loop do, and `document.getAnimations()` reports none of it. The audit counted
+  animation frames that wrote style: when a loop is running and the CSS API is empty it says so
+  and points at `cgc motion`, rather than reporting a moving page as still. Under
+  `prefers-reduced-motion: reduce` it now photographs the page twice a second apart — whatever
+  drives the movement, JavaScript, canvas or media, two different pictures is two different
+  pictures.
+- **Pinned text is measured where the reader meets it.** A `fixed` or `sticky` header is
+  captured once by a full-page shot, at scroll 0, over its own hero. Scrolled to the bottom it
+  sits over the article, and a bar that is legible over a dark hero and invisible over white
+  paper was passing clean. It is measured there too now, from the pixels.
+- **WCAG exempts a tap target that sits in a sentence** — which needs both halves: the control
+  flows inline, and what surrounds it is running text. "Any parent with any text" exempted a
+  20px × beside the word Menu, and every nav link in a row that carried a separator.
+
+**A gate asks the questions that belong to the piece.**
+
+- **A fixed canvas is audited at its own size.** A slide, a social post, a label and a banner
+  declare their pixel size and carry no viewport meta, because nothing lays them out — they are
+  the layout. Audited at 390px every one of them reported sideways scroll, which is the artefact
+  being the size it was specified to be. `check` reads the declared canvas and audits there.
+- **A page and the stylesheet it links are one design.** Judged as markup alone a deck slide has
+  no technique at all, because every technique it uses lives one file away. `techniques` now
+  reads a page with its stylesheets and scripts, and `check` stops judging the stylesheet
+  separately for ambition it can only have through a page.
+- **A trademark is not judged as a web page.** A wordmark, a lockup and an app icon are drawings
+  in a set, and the set gate asks the questions that apply to them. Measured against the
+  technique registry, every logo ever drawn reads "assembled · 0 of 10" — a mark that needed a
+  gradient, a filter or a mask would fail the moment it was embroidered, faxed or set in one
+  colour.
+- **A folder of drawings is only judged as a set when it is one.** An identity system — a
+  favicon at 32, a mark at 350, lockups at 469 × 166, a wordmark at 287 × 49 — was failed for
+  disagreeing with itself about a grid it never shared, for pinning the brand's own colours, and
+  for lettering that is off-grid because letterforms are. Two thirds on one grid makes a set;
+  below that `icon-lint` says which questions it did not ask, and asks only the ones true of any
+  drawing.
+- **A script is a design only if it draws.** A `.js` or `.mjs` file with no drawing surface
+  anywhere in it is build tooling. A linter was being told to reach for anchor positioning
+  because one of the sentences it prints contains the word "gradient".
+- **A note about a technique is not the technique.** Comments and quoted code are blanked before
+  anything is measured. One comment in a deck's stylesheet — the command line that exports it,
+  which mentions `--bleed` — put the whole deck in the *print* medium and filled its pool with
+  foil, spot colour and paper stock, none of which a slide can have.
+- **`check` stopped walking into its own footprints.** It entered the frames directory
+  `motion-render` writes beside a design and audited the contact sheet as if it were one:
+  fourteen failures, on a diagnostic photograph.
+
+**The registry recognises typographic craft it was blind to.** `font-stretch: 75%` is the
+standards-preferred way to drive a variable font's width axis and how a real project writes it;
+reading only `font-variation-settings` scored a width-axis deck at zero. And `text-wrap: balance`
+and `pretty`, with the hyphenation limits, are now their own technique — the line breaks decided
+rather than accepted, which is the difference between typeset and poured.
+
+Blanking comments also exposed two detectors that had only ever matched the prose describing
+them: a shader's distance field (named `sdSphere` or `sdfSurface` in real code, never `sdf` on
+its own) and a chart's alpha bound to a value rather than set to a constant. The fixture test
+that catches a dead pattern is what found both.
+
 ## 1.22.0 — 2026-09-02
 
 A second adversarial review, this time of the two static gates — `slop-lint` and `print-lint`.

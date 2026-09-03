@@ -219,3 +219,30 @@ test('fill="none" is not a filled icon, and --size wants a real size', (t) => {
     assert.equal(r.status, 1, `--size ${bad[1] ?? '(nothing)'} must be refused, not silently defaulted`)
   }
 })
+
+test('a folder of drawings that share no grid is not judged as an icon set', () => {
+  // An identity system: a favicon at 32, a mark at 350, a lockup at 469×166, a wordmark at 287×49.
+  const svg = (box, stroke, colour) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}"><path d="M1.7 2.3 L9.1 4.4" fill="none" stroke="${colour}" stroke-width="${stroke}"/></svg>`
+  const set = [
+    { name: 'favicon.svg', text: svg('0 0 32 32', 7, '#1f2a44') },
+    { name: 'mark.svg', text: svg('0 0 350 350', 16, '#1f2a44') },
+    { name: 'lockup.svg', text: svg('-13 -13 468.77 166', 9, '#1f2a44') },
+    { name: 'wordmark.svg', text: svg('0 13.63 286.77 48.71', 9, '#1f2a44') },
+  ].flatMap((f) => icons(f.text, f.name)).map(read)
+  const r = lintSet(set, { size: 16 })
+  const ids = new Set(r.findings.map((f) => f.id))
+  for (const rule of ['off-grid-set', 'stroke-weight', 'hardcoded-colour', 'thin-at-size', 'traced']) {
+    assert.equal(ids.has(rule), false, `${rule} is a question about a set, and these are not one`)
+  }
+  assert.ok(ids.has('not-a-set'), 'and it has to SAY the set rules did not run')
+
+  // A real set still answers to all of them.
+  const real = ['a', 'b', 'c', 'd'].map((n, i) =>
+    icons(svg('0 0 24 24', i === 3 ? 1 : 2, i === 2 ? '#f00' : 'currentColor'), n + '.svg')).flat().map(read)
+  const rr = lintSet(real, { size: 16 })
+  const rids = new Set(rr.findings.map((f) => f.id))
+  assert.ok(rids.has('stroke-weight'), 'one icon at a different weight is still the point of this tool')
+  assert.ok(rids.has('hardcoded-colour'))
+  assert.equal(rids.has('not-a-set'), false)
+})

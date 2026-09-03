@@ -242,3 +242,67 @@ test('an error page is not audited as though it were the page you meant', { skip
   const r = runCli([join(scratch(t), 'does-not-exist.html'), '--json'])
   assert.notEqual(r.status, 0, 'a page that never loaded has not been audited')
 })
+
+test('pinned text is measured where the reader meets it, not only at the top', { skip }, async () => {
+  const para = '<p>A paragraph long enough that the page scrolls well past the hero and the fixed bar '
+    + 'comes to rest over paper-white text rather than over its own dark field.</p>'
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Pinned</title><style>
+    body{margin:0;font-family:Georgia,serif;color:#1a1a1a;background:#fdfdfb}
+    header{position:fixed;top:0;left:0;right:0;padding:14px 20px;color:#f2f2f2;font-size:15px}
+    .hero{height:420px;background:#12202c}
+    main{padding:40px 20px;font-size:17px;line-height:1.6;max-width:34em}
+    </style></head><body><header>Northbank Review</header><div class="hero"></div>
+    <main>${para.repeat(8)}</main></body></html>`
+  const d = scratch({ after: () => {} })
+  const p = join(d, 'pinned.html')
+  writeFileSync(p, page)
+  const r = await audit(p, { mobile: true })
+  const pinned = r.results.flatMap((v) => v.findings).filter((f) => /once the page is scrolled/.test(f.msg))
+  assert.ok(pinned.length, 'a header legible over its own hero and illegible over the article has to fail')
+  assert.equal(pinned[0].level, 'fail')
+  rmSync(d, { recursive: true, force: true })
+})
+
+test('motion no CSS API reports is still reported, and a still page is left alone', { skip }, async () => {
+  const d = mkdtempSync(join(tmpdir(), 'page-audit-raf-'))
+  const raf = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>rAF</title><style>
+    body{margin:0;font-family:Georgia,serif;color:#1a1a1a;background:#fdfdfb;padding:40px;font-size:17px;line-height:1.5}
+    .dot{width:60px;height:60px;background:#12202c;border-radius:50%}</style></head><body>
+    <h1>A loop that nothing declares</h1><p>The circle is moved by a script writing style on every frame.</p>
+    <div class="dot" id="d"></div><script>
+    const d=document.getElementById('d');let t0=null
+    function step(ts){if(t0===null)t0=ts;d.style.transform='translateX('+(120*(1+Math.sin((ts-t0)/600))).toFixed(2)+'px)';requestAnimationFrame(step)}
+    requestAnimationFrame(step)<\/script></body></html>`
+  writeFileSync(join(d, 'raf.html'), raf)
+  const moving = await audit(join(d, 'raf.html'), { mobile: false })
+  const msgs = moving.results.flatMap((v) => v.findings).map((f) => f.msg)
+  assert.ok(msgs.some((m) => /animates from JavaScript/.test(m)), 'a rAF loop must not read as "nothing moves"')
+  assert.ok(msgs.some((m) => /still changing a second apart under prefers-reduced-motion/.test(m)))
+
+  const still = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Still</title><style>
+    body{margin:0;font-family:Georgia,serif;color:#1a1a1a;background:#fdfdfb;padding:32px;font-size:17px;line-height:1.55;max-width:34em}
+    </style></head><body><h1>Nothing moves here at all</h1><p>No script, no animation, no transition.</p></body></html>`
+  writeFileSync(join(d, 'still.html'), still)
+  const r2 = await audit(join(d, 'still.html'), { mobile: false })
+  assert.equal(r2.results.flatMap((v) => v.findings).filter((f) => /motion/.test(f.rule)).length, 0)
+  rmSync(d, { recursive: true, force: true })
+})
+
+test('a tap target is exempt only inside a sentence, not beside any word at all', { skip }, async () => {
+  const d = mkdtempSync(join(tmpdir(), 'page-audit-tap-'))
+  writeFileSync(join(d, 'tap.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Tap</title><style>
+    body{margin:0;font-family:Georgia,serif;color:#1a1a1a;background:#fdfdfb;padding:24px;font-size:17px;line-height:1.55}
+    .close{width:20px;height:20px;font-size:13px;border:0;background:#eee;color:#1a1a1a}</style></head><body>
+    <div>Menu <button class="close">×</button></div>
+    <p>A paragraph of running text long enough to be a sentence, with a <a href="#">link inside it</a>
+    that a reader meets mid-line and taps without a second thought.</p></body></html>`)
+  const r = await audit(join(d, 'tap.html'), { mobile: true })
+  const tap = r.results.flatMap((v) => v.findings).filter((f) => f.rule === 'tap-target')
+  assert.equal(tap.length, 1, 'the close button fails; the link in the sentence does not')
+  assert.match(tap[0].msg, /1 control\(s\) under 24/)
+  rmSync(d, { recursive: true, force: true })
+})

@@ -233,3 +233,30 @@ test('the motion tool\'s own contact sheet is not audited as if it were a design
   const r = spawnSync(process.execPath, [TOOL, d, '--json'], { encoding: 'utf8' })
   assert.doesNotMatch(r.stdout, /page-frames/, 'a diagnostic photograph of a design is not a design')
 })
+
+test('a fixed canvas is audited at its own size, and a linked part is judged through its page', (t) => {
+  const d = scratch(t)
+  // A slide: no viewport meta, a declared 1920×1080 canvas, its craft in the shared stylesheet.
+  writeFileSync(join(d, 'deck.css'), '*{box-sizing:border-box}body{margin:0}'
+    + '.slide{position:relative;width:1920px;height:1080px;background:#efe9dc;color:#1f2a44;'
+    + 'font-family:Georgia,serif;padding:54px 96px}h1{font-size:120px;font-stretch:75%;text-wrap:balance;margin:0}')
+  // Long enough to be judged: the ambition gate ignores a stub, as it should.
+  const body = '<p class="line">Four hundred and twelve swims, eighty-four members, one wall.</p>'.repeat(20)
+  writeFileSync(join(d, 'slide-01.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    + '<title>Slide</title><link rel="stylesheet" href="deck.css"></head><body>'
+    + '<section class="slide"><h1>The year in the water</h1>' + body + '</section></body></html>')
+  const r = spawnSync(process.execPath, [TOOL, d, '--json'], { encoding: 'utf8' })
+  const j = JSON.parse(r.stdout)
+  const slide = j.results.find((f) => f.file.endsWith('slide-01.html'))
+  const audit = slide.gates.find((g) => g.gate === 'audit')
+  assert.ok(audit, 'the slide is still audited')
+  assert.notEqual(audit.level, 'fail', 'a 1920px slide is not a page that scrolls sideways on a phone')
+  // The stylesheet is read WITH the page, so the width axis and the balanced heading count.
+  // The stylesheet is read WITH the page, so the width axis and the balanced heading count for it.
+  const tech = slide.gates.find((g) => g.gate === 'techniques')
+  assert.ok(tech, 'the slide is still measured for ambition')
+  assert.doesNotMatch(tech.line, /0 of/, 'a slide whose craft is in its stylesheet is not empty')
+  // And the stylesheet on its own is not judged for ambition it can only have through a page.
+  const css = j.results.find((f) => f.file.endsWith('deck.css'))
+  assert.equal(css.gates.some((g) => g.gate === 'techniques'), false)
+})

@@ -73,6 +73,26 @@ function run(tool, args) {
 }
 
 /** A gate that could not run. Never silent, never counted as a pass. */
+/** The canvas a fixed-size design declares, or null for a page that responds to its viewport. */
+export function declaredCanvas(file, text) {
+  if (/<meta\b[^>]*name\s*=\s*["']viewport["']/i.test(text)) return null
+  let css = text
+  for (const m of text.matchAll(/<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+    if (/^(?:https?:)?\/\//.test(m[1])) continue
+    try { css += '\n' + readFileSync(resolve(dirname(file), decodeURIComponent(m[1])), 'utf8') } catch { /* not ours to read */ }
+  }
+  let best = null
+  for (const rule of css.matchAll(/\{([^{}]*)\}/g)) {
+    const w = rule[1].match(/(?<![-\w])width\s*:\s*(\d{3,5})px/i)
+    const h = rule[1].match(/(?<![-\w])height\s*:\s*(\d{3,5})px/i)
+    if (!w || !h) continue
+    const c = { w: Number(w[1]), h: Number(h[1]) }
+    // A 1000px-wide box that also fixes its height is a canvas; a 320px card is a component.
+    if (c.w >= 1000 && (!best || c.w * c.h > best.w * best.h)) best = c
+  }
+  return best
+}
+
 export function unavailable(gate, r, why) {
   const reason = why
     || (r.timedOut ? `timed out after ${CHILD_TIMEOUT / 1000}s` : '')
@@ -164,6 +184,27 @@ export async function main(argv = process.argv.slice(2)) {
   const unique = [...new Set(files.map((f) => resolve(f)))]
   if (!unique.length) { console.error('check: nothing to check — no design files at those paths'); return 1 }
 
+  // Files a page links. On its own a stylesheet has no markup, so every structural technique it
+  // serves is invisible and it reads "assembled · 1 of 51". It is judged through its page, where
+  // techniques now reads it — the other gates still run on it in its own right.
+  const parts = new Set()
+  // Folders where three or more SVGs are judged together as a set, below.
+  const drawn = new Map()
+  for (const f of unique) {
+    if (extname(f).toLowerCase() !== '.svg') continue
+    const d = dirname(f)
+    drawn.set(d, (drawn.get(d) || 0) + 1)
+  }
+  for (const f of unique) {
+    if (!/\.html?$/i.test(f)) continue
+    let src = ''
+    try { src = readFileSync(f, 'utf8') } catch { continue }
+    for (const m of src.matchAll(/<(?:link\b[^>]*href|script\b[^>]*src)\s*=\s*["']([^"']+)["']/gi)) {
+      if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+      parts.add(resolve(dirname(f), decodeURIComponent(m[1].split('?')[0].split('#')[0])))
+    }
+  }
+
   const results = []
   for (const file of unique) {
     const ext = extname(file).toLowerCase()
@@ -178,7 +219,8 @@ export async function main(argv = process.argv.slice(2)) {
     const sprite = ext === '.svg' && /<symbol\b/i.test(text)
     const moves = MOVES.test(withoutQuotedCode(text))
 
-    if (!skip.has('techniques') && text.length >= SUBSTANTIAL && !sprite) {
+    const inSet = ext === '.svg' && (drawn.get(dirname(file)) || 0) >= 3
+    if (!skip.has('techniques') && text.length >= SUBSTANTIAL && !sprite && !parts.has(file) && !inSet) {
       const r = run('techniques.mjs', [file, '--json'])
       const applies = r.json && (WEB.has(ext) || r.json.detected)
       if (applies || !r.json) {
@@ -217,7 +259,9 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     if (PAGE.has(ext) && !physical && !skip.has('audit')) {
-      const r = run('page-audit.mjs', [file, '--json', ...(args['no-mobile'] ? [] : ['--mobile'])])
+      const canvas = declaredCanvas(file, text)
+      const where = canvas ? ['--viewport', `${canvas.w}x${canvas.h}`] : args['no-mobile'] ? [] : ['--mobile']
+      const r = run('page-audit.mjs', [file, '--json', ...where])
       gates.push(fromJson('audit', r, (j) => {
         const views = j.results || []
         if (!views.length) throw new Error('no viewport was measured')
@@ -227,7 +271,7 @@ export async function main(argv = process.argv.slice(2)) {
           gate: 'audit',
           level: fails ? 'fail' : warns ? 'warn' : 'ok',
           line: fails ? `${fails} failure${fails === 1 ? '' : 's'}` : warns ? `${warns} warning${warns === 1 ? '' : 's'}` : 'no failures',
-          next: fails || warns ? `cgc audit "${file}" --mobile` : '',
+          next: fails || warns ? `cgc audit "${file}" ${where.join(' ') || '--no-mobile'}` : '',
         }
       }))
     }

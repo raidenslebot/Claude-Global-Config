@@ -177,6 +177,10 @@ export function lintSet(read_, { size = 16 } = {}) {
   const add = (level, id, icon, note) => findings.push({ level, id, icon, note })
 
   const boxes = mode(read_.map((i) => i.viewBox).filter(Boolean))
+  // Two thirds on one grid is a set. Below that these are separate drawings that happen to
+  // share a folder, and the questions a set answers are not questions about them.
+  const withBox = read_.filter((i) => i.viewBox).length
+  const coherent = withBox > 0 && boxes.count / withBox >= 0.66
   const strokes = mode(read_.flatMap((i) => i.widths))
   const caps = mode(read_.flatMap((i) => i.caps))
   const joins = mode(read_.flatMap((i) => i.joins))
@@ -185,45 +189,51 @@ export function lintSet(read_, { size = 16 } = {}) {
     if (i.text) add('fail', 'live-text', i.name, 'live <text> depends on a font the viewer may not have, and will reflow or fall back. Convert it to a path (cgc outline) or draw it.')
     if (i.raster) add('fail', 'raster', i.name, 'an embedded bitmap cannot scale, cannot be recoloured and defeats the point of an icon. Draw it.')
     if (!i.viewBox) add('fail', 'no-viewbox', i.name, 'no viewBox, so the icon cannot scale to the box it is given.')
-    if (i.colours.length) add('fail', 'hardcoded-colour', i.name, `colour is pinned (${i.colours.slice(0, 3).join(', ')}) — an icon set uses currentColor, or a var() or gradient it can be handed, so it takes the colour of the text it sits beside.`)
+    if (coherent && i.colours.length) add('fail', 'hardcoded-colour', i.name, `colour is pinned (${i.colours.slice(0, 3).join(', ')}) — an icon set uses currentColor, or a var() or gradient it can be handed, so it takes the colour of the text it sits beside.`)
 
-    if (boxes.value && i.viewBox && i.viewBox !== boxes.value) {
+    if (coherent && boxes.value && i.viewBox && i.viewBox !== boxes.value) {
       add('fail', 'off-grid-set', i.name, `viewBox ${i.viewBox} against the set's ${boxes.value} — the whole set has to be drawn on one grid or the weights will never match.`)
     }
     // EVERY width has to belong to the set, not just one of them: an icon that is stroke 2 at
     // the root and 0.4 on two of its paths passed while drawing real hairlines.
-    if (strokes.value !== null && strokes.total > 1) {
+    if (coherent && strokes.value !== null && strokes.total > 1) {
       const strays = [...new Set(i.widths.filter((w) => w !== strokes.value))]
       if (strays.length) {
         add('fail', 'stroke-weight', i.name, `stroke ${strays.join(', ')} against the set's ${strokes.value} — a single icon, or a single path inside one, at a different weight reads as a different set.`)
       }
     }
-    if (caps.value && i.caps.length && !i.caps.includes(caps.value)) {
+    if (coherent && caps.value && i.caps.length && !i.caps.includes(caps.value)) {
       add('warn', 'linecap', i.name, `stroke-linecap ${i.caps.join('/')} against the set's ${caps.value}.`)
     }
-    if (joins.value && i.joins.length && !i.joins.includes(joins.value)) {
+    if (coherent && joins.value && i.joins.length && !i.joins.includes(joins.value)) {
       add('warn', 'linejoin', i.name, `stroke-linejoin ${i.joins.join('/')} against the set's ${joins.value}.`)
     }
 
     // The THINNEST stroke decides whether this icon survives the size it is used at.
     const thinnest = i.widths.length ? Math.min(...i.widths) : strokes.value
-    if (i.grid && Number.isFinite(thinnest) && thinnest > 0) {
+    if (coherent && i.grid && Number.isFinite(thinnest) && thinnest > 0) {
       const rendered = thinnest / i.grid * size
       if (rendered < 1) {
         add('fail', 'thin-at-size', i.name, `stroke ${thinnest} on a ${i.grid} grid renders ${rendered.toFixed(2)}px at ${size}px — under one pixel, so it will be grey and soft. Either thicken the stroke or draw a separate small-size cut.`)
       }
     }
 
-    if (i.numbers >= 8 && i.offGrid / i.numbers > 0.6) {
+    // Outlined lettering is off-grid by nature — every curve of a letterform is. This asks
+    // whether an ICON was drawn on its grid or traced from something else.
+    if (coherent && i.numbers >= 8 && i.offGrid / i.numbers > 0.6) {
       add('warn', 'traced', i.name, `${i.offGrid} of ${i.numbers} path coordinates sit off the grid — this looks traced rather than drawn, and lands between pixels at small sizes.`)
     }
   }
 
-  if (boxes.tied && boxes.total > 1) {
+  if (!coherent && read_.length > 1) {
+    const grids = [...new Set(read_.map((i) => i.viewBox).filter(Boolean))]
+    add('warn', 'not-a-set', '(set)', `these ${read_.length} drawings do not share a grid (${grids.slice(0, 4).join(' · ')}${grids.length > 4 ? ' …' : ''}) — that is an identity system or a folder of separate pieces, not an icon set. The set questions were not asked of them: one grid, one stroke weight, currentColor, legible at 16px. Live text, a missing viewBox and an embedded raster still were.`)
+  }
+  if (coherent && boxes.tied && boxes.total > 1) {
     add('warn', 'no-grid', '(set)', `the set is split evenly between grids (${[...new Set(read_.map((i) => i.viewBox).filter(Boolean))].join(' and ')}), so there is no majority to judge against. Pick one.`)
   }
   const mixed = read_.filter((i) => i.stroked).length && read_.filter((i) => i.filled && !i.stroked).length
-  if (mixed && read_.length > 1) {
+  if (coherent && mixed && read_.length > 1) {
     add('warn', 'mixed-idiom', '(set)', 'the set mixes stroked and filled icons — that is a decision when it is one, and an accident when it is two of twelve.')
   }
 
@@ -310,7 +320,9 @@ export function main(argv = process.argv.slice(2)) {
     return fails.length && args.strict ? 1 : 0
   }
 
-  console.log(`\n  ${r.count} icon${r.count === 1 ? '' : 's'} · grid ${r.grid || '?'} · stroke ${r.stroke ?? 'n/a'} · judged at ${size}px`)
+  console.log(r.coherent === false
+    ? `\n  ${r.count} drawings that do not share a grid — judged as separate pieces, not as a set`
+    : `\n  ${r.count} icon${r.count === 1 ? '' : 's'} · grid ${r.grid || '?'} · stroke ${r.stroke ?? 'n/a'} · judged at ${size}px`)
   if (!r.findings.length) {
     console.log(`  ${C.green}the set agrees with itself${C.off}`)
     console.log(`  ${C.dim}Now look at the contact sheet at ${size}px: consistency is the floor, and it cannot tell you whether the metaphors are any good.${C.off}\n`)
