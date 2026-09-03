@@ -52,7 +52,11 @@ const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
 function runInstall() {
   // This runs inside withLock, so the installer must not queue behind its own parent.
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'],
+  // mcp-register is in the list and `mcp` is not: registering the servers is a JSON write that
+  // takes a tenth of a second, while `mcp` fetches packages and a browser over the network. A
+  // machine where CGC was installed before Claude Code had ever run had no ~/.claude.json to
+  // write into, so its MCP servers were never registered and no later session put that right.
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register'],
     { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, CGC_UPDATE_LOCK_HELD: '1' } })
   return r.status === 0
 }

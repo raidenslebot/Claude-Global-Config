@@ -18,7 +18,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { join, basename } from 'node:path'
@@ -143,4 +143,49 @@ test('the doctor notices a hook that was REMOVED from settings.json, not only on
 
   writeFileSync(settings, original)
   assert.deepEqual(failsOf(doctor()), baseline, 'and it goes quiet again when the registration is back')
+})
+
+test('the doctor notices an MCP server that was removed from the registrations, and the repair puts it back', (t) => {
+  // Same shape as the hook case: the check enumerated what ~/.claude.json CONTAINS, so a server
+  // deleted from it produced no row at all. And the phase that registers them fetched packages
+  // over the network, so the session repair could not afford to run it — a machine where this
+  // was installed before Claude Code had ever run never got its servers registered at all.
+  const home = mkdtempSync(join(tmpdir(), 'cgc-mcpreg-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const config = join(home, '.claude')
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: config }
+  const tool = (script, args) => spawnSync(process.execPath, [join(REPO, 'tools', script), ...args],
+    { cwd: REPO, encoding: 'utf8', timeout: 300000, env })
+  const doctor = () => { try { return JSON.parse(tool('doctor.mjs', ['--json']).stdout) } catch { return null } }
+  const failsOf = (j) => j.results.filter((x) => x.level === 'fail').map((x) => x.message)
+
+  mkdirSync(config, { recursive: true })
+  const claudeJson = join(config, '.claude.json')
+  writeFileSync(claudeJson, JSON.stringify({ mcpServers: {} }, null, 2))
+
+  // Registration alone must not need the network: it is what the session repair runs.
+  const started = Date.now()
+  assert.equal(tool('install.mjs', ['--only=config,hooks,mcp-register']).status, 0)
+  assert.ok(Date.now() - started < 60000, 'mcp-register must not fetch anything')
+
+  const wanted = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+  const registered = JSON.parse(readFileSync(claudeJson, 'utf8')).mcpServers
+  for (const name of Object.keys(wanted)) assert.ok(registered[name], `${name} was not registered`)
+
+  const before = doctor()
+  const baseline = failsOf(before)
+  assert.ok(before.results.some((r) => /MCP servers this package requires are registered/.test(r.message)))
+
+  const j = JSON.parse(readFileSync(claudeJson, 'utf8'))
+  delete j.mcpServers.playwright
+  writeFileSync(claudeJson, JSON.stringify(j, null, 2))
+  const fresh = failsOf(doctor()).filter((m) => !baseline.includes(m))
+  assert.ok(fresh.some((m) => /"playwright" is NOT registered/.test(m)), `not noticed. New failures: ${JSON.stringify(fresh)}`)
+
+  // And the repair the session hook runs puts it back.
+  assert.equal(tool('install.mjs', ['--only=config,hooks,skills,deps,mcp-register']).status, 0)
+  assert.ok(JSON.parse(readFileSync(claudeJson, 'utf8')).mcpServers.playwright, 'the repair did not re-register it')
+  // The repair also links the skills, so the failure list legitimately shrinks; what has to be
+  // true is that this particular alarm has stopped.
+  assert.ok(!failsOf(doctor()).some((m) => /"playwright" is NOT registered/.test(m)), 'the doctor still says it is unregistered')
 })

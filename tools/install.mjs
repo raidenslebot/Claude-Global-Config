@@ -411,22 +411,29 @@ if (wants('npm') && !SKIP.has('npm')) {
 } else if (wants('npm')) skip('global npm packages (--skip-npm)')
 
 // ── 6. MCP servers (local only — no external auth anywhere) ─────────────────
-if (wants('mcp')) {
-  phase('MCP servers — local only')
+// `mcp` fetches the server packages and the browser: minutes of network, once. `mcp-register`
+// only writes the entries into ~/.claude.json from what is already on disk — no network, under a
+// second — which is what the session hook's repair can afford to run when the doctor reports a
+// server missing from the registrations.
+const REGISTER_ONLY = wants('mcp-register') && !wants('mcp')
+if (wants('mcp') || wants('mcp-register')) {
+  phase(REGISTER_ONLY ? 'MCP servers — registration only' : 'MCP servers — local only')
   const mcpRoot = join(REPO, 'library', 'mcp-servers')
   mkdirSync(mcpRoot, { recursive: true })
   if (!existsSync(join(mcpRoot, 'package.json')) && !DRY) {
     writeFileSync(join(mcpRoot, 'package.json'), JSON.stringify({ name: 'claude-global-mcp', private: true, version: '1.0.0' }, null, 2) + '\n')
   }
   const servers = ['@playwright/mcp', '@upstash/context7-mcp']
-  const r = run('npm', ['i', '--no-audit', '--no-fund', ...servers], { cwd: mcpRoot, timeout: 420000 })
-  if (r.status === 0 || DRY) ok(`installed ${servers.join(', ')}`)
-  else warn('MCP server install failed — run npm i in library/mcp-servers')
+  if (!REGISTER_ONLY) {
+    const r = run('npm', ['i', '--no-audit', '--no-fund', ...servers], { cwd: mcpRoot, timeout: 420000 })
+    if (r.status === 0 || DRY) ok(`installed ${servers.join(', ')}`)
+    else warn('MCP server install failed — run npm i in library/mcp-servers')
+  }
 
   // playwright-core ships NO BROWSER. Installing the package and stopping leaves every render,
   // audit, motion capture and print proof unable to run, which is most of what this package is
   // for — so the browser is part of the install, not a thing the user discovers later.
-  if (!DRY) {
+  if (!DRY && !REGISTER_ONLY) {
     const core = join(mcpRoot, 'node_modules', 'playwright-core')
     const cli = join(core, 'cli.js')
     if (!existsSync(cli)) warn('playwright-core has no cli.js — cannot fetch a browser; renders and audits will not run')
@@ -457,9 +464,13 @@ if (wants('mcp')) {
     try {
       const cfg = JSON.parse(readFileSync(cfgPath, 'utf8').replace(/^﻿/, ''))
       cfg.mcpServers ??= {}
-      const entries = {
-        playwright: join(mcpRoot, 'node_modules', '@playwright', 'mcp', 'cli.js'),
-        context7: join(mcpRoot, 'node_modules', '@upstash', 'context7-mcp', 'dist', 'index.js'),
+      // One list, shared with the doctor: library/mcp-servers/servers.json. It was two lists
+      // before, and only this one existed — the doctor enumerated what WAS registered, so a
+      // server deleted from ~/.claude.json produced no row and no failure.
+      const manifest = join(REPO, 'library', 'mcp-servers', 'servers.json')
+      const entries = {}
+      for (const [name, spec] of Object.entries(JSON.parse(readFileSync(manifest, 'utf8')).servers)) {
+        entries[name] = join(mcpRoot, 'node_modules', ...spec.entry)
       }
       let n = 0
       for (const [name, entry] of Object.entries(entries)) {

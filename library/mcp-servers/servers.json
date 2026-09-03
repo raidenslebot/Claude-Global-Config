@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "The MCP servers this package registers, and where their entry point lives under",
+    "node_modules. One list, read by install.mjs when it writes ~/.claude.json and by",
+    "doctor.mjs when it checks they are still registered.",
+    "",
+    "It was two lists before, and only one of them existed: the installer's. A server removed",
+    "from ~/.claude.json produced no row in the doctor at all, because the doctor enumerated",
+    "what WAS registered — the same blind spot the hook check had, in the same shape.",
+    "",
+    "Local command servers only. A server addressed by URL is somebody else's service over the",
+    "network and every one of those ends at a login prompt; the doctor reports one as a policy",
+    "break, not as a broken install."
+  ],
+  "servers": {
+    "playwright": {
+      "entry": ["@playwright", "mcp", "cli.js"],
+      "why": "the browser every render, audit and motion capture runs in"
+    },
+    "context7": {
+      "entry": ["@upstash", "context7-mcp", "dist", "index.js"],
+      "why": "up-to-date library documentation, so a version-stale API is not invented"
+    }
+  }
+}

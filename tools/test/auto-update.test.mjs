@@ -82,7 +82,9 @@ test('behind main: fast-forwards, re-applies config/hooks/skills, reports the ve
   assert.equal(head(w.friend), head(w.author))
   const marker = join(w.friend, 'installed.txt')
   assert.ok(existsSync(marker), 'install.mjs must run after the pull')
-  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps')
+  // mcp-register joined the list: registering the servers is a JSON write, while `mcp` would
+  // fetch packages over the network and could never run at every session start.
+  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps,mcp-register')
 })
 
 test('a local edit to a file the update does not touch no longer blocks it', (t) => {

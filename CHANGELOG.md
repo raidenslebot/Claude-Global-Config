@@ -5,6 +5,38 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.33.0 — 2026-09-02
+
+The same blindness as 1.32.0, one section further down, plus the reason a fresh machine could
+never fix itself.
+
+- **An MCP server removed from `~/.claude.json` produced no row and no failure.** The check
+  enumerated what the file *contains*, so deleting Playwright's registration deleted the check
+  along with it — and Playwright is the browser every render, audit, motion capture and print
+  proof runs in. The required list now lives in `library/mcp-servers/servers.json`, read by the
+  installer when it writes the registrations and by the doctor when it checks they are still
+  there. One list, two readers, and it names what each server is *for* so the failure says what
+  stopped working.
+- **A machine that installed this before Claude Code had ever run never got its servers
+  registered at all.** The installer writes into `~/.claude.json` only if it exists — reasonable,
+  since that file is Claude Code's — and it warns you to re-run later. But the session hook's
+  repair runs `--only=config,hooks,skills,deps`, which has never included `mcp`, so "later"
+  never came.
+
+  It could not have: the `mcp` phase fetches the server packages and a browser, minutes of
+  network, and nothing that runs at every session start can do that. So the registration is now
+  its own phase — `--only=mcp-register` writes the entries from what is already on disk, no
+  network, **0.13 seconds** — and that is what the repair runs. A server that goes missing is
+  now noticed by the doctor and put back by the next session.
+
+Verified end to end in a sandbox: register, delete Playwright, watch the doctor name it, run the
+repair, watch it come back and the alarm stop.
+
+*Also found, by the doctor, while doing this:* a sandbox uninstall run in an ad-hoc harness
+unlinked the real machine's `argo` CLI, because the harness redirected `HOME` but not the npm
+prefix. The doctor caught it on the next run. The shipped tests already hide npm from their
+children — that guard exists precisely because this is easy to do.
+
 ## 1.32.0 — 2026-09-02
 
 **The doctor could not see a hook that had been unregistered.** Everything this package claims

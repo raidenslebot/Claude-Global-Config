@@ -186,6 +186,26 @@ phase('MCP servers')
       else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
       else ok(`${name}${where} · ${basename(entry)}`)
     }
+
+    // Every server this package REQUIRES, whether or not it is registered. The loop above walks
+    // what ~/.claude.json contains, so a server deleted from it produced no row at all — the
+    // same shape of blindness the hook check had: what you enumerate has to be what you require,
+    // not what happens to be there.
+    const mcpManifest = join(REPO, 'library', 'mcp-servers', 'servers.json')
+    if (!existsSync(mcpManifest)) {
+      fail('library/mcp-servers/servers.json missing — there is no list of the MCP servers this package requires')
+    } else {
+      let want = null
+      try { want = readJson(mcpManifest).servers } catch (e) { fail(`library/mcp-servers/servers.json is not valid JSON: ${e.message}`) }
+      if (want && cfg) {
+        const have = new Set(servers.map((x) => x.name))
+        const gone = Object.keys(want).filter((n) => !have.has(n))
+        if (gone.length) {
+          for (const n of gone) fail(`MCP server "${n}" is NOT registered — ${want[n].why}. Re-register with: node tools/install.mjs --only=mcp`)
+        } else ok(`all ${Object.keys(want).length} MCP servers this package requires are registered`)
+      }
+    }
+
     // Stated because it is a real limit, not a covered case: connectors provided by the
     // host application do not appear in this file at all, so nothing here can see them.
     // Those are managed in the app's own connector settings.
