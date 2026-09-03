@@ -75,3 +75,11 @@ An illustration *system* is a set of constraints that make ten drawings look lik
 
 A contact sheet HTML rendering the set or the drawings at every delivered size, on light and
 dark → `cgc render sheet.html --mobile`. Look at the smallest size first.
+
+**Then gate the set as a set:** `cgc icons ./icons --size 16`. It derives what the set does —
+its grid, its stroke weight, its caps and joins — from the majority, then names every icon that
+disagrees, plus what is wrong at any size: live text, an embedded bitmap, a missing viewBox, a
+colour pinned instead of `currentColor`, and a stroke that renders under one pixel at the size
+the set is actually used at. A single icon is almost never wrong. A set is wrong constantly, and
+always in ways that are invisible when the icons are looked at one at a time — which is how they
+are always looked at. `cgc check ./icons` runs it alongside everything else.

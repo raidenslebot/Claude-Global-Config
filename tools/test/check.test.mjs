@@ -44,6 +44,14 @@ const TEMPLATE = [
   '<section class="hero"><h1>Supercharge your workflow</h1><p>Seamless, effortless, blazing fast.</p>',
   '<a class="btn">Get started</a><a class="btn">Book a demo</a></section>',
   '<div class="grid"><div class="card">🚀 Fast</div><div class="card">🔒 Secure</div><div class="card">⚡ Simple</div></div>',
+  '<section class="pricing"><h2>Simple pricing</h2>',
+  '<div class="grid"><div class="card"><h3>Starter</h3><p>For trying things out.</p><p>$0</p></div>',
+  '<div class="card"><h3>Team</h3><p>For a growing team.</p><p>$29</p></div>',
+  '<div class="card"><h3>Scale</h3><p>For everyone else.</p><p>Contact us</p></div></div></section>',
+  '<footer><p>Trusted by thousands of teams worldwide. Built with love and modern tooling.</p>',
+  '<nav><a href="#">Product</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Blog</a>',
+  '<a href="#">About</a><a href="#">Careers</a><a href="#">Contact</a><a href="#">Privacy</a></nav>',
+  '<p>© 2026 Example Inc. All rights reserved. Everything you need, nothing you do not.</p></footer>',
   '</body></html>',
 ].join('\n')
 

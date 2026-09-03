@@ -134,6 +134,7 @@ new to install, no account. It writes RGB and says so; the skill says what to ha
 
 ```bash
 cgc check page.html          # every gate that applies to this file, one verdict
+cgc icons ./icons            # the icon SET judged as a set, at the size it is used
 cgc check ./src --strict     # exit 1 if any gate fails
 ```
 

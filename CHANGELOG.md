@@ -5,6 +5,28 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.15.0 — 2026-09-02
+
+A gate for the one field that is judged as a set, and three cases where a gate asked the
+wrong question of the wrong file.
+
+- **New gate `cgc icons <dir>` — an icon SET judged as a set.** A single icon is almost never
+  wrong; a set is wrong constantly, and always in ways that are invisible when the icons are
+  looked at one at a time, which is how they are always looked at. It derives what the set does
+  — grid, stroke weight, caps, joins — from the majority, then names every icon that disagrees,
+  plus what is wrong at any size: live text that depends on a font the viewer may not have, an
+  embedded bitmap, a missing viewBox, a colour pinned instead of `currentColor`, coordinates that
+  sit off the grid because the icon was traced rather than drawn, and a stroke that renders
+  under one pixel at the size the set is actually used at. `cgc check` runs it over any folder
+  holding three or more SVGs. The set that ships passes it; a deliberately broken set produces
+  seven failures and two warnings, each naming the icon.
+
+- **Three wrong questions, all found by running the new gates on real files.** A 200-byte icon
+  was being asked to be ambitious, so a folder of perfectly good icons reported ten failures; a
+  fragment is now below the threshold, as it already was in the hook. A `sprite.svg` was judged
+  as artwork when it is a delivery format for a set — the set gate is the right one and already
+  runs. And a test, a fixture or a scratch script is not a design however much markup it quotes,
+  so the write-time report now stays out of test and fixture paths.
 ## 1.14.0 — 2026-09-02
 
 The loop in one command, and two ways the medium detector was reading the wrong evidence.

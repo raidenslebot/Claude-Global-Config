@@ -36,6 +36,7 @@ export const COMMANDS = {
   render: ['screen-render.mjs', 'screenshots at real widths, or an exact canvas'],
   print: ['print-render.mjs', 'paper and fabric: PDF, PNG proof, garment mockup'],
   'print-lint': ['print-lint.mjs', 'the press-readiness gate'],
+  icons: ['icon-lint.mjs', 'an icon SET judged as a set: grid, weight, colour, and the stroke at the size it is used'],
   outline: ['outline-text.mjs', 'text as one SVG path'],
   specimen: ['specimen.mjs', 'a pairing and a palette, set for real'],
   doctor: ['doctor.mjs', 'verify this install'],

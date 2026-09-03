@@ -27,6 +27,8 @@ const EXTS = new Set(['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', 
 const DESIGN_EXTS = new Set([...EXTS,
   '.svg', '.glsl', '.frag', '.vert', '.wgsl', '.shader', '.hlsl',
   '.swift', '.kt', '.dart', '.cs', '.gd', '.js', '.ts', '.mjs'])
+// A test, a fixture or a scratch script is not a design, however much markup it quotes.
+const TESTISH = /(?:^|[\/])(?:tests?|__tests__|spec|fixtures?|scratchpad|node_modules)[\/]|.(?:test|spec).[a-z]+$/i
 const PHYSICAL = /@page\s*\{[^}]*\bsize\s*:\s*[\d.]+\s*(?:in|mm|cm|pt)\b/i
 // Below this a file is a fragment, and asking a fragment to be ambitious is noise.
 const SUBSTANTIAL = 1200
@@ -43,6 +45,7 @@ function main() {
   const file = String(payload.tool_input?.file_path || '')
   const ext = path.extname(file).toLowerCase()
   if (!file || !DESIGN_EXTS.has(ext)) return
+  if (TESTISH.test(file)) return
   let text
   try { text = fs.readFileSync(file, 'utf8') } catch { return }
   if (PHYSICAL.test(text)) return

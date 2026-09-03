@@ -63,6 +63,7 @@ Runs every gate that applies to what it is given, in order, and prints one verdi
   techniques   every design file      what it reaches for, and the dimension it never entered
   lint         web source             the fingerprint of AI-made design
   audit        a page                 the RENDERED page measured, at desktop and phone
+  icons        a folder of 3+ SVGs    the set judged as a set: grid, weight, colour, small size
   motion       a page that animates   the animation stepped and photographed frame by frame
   print-lint   physical units         what the press would reject
 
@@ -94,9 +95,13 @@ export async function main(argv = process.argv.slice(2)) {
     let text = ''
     try { text = readFileSync(file, 'utf8') } catch { continue }
     const physical = PHYSICAL.test(text)
+    // A sprite is how a set is delivered, not a piece in its own right: the icons gate judges it.
+    const sprite = ext === '.svg' && /<symbol\b/i.test(text)
     const gates = []
 
-    if (!skip.has('techniques')) {
+    // Below this a file is a fragment — an icon, a partial, a snippet — and asking a fragment
+    // to be ambitious is noise. An icon is judged by the set gate instead.
+    if (!skip.has('techniques') && text.length >= 1200 && !sprite) {
       const r = run('techniques.mjs', [file, '--json'])
       const t = r.json
       const applies = t && (WEB.has(ext) || t.detected)
@@ -169,6 +174,36 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     results.push({ file, gates })
+  }
+
+  // An icon set is the one thing here that is judged as a SET rather than a file: a single icon
+  // is almost never wrong, and a set is wrong constantly. So a directory holding three or more
+  // SVGs gets one more gate, over the whole folder.
+  if (!skip.has('icons')) {
+    for (const p of args._) {
+      const abs = resolve(p)
+      let isDir = false
+      try { isDir = statSync(abs).isDirectory() } catch { continue }
+      if (!isDir) continue
+      const svgs = walk(abs).filter((f) => extname(f).toLowerCase() === '.svg')
+      if (svgs.length < 3) continue
+      const r = run('icon-lint.mjs', [abs, '--json', ...(args.size ? [] : [])])
+      const j = r.json
+      if (!j) continue
+      const fails = (j.findings || []).filter((f) => f.level === 'fail')
+      const warns = (j.findings || []).filter((f) => f.level === 'warn')
+      results.push({
+        file: abs + ' (as a set)',
+        gates: [{
+          gate: 'icons',
+          level: fails.length ? 'fail' : warns.length ? 'warn' : 'ok',
+          line: `${j.count} icons · grid ${j.grid || '?'} · stroke ${j.stroke || 'n/a'} · at ${j.size}px`,
+          next: fails.length || warns.length
+            ? [...new Set((j.findings || []).map((f) => f.id))].join(', ') + ` — cgc icons "${abs}"`
+            : '',
+        }],
+      })
+    }
   }
 
   const all = results.flatMap((r) => r.gates)
