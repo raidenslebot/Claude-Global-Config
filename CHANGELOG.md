@@ -5,6 +5,26 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.43.0 — 2026-09-03
+
+The bare-command sweep, finished. Two more tools ended a run with a sentence that was not true
+of what they had done.
+
+- **`cgc render page.html` said "Look at them" after rendering one viewport.** The plural was
+  doing the work of a second render that never happened, and the loop's first step is *looking at
+  the render*. Without `--mobile` that is the desktop alone — and the audit had just proved, on a
+  page that passes at 1440, that the phone is where the failures are. It says which one it opened
+  now, and names the flag. A `--preset` or a `--viewport` is a chosen canvas and is left alone.
+
+- **`cgc print card.html --trim … --bleed …` wrote a PDF and said nothing else.** A PDF is the
+  deliverable; the PNG proof is the only one of the two a person can look at, and it is made only
+  with `--png`. So the bare command produces a press file that has never been seen by anyone — the
+  loop's first step skipped, silently. It says so, and names the two dpi worth asking for.
+
+That closes the sweep begun in 1.41.0: seven tools run the way a hurried person runs them, five
+of which said something untrue about what they had checked. The common shape, once more: the
+honest answer to a question that was never asked is not "no problems found".
+
 ## 1.42.0 — 2026-09-03
 
 Running each tool the way a hurried person runs it — the bare command, no optional flags — the

@@ -112,3 +112,25 @@ test('a family that was never served is caught, though nothing declared it and n
     { encoding: 'utf8', timeout: 120000 })
   assert.equal(ok.status, 0, ok.stdout + ok.stderr)
 })
+
+test('a desktop-only render says so, and one that was asked for more does not', { skip }, async (t) => {
+  // "Look at them" — plural — after one viewport. The loop's first step is looking at the render,
+  // and the phone is where most of it goes wrong: the audit proves that on a page that passes at
+  // 1440 and fails twice at 390.
+  const d = scratch(t)
+  const f = join(d, 'p.html')
+  writeFileSync(f, '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>P</title>'
+    + '<style>body{margin:0;padding:32px;font-family:Georgia,serif;font-size:18px}</style>'
+    + '</head><body><h1>A page</h1><p>With something on it.</p></body></html>')
+  const run = (args) => spawnSync(process.execPath, [join(REPO, 'tools', 'screen-render.mjs'), f, '--out', join(d, 'o'), ...args],
+    { encoding: 'utf8', timeout: 180000 })
+
+  const bare = run([])
+  assert.equal(bare.status, 0, bare.stderr)
+  assert.match(bare.stdout, /desktop only/)
+  assert.match(bare.stdout, /--mobile/)
+  assert.doesNotMatch(bare.stdout, /Look at them/, 'one render is not "them"')
+
+  assert.doesNotMatch(run(['--mobile']).stdout, /desktop only/)
+  assert.doesNotMatch(run(['--preset', 'ig-post']).stdout, /desktop only/, 'a preset is a chosen canvas')
+})

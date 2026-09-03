@@ -184,7 +184,15 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`  ${s.viewport.padEnd(9)} ${s.png}  (page ${s.pageHeight}px tall${s.fontsLoaded.length ? `; fonts: ${s.fontsLoaded.join(', ')}` : ''})`)
   }
   if (failed.length) console.log(`  \x1b[31mfont failed to load\x1b[0m: ${failed.join(', ')} — the page rendered in a fallback; the design you judged is not the one that shipped`)
-  else console.log('  Look at them. Then name the weakest thing, fix it, and render again.')
+  // "Look at them" — plural — after one viewport. The loop's first step is looking at the
+  // render, the bare command shows only the desktop, and the phone is where most of it goes
+  // wrong: the audit proved that on a page that passed at 1440 and failed twice at 390.
+  else if (viewports.length > 1 || args.preset || args.viewport) {
+    console.log('  Look at them. Then name the weakest thing, fix it, and render again.')
+  } else {
+    console.log('  Look at it. Then name the weakest thing, fix it, and render again.')
+    console.log('  This is the desktop only — add --mobile for the 390px render, which is where most of it goes wrong.')
+  }
   return failed.length ? 1 : 0
 }
 

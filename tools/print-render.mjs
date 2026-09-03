@@ -509,6 +509,12 @@ export async function main(argv = process.argv.slice(2)) {
       }
       await ctx.close()
     }
+    // The PDF is the deliverable; the PNG is the only one of the two a person can look at,
+    // and looking is the step this whole package is built around. Say when none was made.
+    if (!dpi && summary.mode === 'print' && !args.json) {
+      console.error('print-render: PDF only — no proof was made, so nothing here has been looked at.')
+      console.error('  Add --png 150 for a proof to judge, or --png 300 to inspect the type at size.')
+    }
     const result = { ...summary, pageInches: { w: +pageW.toFixed(4), h: +pageH.toFixed(4) }, dpi: dpi || null, ...outputs, browserFrom: pw.from }
     if (args.json) console.log(JSON.stringify(result, null, 2))
     else {

@@ -246,3 +246,27 @@ test('the ink of a piece of artwork is the colour it is mostly drawn in', async 
     assert.equal(inkContrast('#efe9dc', 'not a colour'), null)
   } finally { rmSync(d, { recursive: true, force: true }) }
 })
+
+test('a press file with no proof says nobody has looked at it', (t) => {
+  // The PDF is the deliverable; the PNG is the only one of the two a person can look at, and
+  // looking is the step this whole package is built around.
+  const d = scratch(t)
+  const card = join(d, 'card.html')
+  writeFileSync(card, '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>C</title><style>'
+    + '@page{size:3.75in 2.25in;margin:0}html,body{margin:0}'
+    + '.c{width:3.75in;height:2.25in;background:#12202c;color:#efe9dc;font-family:Georgia,serif;padding:0.375in;box-sizing:border-box}'
+    + '</style></head><body><div class="c">Harbour Swim Club</div></body></html>')
+  const run = (extra) => spawnSync(process.execPath,
+    [TOOL, card, '--trim', '3.5x2in', '--bleed', '0.125in', '--out', join(d, 'out'), ...extra],
+    { encoding: 'utf8', timeout: 180000 })
+
+  const pdfOnly = run([])
+  assert.equal(pdfOnly.status, 0)
+  assert.match(pdfOnly.stderr, /no proof was made/)
+  assert.match(pdfOnly.stderr, /--png/)
+
+  const withProof = run(['--png', '150'])
+  assert.equal(withProof.status, 0)
+  assert.doesNotMatch(withProof.stderr, /no proof was made/)
+  assert.ok(existsSync(join(d, 'out.png')), 'and the proof is there')
+})
