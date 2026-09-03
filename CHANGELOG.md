@@ -5,6 +5,28 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.30.0 — 2026-09-02
+
+Two more kinds of dead instruction, now impossible to ship.
+
+- **Every repo-relative file the docs point at is checked** — 248 of them today. "The craft
+  behind them is in `visual-design-mastery/references/advanced-techniques.md`" is a path a
+  session opens; a file that moved leaves the sentence pointing at nothing, and the reader
+  concludes the reference was never written rather than that it was renamed.
+- **Every skill named in the docs must be one that exists** — one this package ships, one it
+  installs from the Tier-3 library, or one on an explicit list of host and plugin skills the
+  mandates deliberately name. That third list includes the ones named in order to be *refused*
+  (`open-design`, `motion-framer`, `animated-component-libraries`), because a precedence
+  decision has to stay legible. A name in none of the three is a dead instruction, so adding
+  one is now a decision rather than a typo.
+
+Both were verified by planting a dead pointer and an imaginary skill in a shipped doc and
+watching the file and line come back.
+
+Nothing was found broken: 248 paths and 25 skill references all resolve today. That is the
+point — the check exists so that stays true after the next rename, and there was nothing
+holding it before.
+
 ## 1.29.0 — 2026-09-02
 
 **Every command written in the docs is now checked against the CLI that has to run it.**

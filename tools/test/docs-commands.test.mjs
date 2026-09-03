@@ -9,7 +9,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
@@ -86,4 +86,61 @@ test('every --preset and --size named in the docs is a real one', async () => {
     }
   }
   assert.deepEqual([...new Set(problems)], [], 'canvases and trim sizes named in the docs that do not exist')
+})
+
+test('every repo-relative file the docs point at exists', () => {
+  // "the craft behind them is in visual-design-mastery/references/advanced-techniques.md" is a
+  // path a session will open. A file that moved leaves the sentence pointing at nothing, and
+  // the reader concludes the reference was never written rather than that it was renamed.
+  const RE = /(?:^|[`\s("'])((?:tools|skills|docs|config|library|argo)\/[A-Za-z0-9_./-]+\.(?:mjs|json|jsonc|js|md|svg|html|css|txt))/g
+  const problems = []
+  let seen = 0
+  for (const file of markdown()) {
+    const where = relative(REPO, file).replace(/\\/g, '/')
+    for (const [i, line] of readFileSync(file, 'utf8').split(/\r?\n/).entries()) {
+      for (const m of line.matchAll(RE)) {
+        seen++
+        if (!existsSync(join(REPO, m[1]))) problems.push(`${where}:${i + 1}  ${m[1]}`)
+      }
+    }
+  }
+  assert.ok(seen >= 150, `only ${seen} paths found — the scanner stopped seeing them`)
+  assert.deepEqual([...new Set(problems)], [], 'files the docs point at that are not there')
+})
+
+// Skills this package deliberately names that it does not ship: the host's own, and the
+// plugins the mandates route to. A name that is in none of these three lists is a dead
+// instruction, so adding one has to be a decision rather than a typo.
+const HOST_SKILLS = new Set([
+  // Anthropic's bundled skills, referenced by the taste layer as the layers below it.
+  'artifact-design', 'artifact-capabilities', 'artifact-diagramming', 'canvas-design', 'frontend-design',
+  'dataviz', 'theme-factory', 'ui-design-resources', 'workshop', 'xlsx', 'pptx', 'docx', 'pdf',
+  // Superpowers and the plugins the mandates name.
+  'brainstorming', 'using-superpowers', 'systematic-debugging', 'workflow-authoring',
+  'react-doctor', 'react-tooling-stack', 't3mp3st-security', 'graph-engineering',
+  'penetration-testing-with-strix', 'fix-security-vulnerabilities-with-strix',
+  'ci-security-scanning-with-strix', 'managed-pentesting-with-strix',
+  // Named in order to be REFUSED — precedence decisions that must stay legible.
+  'open-design', 'motion-framer', 'animated-component-libraries', 'deepseek-delegation',
+])
+
+test('every skill named in the docs is one that exists, or one deliberately named as absent', () => {
+  const own = new Set(readdirSync(join(REPO, 'skills')).filter((d) => statSync(join(REPO, 'skills', d)).isDirectory()))
+  const tier2 = new Set(JSON.parse(readFileSync(join(REPO, 'library', 'sources.json'), 'utf8')).tier2.map((s) => s.name))
+  const known = new Set([...own, ...tier2, ...HOST_SKILLS])
+  const RE = /(?:skill\s+`([a-z0-9][a-z0-9-]{2,})`|`([a-z0-9][a-z0-9-]{2,})`\s+skill|load\s+(?:the\s+)?`([a-z0-9][a-z0-9-]{2,})`)/gi
+  const problems = []
+  let seen = 0
+  for (const file of markdown()) {
+    const where = relative(REPO, file).replace(/\\/g, '/')
+    for (const [i, line] of readFileSync(file, 'utf8').split(/\r?\n/).entries()) {
+      for (const m of line.matchAll(RE)) {
+        seen++
+        const name = (m[1] || m[2] || m[3]).toLowerCase()
+        if (!known.has(name)) problems.push(`${where}:${i + 1}  "${name}" is not a skill this ships, installs, or names on purpose`)
+      }
+    }
+  }
+  assert.ok(seen >= 20, `only ${seen} skill references found — the scanner stopped seeing them`)
+  assert.deepEqual([...new Set(problems)], [], 'skills named in the docs that a session could not load')
 })
