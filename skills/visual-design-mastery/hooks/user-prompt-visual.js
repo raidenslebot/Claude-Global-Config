@@ -137,7 +137,12 @@ function main() {
       'line of markup: the real canvas and units, the minimums, the delivery format, the moves that exist only in that ' +
       'field. Write directions.md first (DNA from the subject\'s real artifacts, three to five structurally different ' +
       'directions, the swap test on each). Render the exact pixels with `cgc render <file> --preset <field>` ' +
-      'and look at them at the size they will be seen — a favicon at 16px, a thumbnail at 168px, a slide from the back of the room.'
+      'and look at them at the size they will be seen — a favicon at 16px, a thumbnail at 168px, a slide from the back of the room. ' +
+      'An icon SET is judged as a SET, not as icons: `cgc icons ./icons --size 16` derives the grid, stroke weight, caps and ' +
+      'joins from the majority and names every icon that disagrees, plus live text, an embedded bitmap, a colour pinned instead ' +
+      'of currentColor, traced off-grid coordinates, and a stroke that renders under one pixel at the size it is really used. ' +
+      'A wordmark ships as outlines rather than live text: `cgc outline --font <file> --text <words>` writes it as one SVG path ' +
+      'with the font\'s own kerning, so the artwork depends on no font being installed anywhere.'
   }
 
   const moved = !motion ? '' :

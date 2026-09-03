@@ -69,6 +69,14 @@ and thumbnails, slide decks, email, packaging and labels, signage and wayfinding
 environments — with the real canvas, minimums and delivery format of each, its hero moves and
 its slop, and `cgc render <file> --preset <field>` for the exact pixels. A
 field with no reference follows the same eight steps; the skill says how to find its spec.
+Two of those fields have a gate of their own. An icon SET is judged as a set —
+`cgc icons ./icons --size 16` derives the grid, the stroke weight and the joins from the
+majority and names every icon that disagrees, plus live text, an embedded bitmap, a colour
+pinned instead of `currentColor`, coordinates that sit off the grid because the icon was traced,
+and a stroke that renders under one pixel at the size it is really used. A single icon is
+almost never wrong and a set is wrong constantly, in ways invisible one icon at a time. And a
+wordmark is delivered as outlines, not as live text: `cgc outline --font <file> --text <words>`
+writes it as one SVG path with the font’s own kerning, so it depends on no font at all.
 
 **The loop is mandatory, in every field, and has no pass count.** The first render is never
 the one shown. Render it (`screen-render` for screens, `print-render` for paper and fabric),

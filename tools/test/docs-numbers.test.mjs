@@ -194,3 +194,16 @@ test('every medium the tool knows is reachable from the prose that routes to it'
     assert.match(readme, named[m.id], `README never names the ${m.id} medium`)
   }
 })
+
+test('every tool that ships is named in the README', () => {
+  // Four tools had been added without the install table hearing about them. A reader installs
+  // what the table describes and then finds commands nothing told them existed.
+  const dir = join(REPO, 'tools')
+  const shipped = readdirSync(dir)
+    .filter((f) => f.endsWith('.mjs'))
+    // paths and run-tests are plumbing this package uses on itself, not tools a user runs.
+    .filter((f) => !['paths.mjs', 'run-tests.mjs'].includes(f))
+  const readme = readFileSync(join(REPO, 'README.md'), 'utf8')
+  const missing = shipped.filter((f) => !readme.includes(f))
+  assert.deepEqual(missing, [], 'add these to the install table: ' + missing.join(', '))
+})

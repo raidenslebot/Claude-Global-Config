@@ -5,6 +5,24 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.18.0 — 2026-09-02
+
+A gate nobody is told to run is a gate that does not exist — which is the same defect as the
+repo-relative commands that started all of this, wearing a different hat.
+
+- **`cgc icons` and `cgc outline` were named only in the README**, which is the one place
+  nothing reads while the work is happening. Both are now in the mandate and in the routing
+  hook, on the field route where icon and identity work actually lands: the set gate with what
+  it derives and what it refuses, and the reminder that a wordmark ships as outlines rather
+  than live text so the artwork depends on no font being installed anywhere.
+
+- **Four shipped tools had never reached the install table** — `cgc.mjs`, `check.mjs`,
+  `techniques.mjs` and `icon-lint.mjs`. A reader installs what the table describes and then
+  finds commands nothing told them existed.
+
+- Two gates so neither can happen again: every tool that ships must be named in the README,
+  and every `cgc` subcommand that is not plumbing must be named somewhere the model reads
+  while working — the mandate, a hook, or a shipped skill. The README alone does not count.
 ## 1.17.1 — 2026-09-02
 
 The last of the review findings, and tests against a real browser for the two fixes that

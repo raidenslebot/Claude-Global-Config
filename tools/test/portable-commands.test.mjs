@@ -80,3 +80,35 @@ test('a subcommand forwards its arguments and its exit code', () => {
   assert.equal(help.status, 0)
   assert.match(help.stdout, /cgc lint/)
 })
+
+test('every command is named somewhere the model will actually read it', async () => {
+  // `cgc icons` and `cgc outline` existed and were named only in the README, which is the one
+  // place nothing reads while working. A gate nobody is told to run is a gate that does not
+  // exist, which is the same defect as the repo-relative paths this file was written for.
+  const { COMMANDS } = await import('../cgc.mjs')
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { REPO } = await import('../paths.mjs')
+
+  // The mandate, the routing hooks, and every shipped skill: everywhere a command can reach
+  // the model at the moment it is doing the work.
+  const surfaces = [readFileSync(join(REPO, 'config', 'CLAUDE.md'), 'utf8')]
+  const hookDir = join(REPO, 'config', 'hooks')
+  for (const f of readdirSync(hookDir)) surfaces.push(readFileSync(join(hookDir, f), 'utf8'))
+  const skills = join(REPO, 'skills')
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (/\.(md|js|mjs)$/.test(e.name)) surfaces.push(readFileSync(p, 'utf8'))
+    }
+  }
+  walk(skills)
+  const everywhere = surfaces.join('\n')
+
+  // These four are how the package looks after itself, not design work the model is routed to.
+  const plumbing = new Set(['doctor', 'install', 'uninstall', 'sync', 'scan', 'test', 'where', 'version'])
+  const unrouted = Object.keys(COMMANDS).filter((k) => !plumbing.has(k) && !everywhere.includes(`cgc ${k}`))
+  assert.deepEqual(unrouted, [],
+    'these commands exist but nothing tells the model to run them: ' + unrouted.map((u) => `cgc ${u}`).join(', '))
+})
