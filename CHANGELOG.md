@@ -5,6 +5,35 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.46.0 — 2026-09-03
+
+**A machine froze with a hundred node processes open, and every config file involved looked
+correct.** `playwright` and `context7` were registered twice — once here, at user scope, as a
+direct `node` command, and again in the host application's own config as `cmd /c npx -y
+…@latest`. Two registrations of one server is two servers *running*: a process each, for the
+life of every session, and the npx form costs a resident wrapper process besides and checks the
+registry on every launch. Multiply by fifteen open windows and it is a hundred processes and
+thirty-six Chromium instances before anyone has asked for anything.
+
+Nothing reported it, because each file was individually right. The MCP check enumerated
+`~/.claude.json` — user scope and project scope — and the comment above it already said *what
+you enumerate has to match what actually loads*. It did not. Two more places load servers: the
+host application keeps its own registry beside that file, and every enabled plugin may carry an
+`.mcp.json`. Both are read now, and a name found in more than one scope is a **failure**, worded
+as what it costs rather than as an untidy config. The doctor also states the plain number the
+configs never show: about how many MCP processes one session starts.
+
+`install.mjs --only=mcp` reports a duplicate it finds in the host config, and `--dedupe` removes
+it after writing a backup beside it. A duplicate carried by a *plugin* is reported and not
+touched: that file belongs to the plugin and would return on its next update, so the action
+offered is the one that holds — disable the plugin, or drop this package's copy, but not both.
+
+**`doctor.mjs` is a script, and importing it ran the doctor and exited the importing process.**
+It has no entry guard: it runs top-level and ends in `process.exit`. Wiring the new scope
+helpers into the installer by importing them from there would have made every install run the
+doctor and then die. They live in `paths.mjs`, and a test now asserts that no tool imports the
+doctor at all.
+
 ## 1.45.0 — 2026-09-03
 
 **440 tests this package ships were run by nothing.** `argo` is installed by `install.mjs`,

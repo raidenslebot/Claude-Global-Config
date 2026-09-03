@@ -232,3 +232,48 @@ export function unrenderable(src) {
   if (nulls > 0 && alternating / nulls > 0.9 && nulls / scan.length > 0.25) return null
   return `${basename(src)} is not a text file — a browser will render it as mojibake and this would report on that.`
 }
+
+/** Every config file OUTSIDE ~/.claude.json that registers MCP servers for this machine. */
+export function hostConfigs(home = HOME) {
+  const out = []
+  // Where the desktop application keeps its registry, per platform. Nothing here is guessed
+  // from a hardcoded user name: the base is the platform's own application-data directory.
+  // The environment wins only for the REAL home: %APPDATA% and $XDG_CONFIG_HOME can be
+  // redirected on a live machine and must be honoured there, but a caller that names a home is
+  // naming one, and an env var silently overriding it makes the argument a lie.
+  const own = home === HOME
+  const bases = process.platform === 'win32'
+    ? [own && process.env.APPDATA ? process.env.APPDATA : join(home, 'AppData', 'Roaming')]
+    : process.platform === 'darwin'
+      ? [join(home, 'Library', 'Application Support')]
+      : [own && process.env.XDG_CONFIG_HOME ? process.env.XDG_CONFIG_HOME : join(home, '.config')]
+  for (const base of bases) out.push(['host app', join(base, 'Claude', 'claude_desktop_config.json')])
+  return out.filter(([, p]) => existsSync(p))
+}
+
+/** The MCP servers carried by plugins that are ENABLED — a disabled plugin loads nothing. */
+export function pluginServers(home = HOME) {
+  const out = []
+  let enabled = {}
+  for (const p of [join(home, '.claude', 'settings.json'), join(home, '.claude', 'settings.local.json')]) {
+    const s = readJsonQuietly(p)
+    if (s && s.enabledPlugins) enabled = { ...enabled, ...s.enabledPlugins }
+  }
+  const roots = join(home, '.claude', 'plugins', 'marketplaces')
+  for (const [key, on] of Object.entries(enabled)) {
+    if (!on) continue
+    const [name, market] = String(key).split('@')
+    for (const rel of [[market, 'plugins', name], [market, 'external_plugins', name], [market, name]]) {
+      const p = join(roots, ...rel.filter(Boolean), '.mcp.json')
+      const m = readJsonQuietly(p)
+      const servers = m && (m.mcpServers || (typeof m === 'object' && !m.mcpServers ? m : null))
+      if (servers && Object.keys(servers).length) { out.push([name, servers]); break }
+    }
+  }
+  return out
+}
+
+/** Read JSON, or nothing. A config that is absent or malformed is not a finding here. */
+export function readJsonQuietly(p) {
+  try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return null }
+}

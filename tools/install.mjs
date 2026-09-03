@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock, hostConfigs, pluginServers } from './paths.mjs'
 
 // This file has no exports: it performs an install the moment it is loaded. Importing it —
 // from a test, a tool, or by accident — would silently run one. Say so instead.
@@ -36,6 +36,9 @@ if (askedForHelp(import.meta.url)) process.exit(0)
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')
 const ONLY = new Set(((args.find((a) => a.startsWith('--only=')) || '').split('=')[1] || '').split(',').filter(Boolean))
+// Remove a duplicate MCP registration from the host application's config rather than only
+// reporting it. Opt-in, because it edits a file this package does not own.
+const DEDUPE = args.includes('--dedupe')
 const SKIP = new Set(args.filter((a) => a.startsWith('--skip-')).map((a) => a.replace('--skip-', '')))
 // Two processes writing the same config files is the same bug as two pulling the same clone —
 // it just fails more quietly, with a half-written file instead of a message. `cgc install`
@@ -481,6 +484,38 @@ if (wants('mcp') || wants('mcp-register')) {
       }
       writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8')
       ok(`registered ${n} MCP server(s), node pinned to ${vars.NODE}`)
+
+      // A server registered here AND in the host application's own config is two servers
+      // running, in every session, for the life of every window. Each config looks correct on
+      // its own, which is why nothing caught it until a machine ran out of memory.
+      //
+      // Only the host-app config is edited, and only for names this package registers: a
+      // plugin's .mcp.json belongs to the plugin and would come back on its next update, so
+      // that case is reported with the one action that actually holds — disable the plugin.
+      const ours = new Set(Object.keys(entries))
+      for (const [label, hostPath] of hostConfigs()) {
+        let host
+        try { host = JSON.parse(readFileSync(hostPath, 'utf8').replace(/^\uFEFF/, '')) } catch { continue }
+        const dupes = Object.keys(host.mcpServers || {}).filter((k) => ours.has(k))
+        if (!dupes.length) continue
+        if (!DEDUPE) {
+          warn(`${dupes.join(', ')} also registered in the ${label} config (${hostPath}) — `
+            + `that is ${dupes.length} extra process(es) in EVERY session. Remove with: node tools/install.mjs --only=mcp --dedupe`)
+          continue
+        }
+        writeFileSync(hostPath + '.bak-' + Date.now(), JSON.stringify(host, null, 2) + '\n', 'utf8')
+        for (const k of dupes) delete host.mcpServers[k]
+        writeFileSync(hostPath, JSON.stringify(host, null, 2) + '\n', 'utf8')
+        ok(`removed ${dupes.length} duplicate registration(s) from the ${label} config (${dupes.join(', ')}); a backup sits beside it`)
+      }
+      for (const [plugin, servers] of pluginServers()) {
+        const dupes = Object.keys(servers).filter((k) => ours.has(k))
+        if (dupes.length) {
+          warn(`the "${plugin}" plugin also registers ${dupes.join(', ')} — its .mcp.json belongs to the `
+            + `plugin and would return on its next update, so disable the plugin instead (/plugin), or keep `
+            + `it and remove this package's copy. Either way, not both: both is two servers per session.`)
+        }
+      }
     } catch (e) { warn(`could not update .claude.json: ${e.message}`) }
   } else if (!existsSync(cfgPath)) {
     warn('~/.claude.json not found — launch Claude Code once, then re-run with --only=mcp')

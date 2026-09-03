@@ -6,12 +6,14 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { templatize, realize, unresolved, buildVars, REPO } from '../paths.mjs'
+import { templatize, realize, unresolved, buildVars, REPO, hostConfigs, pluginServers, readJsonQuietly } from '../paths.mjs'
+
+const TOOLS = join(REPO, 'tools')
 
 // A Windows-shaped table: spaces, backslashes, and one value that is a strict prefix of
 // another (HOME vs CONFIG_ROOT). All three properties have broken this code before.
@@ -216,5 +218,55 @@ test('no mandate in config/ ships an unresolved token of any shape', () => {
     const realized = realize(text, buildVars())
     const left = realized.match(/\{\{[^}]{1,40}\}\}/g)
     assert.equal(left, null, `${f} still holds ${left && left.join(', ')} after realize()`)
+  }
+})
+
+test('every scope an MCP server loads from is enumerated, not only ~/.claude.json', (t) => {
+  // A server registered in two places is two servers RUNNING — one process each, in every
+  // session, for the life of every window. Each config file looks correct on its own, which is
+  // why nothing caught it until a machine with fifteen windows open ran out of memory.
+  const home = mkdtempSync(join(tmpdir(), 'cgc-scopes-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const write = (rel, obj) => {
+    const p = join(home, ...rel)
+    mkdirSync(dirname(p), { recursive: true })
+    writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8')
+    return p
+  }
+
+  // The host application's own registry, at the platform's application-data location.
+  const hostRel = process.platform === 'win32' ? ['AppData', 'Roaming', 'Claude', 'claude_desktop_config.json']
+    : process.platform === 'darwin' ? ['Library', 'Application Support', 'Claude', 'claude_desktop_config.json']
+      : ['.config', 'Claude', 'claude_desktop_config.json']
+  write(hostRel, { mcpServers: { playwright: { command: 'cmd', args: ['/c', 'npx', '-y', '@playwright/mcp@latest'] } } })
+  const found = hostConfigs(home)
+  assert.equal(found.length, 1, 'the host application config is a scope')
+  assert.equal(readJsonQuietly(found[0][1]).mcpServers.playwright.command, 'cmd')
+
+  // An ENABLED plugin's servers load; a disabled one's do not.
+  write(['.claude', 'settings.json'], { enabledPlugins: { 'ctx@market': true, 'off@market': false } })
+  write(['.claude', 'plugins', 'marketplaces', 'market', 'external_plugins', 'ctx', '.mcp.json'],
+    { mcpServers: { context7: { command: 'npx', args: ['-y', '@upstash/context7-mcp@latest'] } } })
+  write(['.claude', 'plugins', 'marketplaces', 'market', 'external_plugins', 'off', '.mcp.json'],
+    { mcpServers: { nothing: { command: 'node', args: ['x.js'] } } })
+  const plugins = pluginServers(home)
+  assert.deepEqual(plugins.map(([n]) => n), ['ctx'], 'a disabled plugin loads nothing')
+  assert.ok(plugins[0][1].context7, 'and an enabled one contributes its servers')
+
+  // A malformed or absent config is not a finding — it is simply not a scope.
+  writeFileSync(join(home, '.claude', 'settings.local.json'), '{ not json', 'utf8')
+  assert.equal(readJsonQuietly(join(home, '.claude', 'settings.local.json')), null)
+  assert.equal(readJsonQuietly(join(home, 'nope.json')), null)
+  assert.deepEqual(hostConfigs(join(home, 'empty')), [], 'a home with no host config has no host scope')
+})
+
+test('no tool imports doctor.mjs — it is a script that exits at module scope', () => {
+  // It runs its checks top-level and ends with process.exit, so an `import` of it does not
+  // borrow a helper, it runs the doctor and kills the importing process. Shared helpers live
+  // in paths.mjs for exactly this reason, and this is the guard on that.
+  for (const f of readdirSync(TOOLS).filter((f) => f.endsWith('.mjs') && f !== 'doctor.mjs')) {
+    const src = readFileSync(join(TOOLS, f), 'utf8')
+    assert.doesNotMatch(src, /^\s*import[^\n]*from\s+['"]\.\/doctor\.mjs['"]/m,
+      `${f} imports doctor.mjs, which would run the doctor and exit the process`)
   }
 })

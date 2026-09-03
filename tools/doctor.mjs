@@ -10,7 +10,7 @@
 import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly } from './paths.mjs'
 import { buildVars } from './paths.mjs'
 
 const { LIBRARY_ROOT } = buildVars()
@@ -161,8 +161,43 @@ phase('MCP servers')
       const m = v && typeof v === 'object' ? v.mcpServers : null
       if (m && Object.keys(m).length) scopes.push([` (project ${basename(String(proj))})`, m])
     }
+    // The host application's own registry. It is a sibling of this file, not inside it, and a
+    // server listed here loads in every session alongside the ones above.
+    for (const [label, p] of hostConfigs()) {
+      const m = readJsonQuietly(p)?.mcpServers
+      if (m && Object.keys(m).length) scopes.push([` (${label})`, m])
+    }
+    // Every enabled plugin may ship an .mcp.json, and an enabled plugin's servers load too.
+    for (const [label, m] of pluginServers()) scopes.push([` (plugin ${label})`, m])
+
     const servers = scopes.flatMap(([where, map]) =>
       Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {} })))
+
+    // A NAME registered in more than one scope is not a duplicate entry — it is two servers
+    // running. Each costs a process for the life of every session, and an npx-launched one
+    // costs a wrapper process besides and checks the registry on every launch. Multiplied by
+    // the number of open sessions this is what takes a machine down, and nothing reported it
+    // because each scope looked correct on its own.
+    const byName = new Map()
+    for (const x of servers) byName.set(x.name, [...(byName.get(x.name) || []), x])
+    const dupes = [...byName.entries()].filter(([, xs]) => xs.length > 1)
+    if (dupes.length) {
+      for (const [name, xs] of dupes) {
+        const where = xs.map((x) => x.where.trim() || '(user scope)').join(' AND ')
+        fail(`MCP server "${name}" is registered ${xs.length} times — ${where}. Every one of them `
+          + `starts a process in EVERY session: ${xs.length} copies of one server, times the number of `
+          + `open windows. Keep the one this package registers (a direct node command) and remove the `
+          + `others, or run: node tools/install.mjs --only=mcp --dedupe`)
+      }
+    } else if (servers.length) ok(`no MCP server is registered twice (${servers.length} across ${scopes.length} scope(s))`)
+
+    // What one session actually costs, since the count is the thing that bites and no single
+    // config file shows it. An npx or cmd wrapper stays resident alongside the server it spawns.
+    const perSession = servers.reduce((n, x) => n + (/^(?:npx|cmd|sh|bash|pnpm|yarn)(?:\.\w+)?$/i.test(String(x.s.command || '')) ? 2 : 1), 0)
+    if (perSession >= 8) {
+      warn(`Each session starts about ${perSession} MCP processes (${servers.length} servers). Ten open `
+        + `windows is roughly ${perSession * 10} processes before you have run anything.`)
+    } else if (servers.length) ok(`about ${perSession} MCP process(es) per session`)
 
     if (cfg && !servers.length) warn('no MCP servers registered')
     for (const { name, where, s } of servers) {
