@@ -159,3 +159,67 @@ test('a gate that cannot run is reported, never silently dropped', (t) => {
   assert.equal(j.skipped, 2, 'the summary counts what could not run')
   assert.ok(gates.lint && gates.lint.level !== 'skip', 'the gates that need no browser still ran')
 })
+
+// ── A gate that produced nothing has not passed ──────────────────────────────────────────────
+// Every case here used to end in a green verdict. These are the decision functions themselves,
+// so the contract holds without needing a child process that misbehaves on cue.
+import { fromJson, unavailable, PAGE_SIZE, MOVES, withoutQuotedCode } from '../check.mjs'
+
+test('a child that says nothing readable becomes a visible row, never silence', () => {
+  const build = () => ({ gate: 'x', level: 'ok', line: 'fine', next: '' })
+  for (const [label, r] of [
+    ['crashed with no output', { status: 1, stdout: '', stderr: 'Error: boom', json: null }],
+    ['printed something unparseable', { status: 0, stdout: 'not json', stderr: '', json: null }],
+    ['is not installed', { status: 127, stdout: '', stderr: 'slop-lint.mjs is not installed', json: null }],
+    ['timed out', { status: 1, stdout: '', stderr: '', json: null, timedOut: true }],
+  ]) {
+    const row = fromJson('lint', r, build)
+    assert.equal(row.level, 'skip', `a child that ${label} must produce a skip row`)
+    assert.match(row.line, /could not run/)
+  }
+})
+
+test('a child that reports nothing wrong and then fails is not trusted', () => {
+  // A tool that crashes after emitting a clean-looking partial result was indistinguishable
+  // from success.
+  const clean = () => ({ gate: 'audit', level: 'ok', line: 'no failures', next: '' })
+  const row = fromJson('audit', { status: 1, stdout: '{}', stderr: '', json: {} }, clean)
+  assert.equal(row.level, 'skip')
+  assert.match(row.line, /exited 1/)
+  // And a tool that reports failures and exits non-zero is behaving exactly as it should.
+  const fails = () => ({ gate: 'audit', level: 'fail', line: '2 failures', next: '' })
+  assert.equal(fromJson('audit', { status: 1, stdout: '{}', stderr: '', json: {} }, fails).level, 'fail')
+})
+
+test('a result missing a field it assumed does not abort the whole run', () => {
+  const row = fromJson('techniques', { status: 0, stdout: '{}', stderr: '', json: {} }, (t) => ({
+    gate: 'techniques', level: 'ok', line: t.media.map((m) => m.label).join(''), next: '',
+  }))
+  assert.equal(row.level, 'skip', 'one malformed child must not take every remaining file with it')
+  assert.match(row.line, /could not be read/)
+})
+
+test('a page that only talks about print is not a print piece', () => {
+  const docs = '<h1>Printing</h1><pre><code>@page { size: 8.5in 11in }</code></pre>'
+  assert.equal(PAGE_SIZE.test(withoutQuotedCode(docs)), false, 'a code sample is not a stylesheet')
+  const script = '<script>const CSS = "@page { size: 210mm 297mm }"</script>'
+  assert.equal(PAGE_SIZE.test(withoutQuotedCode(script)), false, 'a JS string is not a stylesheet')
+  const real = '<style>@page { size: 3.5in 2in; margin: 0 }</style>'
+  assert.equal(PAGE_SIZE.test(withoutQuotedCode(real)), true)
+  assert.equal(PAGE_SIZE.test('@page { size: A4 }'), true, 'a named size is the commonest form there is')
+  assert.equal(PAGE_SIZE.test('@page { size: letter }'), true)
+})
+
+test('the ways a page actually animates are all recognised', () => {
+  for (const src of [
+    'animate(".box", { x: [0, 300] }, { duration: 0.4 })',      // motion.dev, the default library
+    '.x { transition-property: transform; transition-duration: 240ms }',
+    '.x { transition: transform var(--dur) ease }',
+    'new Animation(new KeyframeEffect(el, [{ opacity: 0 }]))',
+    '@keyframes rise { to { opacity: 1 } }',
+    'gsap.to(el, { x: 100 })',
+  ]) {
+    assert.ok(MOVES.test(src), `this animates and must be captured: ${src.slice(0, 46)}`)
+  }
+  assert.ok(!MOVES.test('const transitions = rows.map((r) => r.id)'), 'a variable named transitions is not motion')
+})

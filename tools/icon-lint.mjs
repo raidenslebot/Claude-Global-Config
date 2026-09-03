@@ -12,9 +12,14 @@
 // renders soft at the size it is actually used. None of those is visible when you look at the
 // icons one at a time, which is how they are always looked at.
 //
-// So this reads every icon in the set, derives what the SET does, and reports every icon that
-// disagrees with it — plus the things that are wrong at any size, and the stroke that will not
-// survive the size the set is really used at.
+// PARSING. This reads SVG with a small scanner rather than an XML parser, and the rule it obeys
+// is that **not finding something is never the same as it not being there**. Comments are
+// removed before anything is read, so a rejected variant in a comment is not mistaken for live
+// artwork and a comment mentioning <symbol> does not turn a plain icon into a sprite. Tags are
+// scanned with quote awareness, so an attribute value containing ">" does not truncate the tag.
+// A sprite's symbols inherit the root element's attributes and the document's <style>, because
+// that is where a set states its rules. A file that yields no icon at all is reported, not
+// dropped: a silent omission from a set report is the one thing this must never do.
 
 import { readFileSync, statSync, readdirSync, existsSync, realpathSync } from 'node:fs'
 import { join, extname, resolve, basename } from 'node:path'
@@ -22,95 +27,155 @@ import { fileURLToPath } from 'node:url'
 
 const C = { dim: '\x1b[2m', bold: '\x1b[1m', red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', off: '\x1b[0m' }
 
-const attr = (s, name) => {
-  const m = new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"|\\b${name}\\s*=\\s*'([^']*)'`, 'i').exec(s)
-  return m ? (m[1] ?? m[2]) : null
+// ── Scanning ─────────────────────────────────────────────────────────────────────────────────
+
+export const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, ' ')
+
+/** The index just past the end of a tag that starts at `from`, respecting quoted ">". */
+function tagEnd(text, from) {
+  let quote = null
+  for (let i = from; i < text.length; i++) {
+    const ch = text[i]
+    if (quote) { if (ch === quote) quote = null; continue }
+    if (ch === '"' || ch === "'") { quote = ch; continue }
+    if (ch === '>') return i + 1
+  }
+  return -1
 }
 
-// Split a sprite into its symbols; a plain icon file is one "icon" with the whole document.
-export function icons(text, name) {
+/** Every occurrence of <name …> in `text`, with its attribute string and its body. */
+export function tags(text, name) {
   const out = []
-  const symbols = [...text.matchAll(/<symbol\b([^>]*)>([\s\S]*?)<\/symbol>/gi)]
-  if (symbols.length) {
-    for (const s of symbols) {
-      const id = attr(s[1], 'id') || `symbol ${out.length + 1}`
-      out.push({ name: `${name}#${id}`, head: s[1], body: s[2] })
+  const open = new RegExp(`<${name}\\b`, 'gi')
+  let m
+  while ((m = open.exec(text))) {
+    const end = tagEnd(text, m.index)
+    if (end < 0) break
+    const head = text.slice(m.index + name.length + 1, end - 1)
+    const selfClosing = /\/\s*$/.test(head)
+    let body = ''
+    let after = end
+    if (!selfClosing) {
+      const close = new RegExp(`</${name}\\s*>`, 'gi')
+      close.lastIndex = end
+      const c = close.exec(text)
+      body = c ? text.slice(end, c.index) : text.slice(end)
+      after = c ? c.index + c[0].length : text.length
     }
-    return out
+    out.push({ head, body, selfClosing, start: m.index, end: after })
+    open.lastIndex = after
   }
-  const open = /<svg\b([^>]*)>/i.exec(text)
-  if (!open) return out
-  out.push({ name, head: open[1], body: text.slice(open.index + open[0].length) })
   return out
 }
 
-// What one icon declares. Everything is read from the root attributes first, then from the body,
-// because an icon set states its rules once at the top and a stray override is the defect.
+export function attr(head, name) {
+  const m = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, 'i').exec(head)
+  return m ? (m[2] ?? m[3]) : null
+}
+
+/** Split a document into icons. A sprite is its symbols; anything else is one icon. */
+export function icons(text, name) {
+  const clean = stripComments(text)
+  const roots = tags(clean, 'svg')
+  const root = roots[0]
+  // Everything the set states once, at the top: the root attributes and any stylesheet.
+  const styles = tags(clean, 'style').map((s) => s.body).join('\n')
+  const inherited = (root ? root.head : '') + '\n' + styles
+
+  const symbols = tags(clean, 'symbol')
+  if (symbols.length) {
+    return symbols.map((s, i) => ({
+      name: `${name}#${attr(s.head, 'id') || `symbol ${i + 1}`}`,
+      head: s.head,
+      body: s.body,
+      inherited,
+    }))
+  }
+  if (!root) return []
+  return [{ name, head: root.head, body: root.body, inherited: styles }]
+}
+
+const NUMBER = /-?(?:\d+\.\d+|\.\d+|\d+(?:\.\d+)?[eE][-+]?\d+|\d+\.\d+[eE][-+]?\d+)/g
+const ON_GRID = (n) => {
+  const frac = Math.abs(n % 1)
+  return frac < 0.001 || Math.abs(frac - 0.5) < 0.001 || Math.abs(frac - 0.25) < 0.001 || Math.abs(frac - 0.75) < 0.001
+}
+/** A length as a number, whatever unit it is written in. `2px` and `2` are the same weight. */
+export const length = (v) => {
+  if (v === null || v === undefined) return null
+  const m = /^\s*(-?[\d.]+)\s*(px|pt|em|rem)?\s*$/i.exec(String(v))
+  return m ? Number(m[1]) : null
+}
+
 export function read(icon) {
-  const { head, body } = icon
-  const box = (attr(head, 'viewBox') || '').trim().split(/[\s,]+/).map(Number)
+  const { head, body, inherited = '' } = icon
+  const declared = `${inherited}\n${head}`          // what the set and the icon state at the top
+  const all = `${declared}\n${body}`
+
+  const box = (attr(head, 'viewBox') || attr(inherited, 'viewBox') || '').trim().split(/[\s,]+/).map(Number)
   const grid = box.length === 4 && box.every(Number.isFinite) ? Math.max(box[2], box[3]) : null
 
-  const widths = new Set()
-  const rootW = attr(head, 'stroke-width')
-  if (rootW) widths.add(rootW.trim())
-  for (const m of body.matchAll(/stroke-width\s*=\s*["']([^"']+)["']|stroke-width\s*:\s*([^;"'}]+)/gi)) {
-    widths.add(String(m[1] ?? m[2]).trim())
+  // Every stroke width anywhere: the root, the stylesheet, an attribute, an inline style.
+  const widths = []
+  for (const m of all.matchAll(/stroke-width\s*=\s*["']([^"']+)["']|stroke-width\s*:\s*([^;"'}]+)/gi)) {
+    const n = length(m[1] ?? m[2])
+    if (n !== null && n > 0) widths.push(n)
   }
 
-  const caps = new Set([attr(head, 'stroke-linecap'), ...[...body.matchAll(/stroke-linecap\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1])].filter(Boolean))
-  const joins = new Set([attr(head, 'stroke-linejoin'), ...[...body.matchAll(/stroke-linejoin\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1])].filter(Boolean))
+  const caps = new Set([...all.matchAll(/stroke-linecap\s*[=:]\s*["']?\s*([a-z]+)/gi)].map((m) => m[1].toLowerCase()))
+  const joins = new Set([...all.matchAll(/stroke-linejoin\s*[=:]\s*["']?\s*([a-z]+)/gi)].map((m) => m[1].toLowerCase()))
 
-  // Any colour that is not currentColor or none pins the icon to one palette.
+  // A colour that is pinned. Functions that DEFER the colour — url() for a gradient, var() for a
+  // token, currentColor — are the opposite of pinned and must never be reported as such.
   const colours = new Set()
-  for (const m of [head + ' ' + body].join(' ').matchAll(/\b(?:stroke|fill)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\)|[a-z]+)/gi)) {
-    const v = m[1].toLowerCase()
-    if (v === 'currentcolor' || v === 'none' || v === 'inherit' || v.startsWith('url(')) continue
+  for (const m of all.matchAll(/\b(?:stroke|fill|stop-color|flood-color|lighting-color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}|(?:rgba?|hsla?|oklch|oklab|color)\([^)]*\)|url\([^)]*\)|var\([^)]*\)|[a-z]+)/gi)) {
+    const v = m[1].trim().toLowerCase()
+    if (/^(?:currentcolor|none|inherit|transparent|unset|initial|context-fill|context-stroke)$/.test(v)) continue
+    if (v.startsWith('url(') || v.startsWith('var(')) continue
     colours.add(v)
   }
 
-  const stroked = /stroke\s*[=:]/i.test(head + body) && !/stroke\s*[=:]\s*["']?none/i.test(head)
-  const filled = /fill\s*[=:]\s*["']?\s*(?!none)(?!currentcolor)?/i.test(body) || /<(?:circle|rect|path|polygon)\b[^>]*\bfill\s*=\s*["'](?!none)/i.test(body)
+  const stroked = /\bstroke\s*[=:]/i.test(all) && !/\bstroke\s*[=:]\s*["']?\s*none/i.test(declared)
+  const filled = /\bfill\s*[=:]\s*["']?\s*(?!none\b)(?!currentcolor\b)[a-z#(]/i.test(all)
 
-  // Coordinates with long decimals are traced artwork, not drawing on the grid: they land
-  // between pixels and the icon renders soft at the size it is used.
-  const nums = [...body.matchAll(/-?\d+\.\d+/g)].map((m) => m[0])
-  const offGrid = nums.filter((n) => {
-    const frac = Math.abs(Number(n) % 1)
-    return frac > 0.001 && Math.abs(frac - 0.5) > 0.001 && Math.abs(frac - 0.25) > 0.001 && Math.abs(frac - 0.75) > 0.001
-  }).length
+  // Only real geometry counts as coordinates. An opacity of 0.87 is not a traced coordinate.
+  const geometry = [...all.matchAll(/\b(?:d|points)\s*=\s*["']([^"']*)["']/gi)].map((m) => m[1]).join(' ')
+  const nums = (geometry.match(NUMBER) || []).map(Number).filter(Number.isFinite)
+  const offGrid = nums.filter((n) => !ON_GRID(n)).length
 
   return {
     name: icon.name,
     grid,
     viewBox: box.length === 4 ? box.join(' ') : null,
-    widths: [...widths],
+    widths,
     caps: [...caps],
     joins: [...joins],
     colours: [...colours],
     stroked,
     filled,
     text: /<text\b/i.test(body),
-    raster: /<image\b/i.test(body) || /data:image\/(?:png|jpe?g|gif|webp)/i.test(body),
+    raster: /<image\b/i.test(body) || /data:image\/(?:png|jpe?g|gif|webp)/i.test(all),
     offGrid,
     numbers: nums.length,
   }
 }
 
+/** The set's rule, from the majority. A tie has no majority and states no rule. */
 const mode = (xs) => {
   const n = new Map()
   for (const x of xs) n.set(x, (n.get(x) || 0) + 1)
-  let best = null, count = 0
-  for (const [k, v] of n) if (v > count) { best = k; count = v }
-  return { value: best, count, total: xs.length }
+  let best = null, count = 0, tied = false
+  for (const [k, v] of [...n.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
+    if (v > count) { best = k; count = v; tied = false }
+    else if (v === count) tied = true
+  }
+  return { value: tied ? null : best, count, total: xs.length, tied }
 }
 
 export function lintSet(read_, { size = 16 } = {}) {
   const findings = []
   const add = (level, id, icon, note) => findings.push({ level, id, icon, note })
 
-  // What the set does, taken from the majority. A set of one has no majority and no consistency
-  // to break, so only the absolute rules apply to it.
   const boxes = mode(read_.map((i) => i.viewBox).filter(Boolean))
   const strokes = mode(read_.flatMap((i) => i.widths))
   const caps = mode(read_.flatMap((i) => i.caps))
@@ -120,35 +185,43 @@ export function lintSet(read_, { size = 16 } = {}) {
     if (i.text) add('fail', 'live-text', i.name, 'live <text> depends on a font the viewer may not have, and will reflow or fall back. Convert it to a path (cgc outline) or draw it.')
     if (i.raster) add('fail', 'raster', i.name, 'an embedded bitmap cannot scale, cannot be recoloured and defeats the point of an icon. Draw it.')
     if (!i.viewBox) add('fail', 'no-viewbox', i.name, 'no viewBox, so the icon cannot scale to the box it is given.')
-    if (i.colours.length) add('fail', 'hardcoded-colour', i.name, `colour is pinned (${i.colours.slice(0, 3).join(', ')}) — an icon set uses currentColor so it takes the colour of the text it sits beside.`)
+    if (i.colours.length) add('fail', 'hardcoded-colour', i.name, `colour is pinned (${i.colours.slice(0, 3).join(', ')}) — an icon set uses currentColor, or a var() or gradient it can be handed, so it takes the colour of the text it sits beside.`)
 
-    if (boxes.total > 1 && i.viewBox && i.viewBox !== boxes.value) {
+    if (boxes.value && i.viewBox && i.viewBox !== boxes.value) {
       add('fail', 'off-grid-set', i.name, `viewBox ${i.viewBox} against the set's ${boxes.value} — the whole set has to be drawn on one grid or the weights will never match.`)
     }
-    if (strokes.total > 1 && i.widths.length && !i.widths.includes(strokes.value)) {
-      add('fail', 'stroke-weight', i.name, `stroke ${i.widths.join('/')} against the set's ${strokes.value} — a single icon at a different weight reads as a different set.`)
+    // EVERY width has to belong to the set, not just one of them: an icon that is stroke 2 at
+    // the root and 0.4 on two of its paths passed while drawing real hairlines.
+    if (strokes.value !== null && strokes.total > 1) {
+      const strays = [...new Set(i.widths.filter((w) => w !== strokes.value))]
+      if (strays.length) {
+        add('fail', 'stroke-weight', i.name, `stroke ${strays.join(', ')} against the set's ${strokes.value} — a single icon, or a single path inside one, at a different weight reads as a different set.`)
+      }
     }
-    if (caps.total > 1 && i.caps.length && !i.caps.includes(caps.value)) {
+    if (caps.value && i.caps.length && !i.caps.includes(caps.value)) {
       add('warn', 'linecap', i.name, `stroke-linecap ${i.caps.join('/')} against the set's ${caps.value}.`)
     }
-    if (joins.total > 1 && i.joins.length && !i.joins.includes(joins.value)) {
+    if (joins.value && i.joins.length && !i.joins.includes(joins.value)) {
       add('warn', 'linejoin', i.name, `stroke-linejoin ${i.joins.join('/')} against the set's ${joins.value}.`)
     }
 
-    // The stroke that will not survive the size the set is actually used at.
-    const w = Number(i.widths[0] ?? strokes.value)
-    if (i.grid && Number.isFinite(w) && w > 0) {
-      const rendered = w / i.grid * size
+    // The THINNEST stroke decides whether this icon survives the size it is used at.
+    const thinnest = i.widths.length ? Math.min(...i.widths) : strokes.value
+    if (i.grid && Number.isFinite(thinnest) && thinnest > 0) {
+      const rendered = thinnest / i.grid * size
       if (rendered < 1) {
-        add('fail', 'thin-at-size', i.name, `stroke ${w} on a ${i.grid} grid renders ${rendered.toFixed(2)}px at ${size}px — under one pixel, so it will be grey and soft. Either thicken the stroke or draw a separate small-size cut.`)
+        add('fail', 'thin-at-size', i.name, `stroke ${thinnest} on a ${i.grid} grid renders ${rendered.toFixed(2)}px at ${size}px — under one pixel, so it will be grey and soft. Either thicken the stroke or draw a separate small-size cut.`)
       }
     }
 
     if (i.numbers >= 8 && i.offGrid / i.numbers > 0.6) {
-      add('warn', 'traced', i.name, `${i.offGrid} of ${i.numbers} coordinates sit off the grid — this looks traced rather than drawn, and lands between pixels at small sizes.`)
+      add('warn', 'traced', i.name, `${i.offGrid} of ${i.numbers} path coordinates sit off the grid — this looks traced rather than drawn, and lands between pixels at small sizes.`)
     }
   }
 
+  if (boxes.tied && boxes.total > 1) {
+    add('warn', 'no-grid', '(set)', `the set is split evenly between grids (${[...new Set(read_.map((i) => i.viewBox).filter(Boolean))].join(' and ')}), so there is no majority to judge against. Pick one.`)
+  }
   const mixed = read_.filter((i) => i.stroked).length && read_.filter((i) => i.filled && !i.stroked).length
   if (mixed && read_.length > 1) {
     add('warn', 'mixed-idiom', '(set)', 'the set mixes stroked and filled icons — that is a decision when it is one, and an accident when it is two of twelve.')
@@ -157,12 +230,19 @@ export function lintSet(read_, { size = 16 } = {}) {
   return { findings, grid: boxes.value, stroke: strokes.value, count: read_.length }
 }
 
-function walk(p, out = []) {
-  const st = statSync(p)
+function walk(p, out = [], seen = new Set()) {
+  let st
+  try { st = statSync(p) } catch { return out }
   if (st.isDirectory()) {
-    for (const e of readdirSync(p)) {
+    let key = p
+    try { key = realpathSync(p) } catch { /* a dangling link is skipped */ }
+    if (seen.has(key)) return out
+    seen.add(key)
+    let entries = []
+    try { entries = readdirSync(p) } catch { return out }
+    for (const e of entries) {
       if (e.startsWith('.') || e === 'node_modules') continue
-      walk(join(p, e), out)
+      walk(join(p, e), out, seen)
     }
   } else if (extname(p).toLowerCase() === '.svg') out.push(p)
   return out
@@ -171,21 +251,32 @@ function walk(p, out = []) {
 const HELP = `usage:
   cgc icons <dir|file.svg> [<…>] [--size <px>] [--strict] [--json]
 
-Reads every icon in the set (a sprite's <symbol>s count individually), derives what the SET
-does — its grid, its stroke weight, its caps and joins — and reports every icon that disagrees,
+Reads every icon in the set (a sprite's <symbol>s count individually, and inherit the root
+element's attributes and the document's <style>), derives what the SET does — its grid, its
+stroke weight, its caps and joins — from the majority, and reports every icon that disagrees,
 plus the things that are wrong at any size: live text, an embedded bitmap, a missing viewBox, a
-hardcoded colour. --size is the size the set is really used at (default 16); a stroke that
-renders under one pixel there fails. --strict exits 1 on any failure.
+hardcoded colour. --size is the size the set is really used at (default 16); the THINNEST stroke
+in an icon that renders under one pixel there fails. --strict exits 1 on any failure.
+
+A file that yields no icon is reported, never dropped.
 `
 
 export function main(argv = process.argv.slice(2)) {
+  const BOOLEAN = new Set(['strict', 'json', 'help'])
   const args = { _: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a.startsWith('--')) { const k = a.slice(2); if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) args[k] = argv[++i]; else args[k] = true }
-    else args._.push(a)
+    if (a.startsWith('--')) {
+      const k = a.slice(2)
+      if (BOOLEAN.has(k)) { args[k] = true; continue }
+      if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) args[k] = argv[++i]
+      else { console.error(`icons: --${k} wants a value`); return 1 }
+    } else args._.push(a)
   }
   if (args.help || !args._.length) { console.log(HELP); return args.help ? 0 : 1 }
+
+  const size = args.size === undefined ? 16 : Number(args.size)
+  if (!Number.isFinite(size) || size <= 0) { console.error(`icons: --size wants a positive number of pixels, got "${args.size}"`); return 1 }
 
   const files = []
   for (const p of args._) {
@@ -196,24 +287,30 @@ export function main(argv = process.argv.slice(2)) {
   if (!files.length) { console.error('icons: no .svg files at those paths'); return 1 }
 
   const parsed = []
-  for (const f of files) {
-    let text = ''
-    try { text = readFileSync(f, 'utf8') } catch { continue }
-    for (const icon of icons(text, basename(f))) parsed.push(read(icon))
+  const unreadable = []
+  for (const f of [...new Set(files)]) {
+    let text
+    try { text = readFileSync(f, 'utf8') } catch (e) { unreadable.push({ file: basename(f), why: e.message }); continue }
+    const found = icons(text, basename(f))
+    if (!found.length) { unreadable.push({ file: basename(f), why: 'no <svg> element could be read from it' }); continue }
+    for (const icon of found) parsed.push(read(icon))
   }
-  if (!parsed.length) { console.error('icons: nothing parsed — are these SVG documents?'); return 1 }
+  if (!parsed.length && !unreadable.length) { console.error('icons: nothing parsed — are these SVG documents?'); return 1 }
 
-  const size = Number(args.size) || 16
-  const r = lintSet(parsed, { size })
+  const r = parsed.length ? lintSet(parsed, { size }) : { findings: [], grid: null, stroke: null, count: 0 }
+  // A file that could not be read is a hole in the report, and a hole reads as a pass.
+  for (const u of unreadable) {
+    r.findings.push({ level: 'fail', id: 'unreadable', icon: u.file, note: `this file is in the set and could not be read as an icon — ${u.why}. It has not been judged, which is not the same as it being fine.` })
+  }
   const fails = r.findings.filter((f) => f.level === 'fail')
   const warns = r.findings.filter((f) => f.level === 'warn')
 
   if (args.json) {
-    console.log(JSON.stringify({ ok: fails.length === 0, count: r.count, grid: r.grid, stroke: r.stroke, size, findings: r.findings }, null, 2))
+    console.log(JSON.stringify({ ok: fails.length === 0, count: r.count, unreadable: unreadable.length, grid: r.grid, stroke: r.stroke, size, findings: r.findings }, null, 2))
     return fails.length && args.strict ? 1 : 0
   }
 
-  console.log(`\n  ${r.count} icon${r.count === 1 ? '' : 's'} · grid ${r.grid || '?'} · stroke ${r.stroke || 'n/a'} · judged at ${size}px`)
+  console.log(`\n  ${r.count} icon${r.count === 1 ? '' : 's'} · grid ${r.grid || '?'} · stroke ${r.stroke ?? 'n/a'} · judged at ${size}px`)
   if (!r.findings.length) {
     console.log(`  ${C.green}the set agrees with itself${C.off}`)
     console.log(`  ${C.dim}Now look at the contact sheet at ${size}px: consistency is the floor, and it cannot tell you whether the metaphors are any good.${C.off}\n`)
@@ -230,4 +327,8 @@ export function main(argv = process.argv.slice(2)) {
 }
 
 const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
-if (isEntry) process.exit(main())
+if (isEntry) {
+  let code = 1
+  try { code = main() } catch (e) { console.error(`icons: ${e.message}`) }
+  process.exit(code)
+}

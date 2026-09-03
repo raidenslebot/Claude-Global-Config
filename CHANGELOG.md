@@ -5,6 +5,82 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.19.0 — 2026-09-02
+
+An adversarial review of the two newest tools returned 29 findings, and named the theme
+exactly: both treated **"I could not find it" as "it is not there"**, and every one of those
+resolved to a green verdict. That is the worst way for a gate to be wrong — the author is told
+their work is fine when it is not.
+
+### `cgc check` — a gate that produced nothing has not passed
+
+- **Four ways a gate could vanish and be counted as clean.** A child that crashed, printed
+  something unparseable, timed out at the three-minute limit, or was simply missing from a
+  partial install produced no row at all for the techniques, lint and icons gates — only audit
+  and motion had an else. Every gate now goes through one decision that either builds a row
+  from the result or says plainly that there is no result to read.
+
+- **A child that reported nothing wrong and then exited non-zero was trusted.** A tool that
+  crashes after emitting a clean-looking partial result was indistinguishable from success. It
+  is now reported as untrustworthy rather than as a pass.
+
+- **`--strict` and `ok` ignored "could not run".** The file’s own comment stated the rule it
+  was breaking. A skipped gate now makes both fail, which matters most in CI, where `--strict`
+  is the only signal and a missing browser is the normal failure mode.
+
+- **A boolean flag ate the next path**: `check --no-mobile bad.html tiny.svg` checked only the
+  SVG and reported everything clean, and `check --json page.html` handed a JSON consumer the
+  help text. Flags that take no value are now declared as such, and a flag missing its value
+  is an error rather than a silent theft.
+
+- **A docs page was judged as a print piece.** `@page` inside a `<code>` block or a JS string
+  matched, so any tutorial or style guide skipped the lint, the audit and the render entirely.
+  Quoted code is now removed before the test. The inverse was also true: `size: A4`, the
+  commonest form there is, was invisible to the whole print path.
+
+- **Four common ways to animate were missed** — including `animate(…)` from motion.dev, which is
+  the library the stack mandates as its default — so those pages reported "no gate applies".
+
+- **An icon set is a folder, not a tree.** `cgc check .` judged every SVG under a project as one
+  set, so a logo failed for disagreeing with icons it has nothing to do with.
+
+- Also: a result missing a field aborted the whole run; a repeated `--skip` silently kept only
+  the last; a duplicated path ran every gate twice; a junction loop exited with ELOOP; and a
+  file that could not be read vanished from the report.
+
+### `cgc icons` — the parser
+
+- **Everything outside `<symbol>` was discarded**, so a sprite hard-pinned to two hex colours
+  and stroking at a quarter of a pixel from its own stylesheet was declared clean. Symbols now
+  inherit the root attributes and the document `<style>`, which is where a set states its rules.
+
+- **A comment mentioning `<symbol>` turned a plain icon into a sprite of one empty symbol**, and
+  the real document — live text, an embedded raster and a pinned colour, three of the four
+  absolute faults — was thrown away and reported clean. Comments are removed before anything
+  is read, which also stops a rejected variant inside a comment being read as live artwork.
+
+- **Only the first stroke width was ever tested**, so an icon at stroke 2 with two 0.4 paths
+  inside it passed while drawing real hairlines. Every width is now checked against the set,
+  and the thinnest one decides whether the icon survives the size it is used at.
+
+- **A deferred colour was reported as a pinned one and a real pin was missed.** `url(#gradient)`
+  and `var(--icon)` — the two ways an icon is HANDED its colour — were failures, while the
+  `stop-color` hexes inside that gradient, which are a genuine pin, were never looked at.
+
+- **A self-closing `<symbol/>` swallowed the next symbol**, losing an icon, misattributing one
+  finding and destroying another.
+
+- Also: `2px` and `2` were different weights; eight `opacity="0.87"` values counted as eight
+  traced coordinates; an attribute containing `>` truncated the root tag and produced a false
+  "no viewBox"; `fill="none"` counted as filled; a tie between two grids blamed whichever
+  sorted later; `--size abc` silently became 16 and `--size` with nothing after it became 1px,
+  failing every icon; and a file in the set that yielded no icon was dropped without a word.
+
+### One thing I could not verify here
+
+The unreadable-file path is fixed and reads correctly, but I could not construct its trigger on
+this machine: the process runs elevated, so a denied ACL is bypassed, and the other trigger is a
+file past Node’s string limit. It is four lines and covered by inspection, not by a test.
 ## 1.18.0 — 2026-09-02
 
 A gate nobody is told to run is a gate that does not exist — which is the same defect as the

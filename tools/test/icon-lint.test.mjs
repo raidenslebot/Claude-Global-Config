@@ -41,7 +41,7 @@ test('the set that ships agrees with itself', () => {
   const r = lint(SHIPPED)
   assert.equal(r.json.ok, true, JSON.stringify(r.json.findings, null, 1))
   assert.equal(r.json.grid, '0 0 24 24')
-  assert.equal(r.json.stroke, '2')
+  assert.equal(r.json.stroke, 2, 'a stroke width is a number, whatever unit it was written in')
   assert.ok(r.json.count >= 8)
 })
 
@@ -98,4 +98,124 @@ test('--help exits 0 and a missing path is a failure', () => {
   assert.match(help.stdout, /cgc icons/)
   const missing = spawnSync(process.execPath, [TOOL, join(tmpdir(), 'no-icons-here-8812')], { encoding: 'utf8', timeout: 30000 })
   assert.equal(missing.status, 1)
+})
+
+// ── Not finding something is never the same as it not being there ────────────────────────────
+// Every case below used to end in a green verdict, which is the worst way for a gate to be
+// wrong: the author is told their work is fine when it is not.
+
+test('a sprite inherits the root attributes and the document stylesheet', (t) => {
+  // Everything outside <symbol> was discarded, so a set hard-pinned to two hex colours and
+  // stroking at a quarter of a pixel was declared clean.
+  const dir = set(t, {
+    'sprite.svg': [
+      '<svg xmlns="http://www.w3.org/2000/svg" fill="#e11d48" stroke="#0f172a">',
+      '<style>svg symbol path { stroke-width: 0.25; }</style>',
+      '<defs>',
+      '<symbol id="a" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol>',
+      '<symbol id="b" viewBox="0 0 24 24"><path d="M4 6h16"/></symbol>',
+      '</defs></svg>',
+    ].join('\n'),
+  })
+  const { json } = lint(dir)
+  assert.equal(json.ok, false, 'a pinned, hairline sprite is not clean')
+  assert.ok(ids(json).includes('hardcoded-colour'), 'the root colours apply to every symbol')
+  assert.ok(ids(json).includes('thin-at-size'), 'the stylesheet stroke applies to every symbol')
+  assert.equal(json.stroke, 0.25)
+})
+
+test('a comment is not read as artwork, in either direction', (t) => {
+  // A comment mentioning <symbol> turned a plain icon into a sprite of one empty symbol and
+  // the real document — live text, a raster and a pinned colour — was thrown away.
+  const disguised = set(t, {
+    'a.svg': [
+      '<svg viewBox="0 0 24 24" fill="#ff0000">',
+      '<!-- in the sprite this becomes <symbol id="x" viewBox="0 0 24 24"></symbol> -->',
+      '<text x="2" y="20">LIVE</text>',
+      '<image href="data:image/png;base64,iVBORw0KGgo="/>',
+      '</svg>',
+    ].join('\n'),
+  })
+  const found = ids(lint(disguised).json)
+  for (const id of ['live-text', 'raster', 'hardcoded-colour']) {
+    assert.ok(found.includes(id), `${id} must survive a comment that mentions <symbol>`)
+  }
+  // And the other way: a rejected variant inside a comment is not a live declaration.
+  const commented = set(t, {
+    'b.svg': '<svg viewBox="0 0 24 24" stroke="currentColor">\n<!-- rejected: stroke-width="0.5" -->\n<path d="M4 12h16" stroke-width="2"/>\n</svg>',
+  })
+  assert.deepEqual(ids(lint(commented).json), [], 'a commented-out hairline is not a hairline')
+})
+
+test('the thinnest stroke in an icon is the one that has to survive the size', (t) => {
+  const dir = set(t, {
+    'a.svg': ok(), 'b.svg': ok(), 'c.svg': ok(),
+    'hair.svg': '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/><path d="M4 6h16" stroke-width="0.4"/></svg>',
+  })
+  const found = ids(lint(dir).json)
+  assert.ok(found.includes('thin-at-size'), 'a 0.4 stroke on a 24 grid is a quarter pixel at 16px')
+  assert.ok(found.includes('stroke-weight'), 'and it is not the weight the set uses')
+})
+
+test('a deferred colour is the opposite of a pinned one', (t) => {
+  const token = set(t, { 'a.svg': ok().replace('stroke="currentColor"', 'stroke="var(--icon)"') })
+  assert.ok(!ids(lint(token).json).includes('hardcoded-colour'), 'a var() is handed its colour')
+  // But the stops inside a gradient are a real pin, and were being missed entirely.
+  const grad = set(t, {
+    'b.svg': '<svg viewBox="0 0 24 24" stroke-width="2"><defs><linearGradient id="g"><stop stop-color="#ff0000"/></linearGradient></defs><path d="M4 12h16" fill="url(#g)"/></svg>',
+  })
+  const f = lint(grad).json.findings.find((x) => x.id === 'hardcoded-colour')
+  assert.ok(f, 'a gradient pinned to a hex is pinned')
+  assert.match(f.note, /#ff0000/, 'and the note names the colour, not the url()')
+})
+
+test('a self-closing symbol does not swallow the next one', (t) => {
+  const dir = set(t, {
+    'sprite.svg': '<svg stroke="currentColor" stroke-width="2"><symbol id="placeholder" viewBox="0 0 24 24"/>'
+      + '<symbol id="real-one" viewBox="0 0 20 20"><text x="2" y="16">A</text></symbol>'
+      + '<symbol id="real-two" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol></svg>',
+  })
+  const { json } = lint(dir)
+  assert.equal(json.count, 3, 'all three symbols are read')
+  const live = json.findings.find((f) => f.id === 'live-text')
+  assert.ok(live && live.icon.endsWith('#real-one'), `the finding belongs to the icon that has the text, got ${live && live.icon}`)
+  assert.ok(ids(json).includes('off-grid-set'), 'and the 20 grid is still caught')
+})
+
+test('a length is a number whatever unit it is written in', (t) => {
+  const dir = set(t, {
+    'a.svg': ok(), 'b.svg': ok(),
+    'c.svg': '<svg viewBox="0 0 24 24" stroke="currentColor" style="stroke-width:2px"><path d="M4 12h16"/></svg>',
+  })
+  assert.deepEqual(ids(lint(dir).json), [], '2px and 2 are the same weight')
+})
+
+test('only path coordinates count as coordinates', (t) => {
+  const paths = Array.from({ length: 8 }, (_, i) => `<path d="M${i} ${i}h4" opacity="0.87"/>`).join('')
+  const dir = set(t, { 'a.svg': `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">${paths}</svg>` })
+  assert.ok(!ids(lint(dir).json).includes('traced'), 'eight opacity values are not eight traced coordinates')
+})
+
+test('an attribute value containing a bracket does not truncate the tag', (t) => {
+  const dir = set(t, { 'a.svg': '<svg aria-label="a > b" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>' })
+  assert.ok(!ids(lint(dir).json).includes('no-viewbox'), 'the viewBox is in the tag and must be found')
+})
+
+test('a file in the set that cannot be read is reported, not dropped', (t) => {
+  const dir = set(t, { 'a.svg': ok(), 'b.svg': ok(), 'c.svg': ok(), 'broken.svg': 'not an svg at all' })
+  const { json, status } = lint(dir, ['--strict'])
+  assert.equal(json.count, 3)
+  const f = json.findings.find((x) => x.id === 'unreadable')
+  assert.ok(f, 'a hole in the report reads as a pass')
+  assert.match(f.note, /has not been judged/)
+  assert.equal(status, 1, 'and it is a failure, because nothing verified it')
+})
+
+test('fill="none" is not a filled icon, and --size wants a real size', (t) => {
+  const dir = set(t, { 'a.svg': '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 12h16" fill="none"/></svg>' })
+  assert.deepEqual(ids(lint(dir).json), [], 'a stroked icon that says fill="none" is not mixed')
+  for (const bad of [['--size', 'abc'], ['--size', '-5'], ['--size']]) {
+    const r = spawnSync(process.execPath, [TOOL, dir, ...bad], { encoding: 'utf8', timeout: 30000 })
+    assert.equal(r.status, 1, `--size ${bad[1] ?? '(nothing)'} must be refused, not silently defaulted`)
+  }
 })
