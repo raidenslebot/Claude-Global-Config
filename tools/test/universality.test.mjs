@@ -10,10 +10,12 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, statSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import os from 'node:os'
+import { tmpdir } from 'node:os'
 import { REPO } from '../paths.mjs'
 
 /** Every text file this package SHIPS to a user's machine. */
@@ -170,4 +172,31 @@ test('no shipped file assumes a single operating system in its paths', () => {
   }
   assert.deepEqual(offenders, [],
     `config ships to other machines — use a {{TOKEN}}:\n  ${offenders.join('\n  ')}`)
+})
+
+test('the Tier-3 library is found portably, never at a path baked into the source', () => {
+  // The candidate list began with a literal C:\Claude\dskills. It worked on the machine that
+  // wrote it and was dead weight on every other one, which is the one thing this package is not
+  // allowed to be. It resolves the same way here — the repo's sibling — without naming a drive.
+  const src = readFileSync(join(REPO, 'tools', 'paths.mjs'), 'utf8')
+  const block = src.slice(src.indexOf('LIBRARY_ROOT: ['), src.indexOf('].filter(Boolean)'))
+  assert.doesNotMatch(block, /['"][A-Za-z]:[\/]/, 'a drive letter in the candidate list')
+  assert.doesNotMatch(block, /\/(home|Users)\//, 'an absolute POSIX home in the candidate list')
+  assert.match(block, /process\.env\.CGC_LIBRARY_ROOT/, 'a machine that keeps it elsewhere must be able to say so')
+})
+
+test('CGC_LIBRARY_ROOT is honoured, so a machine can put the library where it likes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cgc-lib-'))
+  const had = process.env.CGC_LIBRARY_ROOT
+  try {
+    process.env.CGC_LIBRARY_ROOT = dir
+    // A fresh module instance: buildVars reads the environment when it is called, and the cached
+    // one was loaded before this test set it.
+    const fresh = await import(pathToFileURL(join(REPO, 'tools', 'paths.mjs')).href + '?libroot')
+    assert.equal(fresh.buildVars().LIBRARY_ROOT, dir)
+  } finally {
+    if (had === undefined) delete process.env.CGC_LIBRARY_ROOT
+    else process.env.CGC_LIBRARY_ROOT = had
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

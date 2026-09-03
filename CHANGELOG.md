@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.35.0 — 2026-09-02
+
+A clone from the remote onto a sandbox machine, installed, then the whole loop run out of it:
+render, lint, audit, motion, techniques, check, print-lint, print, outline, specimen. Ten steps,
+all zero, and eight files on disk at the end — a PNG, a contact sheet, a PDF at trim + bleed, an
+outlined wordmark, a specimen. The pipeline a new machine gets works.
+
+What the run exposed was not in the pipeline but under it: **the Tier-3 library was found at a
+path baked into the source.** The candidate list began with a literal `C:\Claude\dskills`. It
+resolved correctly on the machine that wrote it and was dead weight on every other one, which is
+the one thing this package is not allowed to be.
+
+It resolves the same way now — the repo's own sibling — without naming a drive, and a machine
+that keeps the library somewhere else can say so once with `CGC_LIBRARY_ROOT` and have every
+tool agree. Two tests hold it: no drive letter and no absolute home in that list, and the
+environment variable actually honoured.
+
+The sandbox also confirmed the thing that was worth re-checking. The last fresh-clone run, many
+versions ago, found the defect of that session: a new install had no browser while the doctor
+reported healthy. This one launches a browser, renders, audits and prints on the first try.
+
 ## 1.34.0 — 2026-09-02
 
 The Tier-3 library: 814 skills nobody loads, reachable only by grepping one index. Two ways that

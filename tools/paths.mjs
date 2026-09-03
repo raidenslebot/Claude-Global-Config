@@ -59,11 +59,18 @@ export function buildVars(overrides = {}) {
     NODE: detectNode(),
     // An ALREADY-INSTALLED library wins, so a re-install adopts it instead of cloning a
     // second copy. Only a machine with none falls through to the repo-local default.
+    // CGC_LIBRARY_ROOT first, so a machine that keeps the library somewhere else says so once
+    // and every tool agrees. The candidates after it are portable: a sibling of this repo, then
+    // one under the home directory, then inside the repo. There was an absolute Windows path at
+    // the head of this list. It worked on the machine that wrote it and was dead weight on every
+    // other one, which is the one thing this package is not allowed to be.
     LIBRARY_ROOT: [
-      'C:\\Claude\\dskills',
+      process.env.CGC_LIBRARY_ROOT,
+      process.env.LIBRARY_ROOT,
+      join(REPO, '..', 'dskills'),
       join(HOME, 'dskills'),
       join(REPO, 'library', 'repos'),
-    ].find(existsSync) || join(REPO, 'library', 'repos'),
+    ].filter(Boolean).find(existsSync) || join(REPO, 'library', 'repos'),
     ESLINT_CONFIG: detectEslintConfig(),
     T3MP3ST_ROOT: detectOptional('t3mp3st', [
       join(HOME, 'T3MP3ST'), 'C:\\Claude\\T3MP3ST', join(HOME, 'src', 'T3MP3ST'),
