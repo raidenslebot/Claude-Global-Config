@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.34.0 — 2026-09-02
+
+The Tier-3 library: 814 skills nobody loads, reachable only by grepping one index. Two ways that
+route was quietly wrong.
+
+- **The index dropped what it could not read, in silence.** A `SKILL.md` with no front matter has
+  no name and no description to grep for, so the builder skipped it and said nothing. Eight real
+  files were invisible to the only route anybody is told to use — grep found nothing, and nothing
+  found reads as nothing there. They are counted in the run's own output and listed by path at
+  the end of the index now, so a search for the topic still lands on the file.
+- **The command the mandates document pointed at a stale copy of the builder.** The global
+  instruction is `node C:\Claude\dskills\_index\build-index.mjs`, and that copy was written once,
+  long ago, and never again — it had drifted behind the one this package ships and no longer
+  carried its exclusion rules. Running it exactly as documented would have rebuilt the index by
+  the old rules. A documented command that quietly produces the wrong answer is worse than one
+  that fails. The installer keeps that copy in step now, and the doctor fails if the two ever
+  differ, naming the command that fixes it.
+
+Every one of the 814 paths the index lists resolves; that part was already true and is now
+checked by a test that builds a two-skill library and reads the result.
+
 ## 1.33.0 — 2026-09-02
 
 The same blindness as 1.32.0, one section further down, plus the reason a fresh machine could

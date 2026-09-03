@@ -38,9 +38,13 @@ function frontmatter(file) {
 }
 
 const rows = []
+// A SKILL.md with no readable front matter is not indexable — but dropping it in silence is
+// how a skill becomes invisible to the only route anybody is told to use. Grep finds nothing,
+// and nothing found reads as nothing there. They are counted and listed at the end.
+const unreadable = []
 for (const f of walk(ROOT)) {
   const fm = frontmatter(f)
-  if (!fm) continue
+  if (!fm) { unreadable.push(relative(ROOT, f)); continue }
   const rel = relative(ROOT, f)
   if (EXCLUDE.some((frag) => rel.includes(frag))) continue
   rows.push({ repo: rel.split(sep)[0], name: fm.name, desc: (fm.description || '').replace(/\s+/g, ' ').slice(0, 300), path: rel })
@@ -56,6 +60,16 @@ for (const [repo, list] of Object.entries(byRepo)) {
   for (const r of list) md += `- **${r.name}** — ${r.desc || '(no description)'}\n  \`${r.path}\`\n`
   md += '\n'
 }
+// Said in the file itself, because the file is the only thing anybody greps.
+if (unreadable.length) {
+  md += `## not indexed (${unreadable.length})\n\n`
+  md += 'These SKILL.md files carry no readable front matter, so there is no name or description'
+  md += ' to grep for. They are listed by path because a file that cannot be indexed still exists,'
+  md += ' and a search that finds nothing must not be read as nothing being there.\n\n'
+  for (const p of unreadable) md += '- `' + p + '`\n'
+  md += '\n'
+}
 writeFileSync(join(ROOT, '_index', 'INDEX.md'), md, 'utf8')
-console.log(`  ${rows.length} skills indexed across ${Object.keys(byRepo).length} repos`)
+console.log(`  ${rows.length} skills indexed across ${Object.keys(byRepo).length} repos`
+  + (unreadable.length ? ` · ${unreadable.length} SKILL.md with no readable front matter, listed at the end of the index` : ''))
 for (const [repo, list] of Object.entries(byRepo)) console.log(`    ${repo.padEnd(24)} ${String(list.length).padStart(4)}`)

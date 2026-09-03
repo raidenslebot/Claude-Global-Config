@@ -9,7 +9,9 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { REPO } from '../paths.mjs'
 
@@ -89,4 +91,26 @@ test('every Tier-3 table row that prints a live version has a sidecar row record
       assert.equal(r.recorded, c.live, `${c.skill}: sidecar records ${r.recorded}, the table says ${c.live}`)
     }
   }
+})
+
+test('the index builder names what it could not index, instead of dropping it in silence', (t) => {
+  // A SKILL.md with no front matter has no name and no description to grep for, so the builder
+  // skipped it — silently. Grep found nothing, and nothing found reads as nothing there. Eight
+  // real files were invisible to the only route anybody is told to use.
+  const root = mkdtempSync(join(tmpdir(), 'cgc-index-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(join(root, '_index'), { recursive: true })
+  mkdirSync(join(root, 'a-repo', 'good'), { recursive: true })
+  mkdirSync(join(root, 'a-repo', 'headless'), { recursive: true })
+  writeFileSync(join(root, 'a-repo', 'good', 'SKILL.md'), '---\nname: good-skill\ndescription: one that can be indexed\n---\nbody')
+  writeFileSync(join(root, 'a-repo', 'headless', 'SKILL.md'), '# No front matter here\n\nstill a real file')
+
+  const r = spawnSync(process.execPath, [join(REPO, 'library', 'build-index.mjs')],
+    { encoding: 'utf8', timeout: 120000, env: { ...process.env, LIBRARY_ROOT: root } })
+  assert.equal(r.status, 0, r.stderr)
+  const index = readFileSync(join(root, '_index', 'INDEX.md'), 'utf8')
+  assert.match(index, /good-skill/, 'the indexable one is indexed')
+  assert.match(index, /## not indexed \(1\)/, 'and the one that could not be is counted')
+  assert.ok(index.includes('headless') && index.includes('SKILL.md'), 'by path, so a grep for the topic still finds it')
+  assert.match(r.stdout, /no readable front matter/, 'and the run says so out loud')
 })

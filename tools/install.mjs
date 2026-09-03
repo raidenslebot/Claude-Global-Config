@@ -504,6 +504,18 @@ if (wants('library') && !SKIP.has('library')) {
     }
     const idx = join(REPO, 'library', 'build-index.mjs')
     if (existsSync(idx)) {
+      // The mandates tell a session to regenerate the index by running the copy under
+      // _index/. That copy was written once and never again, so it drifted behind this one
+      // and running it as documented would have rebuilt the index by the old rules. Keep it
+      // current: the documented path and the real builder have to be the same file.
+      const deployed = join(root, '_index', 'build-index.mjs')
+      if (!DRY) {
+        mkdirSync(dirname(deployed), { recursive: true })
+        if (!existsSync(deployed) || readFileSync(deployed, 'utf8') !== readFileSync(idx, 'utf8')) {
+          writeFileSync(deployed, readFileSync(idx, 'utf8'), 'utf8')
+          ok('index builder refreshed under _index/ — the documented path is the current one')
+        }
+      }
       const r = run(vars.NODE, [idx], { env: { ...process.env, LIBRARY_ROOT: root } })
       r.status === 0 || DRY ? ok('index rebuilt') : warn('index build failed')
     }

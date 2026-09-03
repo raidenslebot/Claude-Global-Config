@@ -280,6 +280,19 @@ phase('Tier-2 skills')
     // warning naming the one command that installs them, not thirteen failures and "install is
     // broken". A library that IS present with a skill missing from it stays a failure.
     const libraryPresent = t2.some((s) => existsSync(join(LIBRARY_ROOT, ...s.path.split('/'))))
+    // The mandates tell a session to regenerate the index by running the copy under _index/.
+    // That copy was written once and never again, so it drifted behind the repo's and running
+    // it as documented rebuilt the index by the old rules — a documented command that quietly
+    // produces the wrong answer is worse than one that fails.
+    if (libraryPresent) {
+      const shipped = join(REPO, 'library', 'build-index.mjs')
+      const deployed = join(LIBRARY_ROOT, '_index', 'build-index.mjs')
+      if (!existsSync(deployed)) {
+        fail(`the index builder is missing from ${deployed} — the command the mandates document cannot run. node tools/install.mjs --only=library`)
+      } else if (existsSync(shipped) && readFileSync(deployed, 'utf8') !== readFileSync(shipped, 'utf8')) {
+        fail(`${deployed} is not the builder this package ships — regenerating the index with it would use the wrong rules. node tools/install.mjs --only=library`)
+      } else ok('the documented index builder is the one this package ships')
+    }
     if (!libraryPresent && t2.length) {
       warn(`Tier-2 skills not installed — the Tier-3 library was skipped or has not been cloned. `
         + `They are optional: node tools/install.mjs --only=library installs all ${t2.length}.`)
