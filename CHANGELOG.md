@@ -5,6 +5,24 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.41.0 — 2026-09-02
+
+**A garment mockup that shows nothing looks exactly like a garment mockup.** I rendered the
+apparel example the lazy way — `cgc print front-mark.svg --mockup tee --zone left-chest`, no
+`--garment` — and got a clean, plausible picture of a t-shirt with, on close inspection, an
+invisible print: cream artwork at **1.20:1** against the default light-grey blank. Every
+documented command in the skill passes the blank the piece was drawn for; nothing said a word
+when one did not.
+
+That is the same silence a proof of nothing always has, and the same shape as the directory
+rendered as a PDF in 1.31.0: the output arrives, it looks like the thing, and only the content is
+missing. The mockup now reads the artwork's ink — the colour it is mostly drawn in, comments and
+`currentColor` excluded — measures it against the blank, and says so below 2:1, naming both
+colours and the ratio.
+
+Said, not refused. A tone-on-tone print is a real decision and a good one; what is not a decision
+is finding out at the shop.
+
 ## 1.40.0 — 2026-09-02
 
 **The identity sheet's one variable read as two pictures.** Two tiles, each a ring with a bar,

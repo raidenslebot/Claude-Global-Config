@@ -200,3 +200,49 @@ test('artwork drawn at trim size is refused, not placed in the corner of the she
   assert.equal(run(right, ['--trim', '3.5x2in', '--bleed', '0.125in']).status, 0)
   assert.equal(run(wrong, ['--trim', '3.5x2in', '--bleed', '0']).status, 0, 'no bleed means the page IS the trim')
 })
+
+test('a mockup says when the print cannot be seen on the blank it is shown on', (t) => {
+  // A mockup exists to show the print on the garment. Cream artwork on the default light-grey
+  // blank is a picture of an empty shirt — and it looks exactly like a picture of a shirt, which
+  // is the silence a proof of nothing always has.
+  const d = scratch(t)
+  const art = join(d, 'mark.svg')
+  writeFileSync(art, '<svg xmlns="http://www.w3.org/2000/svg" width="3.5in" height="3.5in" viewBox="0 0 350 350">'
+    + '<circle cx="175" cy="175" r="120" fill="none" stroke="#efe9dc" stroke-width="16"/>'
+    + '<rect x="47" y="169" width="256" height="8" fill="#efe9dc"/></svg>')
+  const run = (extra) => spawnSync(process.execPath,
+    [TOOL, art, '--mockup', 'tee', '--zone', 'left-chest', '--out', join(d, 'm'), ...extra],
+    { encoding: 'utf8', timeout: 180000 })
+
+  const invisible = run([])
+  assert.equal(invisible.status, 0, 'tone on tone is a real choice, so this is said and not refused')
+  assert.match(invisible.stderr, /#efe9dc.*#d9d6cf.*1\.\d\d:1/, invisible.stderr)
+  assert.match(invisible.stderr, /barely visible/)
+  assert.match(invisible.stderr, /--garment/)
+
+  // On the blank it was drawn for, nothing is said.
+  const right = run(['--garment', '#1f2a44'])
+  assert.equal(right.status, 0)
+  assert.doesNotMatch(right.stderr, /barely visible/, right.stderr)
+})
+
+test('the ink of a piece of artwork is the colour it is mostly drawn in', async () => {
+  const { artworkInk, inkContrast } = await import('../print-render.mjs')
+  const d = mkdtempSync(join(tmpdir(), 'ink-'))
+  try {
+    const f = join(d, 'a.svg')
+    // Two strokes of one ink and one stray accent: the ink is the one it is mostly drawn in.
+    writeFileSync(f, '<svg xmlns="http://www.w3.org/2000/svg"><path stroke="#efe9dc"/><rect fill="#efe9dc"/><circle fill="#ff5a1f"/></svg>')
+    assert.equal(artworkInk(f), '#efe9dc')
+    // A comment naming a colour is not the artwork's ink.
+    const g = join(d, 'b.svg')
+    writeFileSync(g, '<svg xmlns="http://www.w3.org/2000/svg"><!-- fill="#000000" --><path stroke="#1f2a44"/></svg>')
+    assert.equal(artworkInk(g), '#1f2a44')
+    // currentColor and none defer the decision and are not an ink.
+    const h = join(d, 'c.svg')
+    writeFileSync(h, '<svg xmlns="http://www.w3.org/2000/svg"><path fill="none" stroke="currentColor"/></svg>')
+    assert.equal(artworkInk(h), null)
+    assert.ok(Math.abs(inkContrast('#ffffff', '#000000') - 21) < 0.01)
+    assert.equal(inkContrast('#efe9dc', 'not a colour'), null)
+  } finally { rmSync(d, { recursive: true, force: true }) }
+})

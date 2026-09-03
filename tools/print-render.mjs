@@ -236,6 +236,45 @@ export function distanceProof(distanceInches, viewerInches = 12) {
   return { dpi: 96 * scale, scale }
 }
 
+/** The ink a piece of artwork is printed in, as a hex colour, or null when it cannot be read.
+ *  The most-used pinned colour wins: one-colour apparel artwork is one ink, and a mockup on a
+ *  garment that ink cannot be seen against is a proof of nothing. */
+export function artworkInk(file) {
+  if (extname(file).toLowerCase() !== '.svg') return null
+  let t
+  try { t = readFileSync(file, 'utf8') } catch { return null }
+  t = t.replace(/<!--[\s\S]*?-->/g, ' ')
+  const count = new Map()
+  for (const m of t.matchAll(/\b(?:fill|stroke|stop-color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\))/gi)) {
+    const v = m[1].toLowerCase()
+    count.set(v, (count.get(v) || 0) + 1)
+  }
+  if (!count.size) return null
+  return [...count.entries()].sort((a, b) => b[1] - a[1])[0][0]
+}
+
+/** Contrast between two CSS colours, on the WCAG definition. Null when either cannot be read. */
+export function inkContrast(a, b) {
+  const rgb = (c) => {
+    const s = String(c || '').trim().toLowerCase()
+    let m = s.match(/^#([0-9a-f]{3})$/i)
+    if (m) return [...m[1]].map((x) => parseInt(x + x, 16))
+    m = s.match(/^#([0-9a-f]{6})/i)
+    if (m) return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16))
+    m = s.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i)
+    if (m) return [Number(m[1]), Number(m[2]), Number(m[3])]
+    return null
+  }
+  const A = rgb(a), B = rgb(b)
+  if (!A || !B) return null
+  const lum = (p) => {
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+    return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2])
+  }
+  const x = lum(A), y = lum(B)
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
 export function artSize(file) {
   const ext = extname(file).toLowerCase()
   if (ext === '.svg') {
@@ -345,6 +384,18 @@ export async function main(argv = process.argv.slice(2)) {
     if (!zone) { console.error(`print-render: unknown zone "${args.zone}" for ${args.mockup} — one of ${Object.keys(g.zones).join(', ')}`); return 1 }
     const flatSvg = readFileSync(join(dirname(zonesFile), g.file), 'utf8')
     const size = artSize(src)
+    // A mockup exists to show the print on the blank. Cream artwork on a light-grey blank is
+    // a picture of an empty shirt, and it looks exactly like a picture of a shirt — the same
+    // silence a proof of nothing always has. Tone on tone is a real choice, so this is said
+    // rather than refused.
+    const garmentColour = String(args.garment || '#d9d6cf')
+    const ink = artworkInk(src)
+    const ratio = ink ? inkContrast(ink, garmentColour) : null
+    if (ratio !== null && ratio < 2) {
+      console.error(`print-render: the artwork is ${ink} and the blank is ${garmentColour} — ${ratio.toFixed(2)}:1.`)
+      console.error('  On this garment the print is barely visible, and the mockup will look like an empty shirt.')
+      console.error('  If that is the intention it is a tonal print; otherwise pass --garment with the blank it was drawn for.')
+    }
     let artW = args['art-width'] ? parseLength(String(args['art-width'])) : zone.w
     let artH = artW * (size.h / size.w)
     if (artH > zone.h) { artH = zone.h; artW = artH * (size.w / size.h) }
