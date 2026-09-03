@@ -197,7 +197,11 @@ function selfTest(head) {
   const num = (k) => { const m = new RegExp(`(?:ℹ|#)\\s*${k}\\s+(\\d+)`).exec(text); return m ? Number(m[1]) : null }
   // A skipped test is one that could not run here (no browser, say), not one that failed; the
   // line counts passes against the tests that ran, so 215/215 rather than a false 215/216.
-  const res = { head, at: Date.now(), total: num('tests') ?? 0, pass: num('pass') ?? 0, fail: num('fail') ?? (r.status === 0 ? 0 : 1), skipped: num('skipped') ?? 0, timedOut: Boolean(r.error) }
+  // A run that produced no counts is a run that did not happen — a crashed runner, a syntax
+  // error mid-edit, a suite that never started. Recording it as 0 of 0 and printing "0/0 tests"
+  // says the package has no tests, which is a confident answer to a question nothing answered.
+  const unread = num('tests') === null && num('pass') === null
+  const res = { head, at: Date.now(), total: num('tests') ?? 0, pass: num('pass') ?? 0, fail: num('fail') ?? (r.status === 0 ? 0 : 1), skipped: num('skipped') ?? 0, timedOut: Boolean(r.error), unread }
   writeJson(cache, res)
   return res
 }
@@ -208,7 +212,7 @@ function compose(ver, u, v, t) {
   const parts = [`CGC v${ver} ${bad ? 'DEGRADED' : 'enabled'}`]
   if (v) parts.push(`${v.ok}/${v.total} checks${v.failed.length ? ` (${v.failed.length} failed: ${v.failed[0]})` : ''}${v.repaired ? ' · repaired' : ''}`)
   else parts.push('checks unavailable')
-  if (t) parts.push(t.timedOut ? 'tests timed out' : `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`)
+  if (t) parts.push(t.timedOut ? 'tests timed out' : t.unread ? 'the test suite could not be read' : `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`)
   const upd = {
     'no-git': 'not a git clone — cannot auto-update',
     'no-git-cli': 'git is not on PATH — cannot update',

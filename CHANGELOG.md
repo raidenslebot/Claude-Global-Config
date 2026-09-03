@@ -5,6 +5,32 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.45.0 — 2026-09-03
+
+**440 tests this package ships were run by nothing.** `argo` is installed by `install.mjs`,
+linked onto PATH, checked by the doctor and named in the mandates — and `npm test` here walked
+`tools/test/` and stopped. The count in the session line was a true statement about a set that
+quietly excluded a shipped component, and a red suite inside it would have gone unnoticed
+indefinitely. It is the same shape as the hook that was never fuzzed one release ago: *a test
+that checks what it happens to find is not a test of what runs.*
+
+The runner discovers them rather than listing them — a component qualifies by carrying its own
+`test` script, because a list is the thing that goes stale — and prints **one** summary block at
+the end, since anything reading these counts takes the first it finds. The line now reads
+**848/848**, of which 440 were previously invisible. argo's suite is green; that is now a fact
+this package checks rather than assumes.
+
+Two smaller things fell out of it, both the same defect in different clothes:
+
+- **A nested test run reports into its parent instead of printing a summary.** A child that
+  inherits `NODE_TEST_CONTEXT` exits 0 with no counts at all — indistinguishable from a suite
+  with no tests in it. Children are given a clean environment now, in the runner and in the test
+  that checks the runner.
+- **A run that produced no counts was recorded as zero of zero**, and the session line said
+  `0/0 tests` — a confident claim that the package has no tests, in the one line a session is
+  told to trust and repeat verbatim. It says *the test suite could not be read* now. A crashed
+  runner is not an empty suite.
+
 ## 1.44.0 — 2026-09-03
 
 **The hooks, fuzzed.** They run at every session start, every prompt and every write, and

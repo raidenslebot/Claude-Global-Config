@@ -484,3 +484,47 @@ test('a page saved as UTF-16 is a page, not a binary', (t) => {
   assert.equal(bin.status, 1, 'a real binary is still refused')
   assert.match(bin.stderr, /not a text file/)
 })
+
+test('the test runner runs every suite this package ships, not only its own', () => {
+  // argo is installed by install.mjs, linked onto PATH, checked by the doctor and named in the
+  // mandates — and its 440 tests were run by nothing here. The count in the session line was a
+  // true statement about a set that quietly excluded a shipped component, so a red suite in it
+  // would have gone unnoticed indefinitely.
+  //
+  // The runner is not spawned from inside this test: node's test runner does not nest, and a
+  // runner that cannot run under itself would make this assert nothing. What is checked instead
+  // is the rule it uses, the component that rule finds, and that the found suite is green.
+  const src = readFileSync(join(TOOLS, 'run-tests.mjs'), 'utf8')
+  assert.match(src, /function shippedSuites\(\)/, 'the runner discovers the suites this package ships')
+  assert.match(src, /stripSummary/, 'and prints one summary block, since a reader takes the first it finds')
+  assert.equal(src.split('ℹ tests ').length - 1, 1, 'exactly one place emits the counts')
+
+  // Discovered by carrying its own test script, never by being listed: a list is what goes stale.
+  const shipped = readdirSync(REPO, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && e.name !== 'node_modules' && !e.name.startsWith('.'))
+    .filter((e) => {
+      try { return Boolean(JSON.parse(readFileSync(join(REPO, e.name, 'package.json'), 'utf8'))?.scripts?.test) } catch { return false }
+    })
+    .map((e) => e.name)
+  assert.ok(shipped.includes('argo'), `argo ships a suite and the rule must find it: ${JSON.stringify(shipped)}`)
+
+  // And every one of them is green, which is the claim the session line makes on their behalf.
+  // A nested `node --test` that inherits NODE_TEST_CONTEXT reports into this run instead of
+  // printing its own summary — exit 0 with no counts, indistinguishable from an empty suite.
+  const childEnv = { ...process.env }
+  delete childEnv.NODE_TEST_CONTEXT
+  delete childEnv.NODE_OPTIONS
+
+  for (const name of shipped) {
+    const script = JSON.parse(readFileSync(join(REPO, name, 'package.json'), 'utf8')).scripts.test
+    const direct = /^node\s+(.+)$/.exec(script.trim())
+    const r = direct
+      ? spawnSync(process.execPath, direct[1].split(/\s+/), { cwd: join(REPO, name), encoding: 'utf8', timeout: 600000, env: childEnv })
+      : spawnSync('npm', ['test', '--silent'], { cwd: join(REPO, name), encoding: 'utf8', timeout: 600000, shell: true, env: childEnv })
+    const out = (r.stdout || '') + (r.stderr || '')
+    assert.equal(r.status, 0, `${name}'s own suite is red:
+${out.slice(-700)}`)
+    const passed = Number(/(?:ℹ|#)\s*pass\s+(\d+)/.exec(out)?.[1] || 0)
+    assert.ok(passed > 0, `${name} reported no passing tests — the runner would add nothing`)
+  }
+})

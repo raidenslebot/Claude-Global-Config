@@ -266,3 +266,15 @@ test('a lock left behind by a session that died does not pin the next one foreve
   assert.match(line, /updated 1\.0\.0 → 1\.1\.0/, `a stale lock must not block the update: ${line}`)
   assert.equal(existsSync(lock), false, 'and the lock is released')
 })
+
+test('a test run that produces no counts is not reported as zero tests', (t) => {
+  // A crashed runner, a syntax error mid-edit, a suite that never started: the run yields no
+  // counts, and recording that as 0 of 0 printed "0/0 tests" — a confident statement that the
+  // package has no tests, in the one line a session is told to trust and repeat verbatim.
+  const w = world(t, { tests: true })
+  // A runner that exits 0 and says nothing at all, which is exactly what a broken one did.
+  writeFileSync(join(w.friend, 'tools', 'run-tests.mjs'), 'process.exit(0)\n')
+  const { line } = fire(w, w.friend)
+  assert.match(line, /the test suite could not be read/, line)
+  assert.doesNotMatch(line, /0\/0 tests/, 'zero of zero is an answer nothing gave')
+})
