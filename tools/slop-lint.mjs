@@ -304,7 +304,18 @@ export const FAMILIES = [
   {
     id: 'placeholder', weight: 2,
     why: 'placeholder text or a placeholder image shipped. The design is not finished until the real words and the real image are in it',
-    find(t) { const m = first(/lorem ipsum|placehold(er)?\.(co|it|com)|via\.placeholder|\[insert [^\]]+\]|TODO: copy/i, t); return m && { i: m.i, s: m.s } },
+    find(t) {
+      // A placeholder SERVICE, a bracketed stub or a copy TODO is never anything else.
+      const hard = first(/placehold(er)?\.(co|it|com)|via\.placeholder|\[insert [^\]]+\]|TODO: copy/i, t)
+      if (hard) return { i: hard.i, s: hard.s }
+      // "lorem ipsum" is also the name of the thing, and a page arguing against filler text says
+      // it once in an English sentence. Shipped filler comes with its own tail, or comes twice.
+      const named = [...t.matchAll(/lorem ipsum/gi)]
+      if (!named.length) return null
+      const filler = named.some((m) => /^\s*(dolor|sit amet|consectetur|adipiscing|elit)/i.test(t.slice(m.index + m[0].length, m.index + m[0].length + 24)))
+      if (filler || named.length >= 2) return { i: named[0].index, s: t.slice(named[0].index, named[0].index + 40) }
+      return null
+    },
   },
 ]
 

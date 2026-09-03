@@ -5,6 +5,38 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.37.0 — 2026-09-02
+
+**The near-miss corpus.** Every rule in this package was tested for whether it fires. None was
+tested for what *else* it fires on, and that is the half that decides whether anyone keeps the
+gate switched on: a rule that cries wolf is walked past, which costs more than the rule was ever
+worth.
+
+So there is now one page per family — sixteen of them — that legitimately does the thing its
+family sits next to, and none of them may be reported:
+
+- a warm gradient built from two inks a printer could mix, which is not the purple one
+- three things in a row because there genuinely are three, in different shapes, not three cards
+- a centred announcement with no eyebrow and no twin buttons, because the piece *is* one sentence
+- a translucent sticky bar, which is navigation and one of the few good uses of a backdrop filter
+- a blur used as a legibility scrim under text over a photograph
+- a dark footer inside a light page, which is a contrast decision rather than a genre
+- a warm dark page whose green means "running" beside an amber and a red
+- neutrals that carry a hue, which is exactly what the grey family asks for
+- one transition, at one duration, because exactly one thing moves
+- an emoji quoted as content — what the note on the door actually said
+
+Fifteen were already left alone. **One was not: an article arguing against placeholder text was
+reported as containing it**, because it says "lorem ipsum" in an English sentence. Shipped filler
+comes with its own tail — *dolor sit amet* — or comes more than once; a page that names the thing
+once is writing about it. The placeholder services, the bracketed stubs and the copy TODOs are
+unambiguous and still fire on sight.
+
+The same question was put to the ambition measure from the other side — what does it *credit*
+that is not there, since an inflated score tells a piece it reached further than it did. Six
+pages that use none of the vocabulary: technique words as class names, in prose, in a data
+attribute, in a filename, in a URL. All six scored zero, and the control still scores.
+
 ## 1.36.0 — 2026-09-02
 
 Two false alarms, both introduced by yesterday's own fixes. New code is the least-reviewed code

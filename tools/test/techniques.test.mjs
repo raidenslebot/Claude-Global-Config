@@ -374,3 +374,36 @@ test('a protocol-relative URL is not a comment, and a comment still is', () => {
   assert.equal(measure('float x = 1.0; // domain warping here\n', { ext: '.frag' }).usedIds.has('domain-warp'), false)
   assert.equal(measure('a\n// oklch would be nice one day\nb', { ext: '.css' }).usedIds.has('oklch'), false)
 })
+
+// The other direction: what does the measure CREDIT that is not there? An inflated score is
+// worse than a low one — it tells a piece it reached further than it did, when the whole point
+// is to name what was never tried.
+test('a page that uses none of the vocabulary is credited with none of it', () => {
+  const cases = [
+    ['a page with none of the vocabulary', '.css',
+      'body{margin:0;padding:40px;background:#f4f1ea;color:#1d2530;font-family:Georgia,serif}h1{font-size:44px}'],
+    ['technique words as class names', '.css',
+      '.gradient-free{color:#1d2530}.mask-off{display:block}.blend-in{padding:8px}.perspective-piece{margin:0}'],
+    ['technique words in English prose', '.html',
+      '<p>The blend of colours here is a gradient of meaning, not a mask over the perspective of the reader.</p>'],
+    ['a data attribute that names one', '.html',
+      '<div data-effect="conic-gradient" data-note="container-query">plain markup</div>'],
+    ['an id and a filename', '.html',
+      '<img src="subgrid-diagram.png" id="anchor-position-example" alt="a diagram"><p>About layout.</p>'],
+    ['a URL containing the words', '.html',
+      '<a href="https://example.com/docs/scroll-driven-animation">Read about scroll-driven animation</a>'],
+  ]
+
+  const credited = []
+  for (const [name, ext, text] of cases) {
+    const used = [...measure(text, { ext }).usedIds]
+    if (used.length) credited.push(name + ' → ' + used.join(', '))
+  }
+  assert.deepEqual(credited, [], 'techniques credited to a page that does not use them')
+
+  // The control, so this cannot pass by the measure having stopped working altogether.
+  const real = '.x{mask-image:linear-gradient(#000,transparent);mix-blend-mode:multiply;'
+    + 'background:conic-gradient(from 90deg,#b4451f,#e0a33c);container-type:inline-size}'
+  const used = measure(real, { ext: '.css' }).usedIds
+  for (const id of ['mask', 'blend', 'conic', 'container-query']) assert.ok(used.has(id), id + ' went missing')
+})
