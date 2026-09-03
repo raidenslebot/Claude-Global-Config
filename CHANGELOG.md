@@ -5,6 +5,42 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.39.0 — 2026-09-02
+
+**The deck example: the water was never water.** The stylesheet says the idea out loud — *"the
+waterline rises through the deck"* — and then drew it as a four-pixel rule. A line moving up a
+slide is a divider. Nothing was ever in the water, so the bottom of every slide was not air, it
+was leftover: on the chart slide, a third of the frame held one page number.
+
+Below the line is the sea now, above it is the air, and the line is only where they meet. One
+change, three weaknesses:
+
+- the empty bottom of every slide becomes the thing the deck is about;
+- the rise is visible across the seven, because each slide is more submerged than the last;
+- things can be **in** it — the month labels are underwater in cream, the tide table's rows are
+  in the sea with only its header above the surface, and the temperatures stand exactly *on* it.
+
+The two `rev` slides went with it. Flagging a slide "reversed" was a second way of saying the
+tide was high, and the two disagreed about which way up the slide went — slide seven had the sea
+at the top. A slide is dark because the water has risen and for no other reason; seven now closes
+as 78% sea with the flag at the surface. And `--orange`, declared in the palette and used on
+nothing across seven slides, is now on exactly two things: January, which is the record that
+slide is about, and the flag.
+
+**Two tool defects fell out of doing it.**
+
+- **The audit reads the declared ink from `color`, and SVG text is painted with `fill`.** A cream
+  chart label came back as navy-on-navy, 1.00:1 — a hard failure on text that is perfectly
+  legible. It reports the fill for SVG runs now.
+- **The ambition measure could not see variation declared in markup.** `style="--water: 66%"` is
+  the same idea as `setProperty` and the better version of it: one stylesheet, and the
+  composition differs per slide with no script at all. Reading only the scripted form scored a
+  series whose entire variable is declared that way as having no variation.
+
+Four runs of type went invisible when the ground moved under them, and the audit caught all four
+— one of which was its own bug. That is the loop working: change the design, run the gate, and
+find out that both were wrong.
+
 ## 1.38.0 — 2026-09-02
 
 The near-miss method, taken to the three gates that did not have it: the press gate, the icon set

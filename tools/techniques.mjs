@@ -112,7 +112,11 @@ export const MEDIA = [
       T('popover-dialog', 'response', 2, /\bpopover\b|<dialog|showModal\(/i, 'native popover and <dialog> — top layer, light dismiss and focus handling for free.'),
       T('scroll-snap', 'response', 1, /scroll-snap-(?:type|align)\s*:/i, 'scroll snap — a run of items that lands where it should, natively.'),
       T('selection-surfaces', 'response', 1, /::selection|caret-color\s*:|accent-color\s*:|cursor\s*:\s*url\(/i, '::selection, caret-color, accent-color, a custom cursor — the parts of the UI the browser owns, carrying your palette.'),
-      T('data-driven-style', 'variation', 3, /setProperty\(\s*['"]--|style\.setProperty|style=\{\{[^}]*\$\{|setAttribute\(\s*['"]style|\bstyle\s*=\s*["'][^"']*\$\{/i, 'style driven by data or state — the piece differs per row, per value, per user, instead of rendering one fixed picture.'),
+      // A custom property set per instance in the markup — style="--water: 66%" — is the same
+      // idea as setProperty and the better version of it: one stylesheet, and the composition
+      // differs per row without a line of script. Reading only the scripted form scored a
+      // series whose whole variable is declared that way as having no variation at all.
+      T('data-driven-style', 'variation', 3, /setProperty\(\s*['"]--|style\.setProperty|style=\{\{[^}]*\$\{|setAttribute\(\s*['"]style|\bstyle\s*=\s*["'][^"']*\$\{|\bstyle\s*=\s*["'][^"']*--[\w-]+\s*:/i, 'style driven by data or state — the piece differs per row, per value, per user, instead of rendering one fixed picture.'),
       T('theme-variation', 'variation', 1, /light-dark\(|color-scheme\s*:|prefers-color-scheme/i, 'light-dark() and colour scheme — the piece has more than one appearance.'),
     ],
   },

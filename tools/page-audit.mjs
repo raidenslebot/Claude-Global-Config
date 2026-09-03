@@ -468,7 +468,10 @@ export const tagTextRunsInPage = (opts) => {
       x: Math.round(r.left + (pinnedOnly ? 0 : window.scrollX)), y: Math.round(r.top + (pinnedOnly ? 0 : window.scrollY)),
       w: Math.round(r.width), h: Math.round(r.height),
       fs, large: fs >= 24 || (fs >= 18.66 && weight >= 700),
-      colour: cs.color,
+      // SVG text is painted with `fill`; `color` on it is whatever it inherited and is usually
+      // the page's, so a cream label inside a chart reported as navy-on-navy — a failure that
+      // was really the audit reading the wrong property, on text that is perfectly legible.
+      colour: (el.namespaceURI !== HTML && cs.fill && cs.fill !== 'none' ? cs.fill : cs.color),
       text: text.replace(/\s+/g, ' ').slice(0, 70),
       svg: el.namespaceURI !== HTML,
     })

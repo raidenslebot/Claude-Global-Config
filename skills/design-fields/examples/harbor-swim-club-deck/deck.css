@@ -21,17 +21,35 @@
 html, body { margin: 0; background: var(--cream); }
 .slide { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--cream); color: var(--navy);
          font-family: var(--title); font-optical-sizing: auto; padding: 54px 96px; }
-.slide.rev { background: var(--navy); color: var(--cream); }
-/* The waterline: the identity's one variable, rising one step per slide. */
-.water { position: absolute; left: 0; right: 0; top: var(--water, 88%); height: 4px; background: currentColor; opacity: 0.9; }
-.slide.rev .water { background: var(--cream); }
+/* No reversed slide any more. A slide is dark because the tide is high — the water says so,
+   and a second way of saying it disagreed with the first about which way up the slide went. */
+/* The waterline: the identity's one variable, rising one step per slide — and below it, the
+   water. A slide is two grounds meeting at a line, and the line is only where they meet. */
+/* The sea is the ground, so it sits under everything the slide puts in it. It comes last in
+   every slide's markup — it used to be a rule that could paint over nothing — and a field that
+   paints over the thing standing in it is not a ground. */
+.water { position: absolute; left: 0; right: 0; top: var(--water, 88%); bottom: 0; background: var(--navy); z-index: 0; }
+.slide > *:not(.water) { position: relative; z-index: 1; }
+.slide > .head, .slide > .foot, .slide > .title, .slide > .chart, .slide > .ledger, .slide > .flag,
+.slide > .temps, .slide > .mhw { position: absolute; }
+.water::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--navy); }
+
+
+/* Anything standing IN the water is set in the other ink. The class is on the element rather
+   than inferred from its position, because a slide knows what it put in the sea. */
+.submerged { color: var(--cream); }
+
+/* On the element itself as well as inside it — the class goes on the run that is in the sea,
+   and a rule that only reached its children left the run itself navy on navy. */
+.label.submerged, .foot.submerged, .submerged .label, .submerged .foot { color: rgb(239 233 220 / 0.72); }
+
 
 /* The running head and foot: the caps line, once, and the slide number. */
 .head { position: absolute; left: 96px; right: 96px; top: 54px; display: flex; justify-content: space-between;
         font: 500 24px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
-.slide.rev .head { color: rgb(239 233 220 / 0.7); }
-.foot { position: absolute; right: 96px; bottom: 54px; font: 400 24px/1 var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.slide.rev .foot { color: rgb(239 233 220 / 0.7); }
+.foot { position: absolute; right: 96px; bottom: 54px; font: 400 24px/1 var(--mono); color: rgb(239 233 220 / 0.7); font-variant-numeric: tabular-nums; z-index: 2; }
+/* Slide one is barely wet: its number sits on the cream, above the line. */
+.slide.dry .foot { color: var(--ink-2); }
 
 h1, h2 { font-family: var(--title); font-stretch: 75%; font-weight: 600; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
 h1 { font-size: 120px; line-height: 1; }
@@ -40,7 +58,6 @@ h2 { font-size: 96px; line-height: 1.02; }
 .num small { font-size: 0.32em; letter-spacing: 0; }
 .line { font: 400 40px/1.35 var(--title); font-stretch: 100%; margin: 24px 0 0; max-width: 34ch; text-wrap: pretty; }
 .label { font: 500 28px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
-.slide.rev .label { color: rgb(239 233 220 / 0.7); }
 
 /* Slide 1: the mark and the name. */
 .title { position: absolute; left: 96px; top: 300px; display: flex; align-items: center; gap: 72px; }
@@ -49,10 +66,15 @@ h2 { font-size: 96px; line-height: 1.02; }
 /* Slide 3: the chart, twelve bars standing on the waterline. */
 .chart { position: absolute; left: 96px; right: 96px; bottom: calc(100% - var(--water)); height: 340px; }
 .chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.chart .month { font: 500 28px/1 var(--mono); fill: var(--ink-2); text-anchor: middle; }
+/* The months are the one part of the chart that IS in the water. */
+.chart .month { font: 500 28px/1 var(--mono); fill: rgb(239 233 220 / 0.8); text-anchor: middle; }
 .chart .val { font: 500 34px/1 var(--mono); fill: var(--navy); text-anchor: middle; font-variant-numeric: tabular-nums; }
-.chart .bar { fill: rgb(31 42 68 / 0.28); }
-.chart .bar.hot { fill: var(--navy); }
+.chart .val.hot { fill: var(--orange); }
+/* The bars stand ON the waterline, from above — they are in the air, not the sea, so they keep
+   the paper's ink. The month that broke the record takes the one colour this identity holds in
+   reserve, which until now was declared and never used on a single slide. */
+.chart .bar { fill: rgb(31 42 68 / 0.42); }
+.chart .bar.hot { fill: var(--orange); }
 .chart .axis { font: 500 24px/1 var(--mono); fill: var(--ink-2); letter-spacing: 0.1em; }
 
 /* Slide 4: twelve temperatures in a row. */
@@ -60,14 +82,19 @@ h2 { font-size: 96px; line-height: 1.02; }
 .temps div { text-align: center; }
 .temps .t { font: 500 64px/1 var(--mono); font-variant-numeric: tabular-nums; }
 .temps .cold .t { font-size: 112px; }
-.temps .m { display: block; margin-top: 16px; font: 500 28px/1 var(--mono); letter-spacing: 0.1em; color: var(--ink-2); text-transform: uppercase; }
+/* The temperatures stand ON the surface — their tops are at the waterline — so the month under
+   each one is in the sea, and set in the sea's ink. */
+.temps .m { display: block; margin-top: 16px; font: 500 28px/1 var(--mono); letter-spacing: 0.1em; color: rgb(239 233 220 / 0.8); text-transform: uppercase; }
 
 /* Slide 6: the tide table as the ledger. Its header sits on the waterline, which is the header's rule. */
 .ledger { position: absolute; left: 96px; top: calc(var(--water) - 66px); width: 1000px; }
 .ledger .row { display: grid; grid-template-columns: 5fr 1fr 5fr 3fr; align-items: baseline; column-gap: 24px;
-               font: 400 34px/1.9 var(--mono); border-bottom: 0.5px solid var(--line); font-variant-numeric: tabular-nums; }
-.ledger .l { border-bottom: 2px dotted var(--line); transform: translateY(-0.5em); }
-.ledger .h { color: var(--ink-2); font-weight: 500; }
+               font: 400 34px/1.9 var(--mono); border-bottom: 0.5px solid rgb(239 233 220 / 0.24); font-variant-numeric: tabular-nums;
+               color: var(--cream); }
+.ledger .l { border-bottom: 2px dotted rgb(239 233 220 / 0.32); transform: translateY(-0.5em); }
+/* The header is the one row above the surface, so it keeps the paper's ink. */
+.ledger .h { color: var(--ink-2); font-weight: 500; border-bottom-color: var(--line); }
+.ledger .h .l { border-bottom-color: var(--line); }
 
 /* Slide 7: the flag on the high-water line. The pole's foot is at 21/24 of the drawing, so the
    drawing is lifted by 87.5% of its height and the foot meets the line; the whole flag fits above. */
