@@ -34,6 +34,20 @@ export function findFontkit() {
 /** A Google Fonts family spec ("Fraunces:ital,opsz,wght@1,9..144,300") → a cached woff2 path.
  *  With `text`, the request asks for a subset covering exactly those characters, so a face is
  *  fetched with the glyphs the text needs — the latin slice alone has no ő and no 東. */
+/** The woff2 face URL in a Google Fonts stylesheet, latin first.
+ *
+ *  Matched by the declared FORMAT, never by the file extension. A subsetted face — which is
+ *  what `&text=` returns, and `&text=` is the normal path here — is served from
+ *  `fonts.gstatic.com/l/font?kit=…&skey=…`, with no ".woff2" anywhere in the URL. Requiring the
+ *  extension meant every Google family failed with "no woff2 in the stylesheet" the moment the
+ *  text was passed, which is to say: always. */
+export function woff2Url(css) {
+  const FACE = /src:\s*url\(([^)]+)\)\s*format\(\s*['"]woff2['"]\s*\)/
+  const latin = /\/\* latin \*\/\s*@font-face\s*\{[^}]*?src:\s*url\(([^)]+)\)\s*format\(\s*['"]woff2['"]\s*\)/
+  const m = latin.exec(css) || FACE.exec(css)
+  return m ? m[1] : null
+}
+
 export async function fetchGoogleFont(spec, text = '') {
   mkdirSync(CACHE, { recursive: true })
   const key = createHash('sha1').update(spec + '\n' + text).digest('hex').slice(0, 16)
@@ -41,10 +55,10 @@ export async function fetchGoogleFont(spec, text = '') {
   if (existsSync(file)) return file
   const url = `https://fonts.googleapis.com/css2?family=${spec.trim().replace(/ /g, '+')}&display=swap${text ? `&text=${encodeURIComponent(text)}` : ''}`
   const css = await fetch(url, { headers: { 'User-Agent': UA } }).then((r) => { if (!r.ok) throw new Error(`Google Fonts answered ${r.status} for "${spec}" — check the family name and axis spec`); return r.text() })
-  // The latin block first; any woff2 otherwise.
-  const m = /\/\* latin \*\/\s*@font-face\s*\{[^}]*?src:\s*url\(([^)]+\.woff2)\)/.exec(css) || /src:\s*url\(([^)]+\.woff2)\)/.exec(css)
-  if (!m) throw new Error(`no woff2 in the stylesheet for "${spec}"`)
-  const buf = Buffer.from(await fetch(m[1], { headers: { 'User-Agent': UA } }).then((r) => { if (!r.ok) throw new Error(`font download failed (${r.status})`); return r.arrayBuffer() }))
+  const m = woff2Url(css)
+  if (!m) throw new Error(`no woff2 face in the stylesheet for "${spec}" — Google returned CSS this cannot read:
+${css.slice(0, 200)}`)
+  const buf = Buffer.from(await fetch(m, { headers: { 'User-Agent': UA } }).then((r) => { if (!r.ok) throw new Error(`font download failed (${r.status})`); return r.arrayBuffer() }))
   writeFileSync(file, buf)
   return file
 }
@@ -178,5 +192,10 @@ export async function main(argv = process.argv.slice(2)) {
 
 const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
 if (isEntry) {
-  main().then((code) => process.exit(code), (e) => { console.error(`outline-text: ${e.message}`); process.exit(1) })
+  // Never process.exit() here. Calling it while a fetch's socket is still closing aborts libuv
+  // on Windows — "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" and exit code 127,
+  // so a caller testing the status sees a crash instead of the 1 this means. Setting the code
+  // and letting the loop drain gives the real status and no crash.
+  const leave = (code) => { process.exitCode = code }
+  main().then(leave, (e) => { console.error(`outline-text: ${e.message}`); leave(1) })
 }

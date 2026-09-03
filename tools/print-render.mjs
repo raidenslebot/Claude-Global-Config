@@ -23,6 +23,8 @@ import { join, resolve, dirname, basename, extname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
+// One answer to "how big does this file say it is", shared with the gate.
+import { declaredSize } from './print-lint.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '..')
@@ -362,6 +364,28 @@ export async function main(argv = process.argv.slice(2)) {
     html = srcs.length > 1
       ? pagesWrapper({ srcUrls: urls, trim, bleed, slug, marks: Boolean(args.marks) })
       : printWrapper({ srcUrl: urls[0], trim, bleed, slug, marks: Boolean(args.marks) })
+    // What the artwork says it is, against the box it is about to be placed in. A file that
+    // declares nothing flows into the iframe and fills it; a file that declares the WRONG size
+    // is placed at its own size in the corner, and no later step can tell.
+    const boxW = trim.w + 2 * bleed, boxH = trim.h + 2 * bleed
+    const wrong = []
+    for (const s of srcs) {
+      let said
+      try { said = declaredSize(readFileSync(s, 'utf8'), { svg: extname(s).toLowerCase() === '.svg' }) } catch { continue }
+      if (!said.size) continue
+      // A thousandth of an inch is a rounding difference, not a design decision.
+      if (Math.abs(said.size.w - boxW) > 0.002 || Math.abs(said.size.h - boxH) > 0.002) wrong.push({ s, said: said.size })
+    }
+    if (wrong.length) {
+      console.error(`print-render: the artwork is not the size of the page it is being placed on.`)
+      for (const { s, said } of wrong) {
+        console.error(`  ${basename(s)} declares ${said.w.toFixed(3)} × ${said.h.toFixed(3)} in; `
+          + `trim ${trim.w} × ${trim.h} with ${bleed}in bleed needs ${boxW.toFixed(3)} × ${boxH.toFixed(3)} in`)
+      }
+      console.error(`  Drawn at trim size it sits in the corner of the sheet with white down two edges, and the press cuts on the marks.`)
+      console.error(`  Either size the artwork to ${boxW.toFixed(3)} × ${boxH.toFixed(3)} in (trim + bleed on every side), or render with --bleed 0.`)
+      return 1
+    }
     pageW = trim.w + 2 * (bleed + slug); pageH = trim.h + 2 * (bleed + slug)
     summary = { mode: 'print', pages: srcs.length, trimInches: { w: +trim.w.toFixed(4), h: +trim.h.toFixed(4) }, bleedInches: bleed, slugInches: slug, marks: Boolean(args.marks), colourSpace: 'RGB (Chromium) — state CMYK/Pantone intent in the spec sheet' }
   }

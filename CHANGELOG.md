@@ -5,6 +5,35 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.25.0 — 2026-09-02
+
+Two tools at the end of the pipeline, where a mistake becomes a physical object.
+
+**`outline-text` could not outline a Google font at all.** Every identity, apparel, signage and
+vinyl brief ends with "outline the fonts", and this is the tool that does it — and for any
+family fetched from Google it failed with *no woff2 in the stylesheet*, which is to say always.
+The face URL was matched by its **file extension**, and a subsetted face — which is what
+`&text=` returns, and `&text=` is the path this always takes — is served from
+`fonts.gstatic.com/l/font?kit=…&skey=…` with no `.woff2` anywhere in it. It is matched by the
+declared `format('woff2')` now, latin block first. The parser is its own exported function with
+its own test, because what broke here was never reachable from a test that used a local font.
+
+The same tool's failure path aborted rather than exiting. Calling `process.exit()` in the turn a
+`fetch` rejected in trips libuv on Windows — *Assertion failed: !(handle->flags &
+UV_HANDLE_CLOSING)* — and exits **127**, so anything reading the status saw a crash rather than
+the 1 it meant. It sets the exit code and lets the loop drain.
+
+**`print-render` refuses artwork that is not the size of the page it is being placed on.** The
+source is embedded at exactly trim + 2×bleed. A piece drawn at *trim* size therefore sat in the
+top-left corner of the sheet with white down two edges — and the summary line said `page 3.75 ×
+2.25 in · trim 3.5 × 2 · bleed 0.125`, as though everything agreed. The press cuts on the marks;
+the card comes back with a white sliver on two sides. It now reads what the file declares,
+compares it to the box, and stops with both numbers and the two ways out. A file that declares
+no size still flows into the box and fills it, which is correct and is left alone.
+
+The declared size is one function (`declaredSize` in `print-lint`) that both the gate and the
+renderer call, so they cannot come to different conclusions about how big the piece is.
+
 ## 1.24.0 — 2026-09-02
 
 The audit measures the page at rest, and measures the parts of it that hang off the edge.

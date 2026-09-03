@@ -94,6 +94,35 @@ export function belowLimit(v, limit) {
   return String(v)
 }
 
+/** The physical size the file declares, in inches, and why not when it cannot be read.
+ *  Returns { size, problem }: exactly one of the two is set. The renderer reads this too, so
+ *  the gate and the press file can never disagree about how big the piece is. */
+export function declaredSize(text, { svg = false } = {}) {
+  const no = (problem) => ({ size: null, problem })
+  if (svg) {
+    const w = (text.match(/<svg\b[^>]*\swidth="([^"]+)"/) || [])[1]
+    const h = (text.match(/<svg\b[^>]*\sheight="([^"]+)"/) || [])[1]
+    const p = (v) => { const m = String(v || '').match(/^([\d.]+)\s*(in|mm|cm|pt)$/i); return m ? toIn(m[1], m[2]) : null }
+    if (p(w) && p(h)) return { size: { w: p(w), h: p(h) }, problem: null }
+    if (w && h) return no(`SVG width/height are "${w}" × "${h}" — give them physical units (in, mm, pt) or the printer gets pixels`)
+    return no('SVG has no width/height — a print file needs a physical size')
+  }
+  // Only the rules the browser would apply: a size quoted in a comment or a string is prose.
+  const live = blankQuoted(text)
+  const measured = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([\d.]+)\s*(in|mm|cm|pt|px)\s+([\d.]+)\s*(in|mm|cm|pt|px)/i)
+  const named = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([a-z][a-z0-9]{1,9})\s*(landscape|portrait)?\s*[;}]/i)
+  if (measured) {
+    if (/px/i.test(measured[2]) || /px/i.test(measured[4])) return no(`@page size is in pixels (${measured[0].match(/size[^;]*/)[0]}) — use in, mm or pt`)
+    return { size: { w: toIn(measured[1], measured[2]), h: toIn(measured[3], measured[4]) }, problem: null }
+  }
+  if (named && PRESETS[named[1].toLowerCase()]) {
+    const p = PRESETS[named[1].toLowerCase()]
+    return { size: /landscape/i.test(named[2] || '') ? { w: p.h, h: p.w } : { w: p.w, h: p.h }, problem: null }
+  }
+  if (named) return no(`@page size "${named[1]}" is not a page size this knows — give it as W H in in, mm or pt, or use one of: ${Object.keys(PRESETS).slice(0, 8).join(', ')}`)
+  return no('no `@page { size: W H }` rule — the document has no physical size')
+}
+
 export function lint(file, opts = {}) {
   const text = readFileSync(file, 'utf8')
   const isSvg = extname(file).toLowerCase() === '.svg'
@@ -123,30 +152,12 @@ export function lint(file, opts = {}) {
     if (opens !== closes) fail('xml', `unbalanced <svg> (${opens} open, ${closes} close) — the file will not parse`)
   }
 
-  // 1. A physical size is declared, in physical units.
-  let declared = null
-  if (isSvg) {
-    const w = (text.match(/<svg\b[^>]*\swidth="([^"]+)"/) || [])[1]
-    const h = (text.match(/<svg\b[^>]*\sheight="([^"]+)"/) || [])[1]
-    const p = (v) => { const m = String(v || '').match(/^([\d.]+)\s*(in|mm|cm|pt)$/i); return m ? toIn(m[1], m[2]) : null }
-    if (p(w) && p(h)) declared = { w: p(w), h: p(h) }
-    else if (w && h) fail('size', `SVG width/height are "${w}" × "${h}" — give them physical units (in, mm, pt) or the printer gets pixels`)
-    else fail('size', 'SVG has no width/height — a print file needs a physical size')
-  } else {
-    // Only the rules the browser would apply: a size quoted in a comment or a string is prose.
-    const live = blankQuoted(text)
-    const measured = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([\d.]+)\s*(in|mm|cm|pt|px)\s+([\d.]+)\s*(in|mm|cm|pt|px)/i)
-    const named = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([a-z][a-z0-9]{1,9})\s*(landscape|portrait)?\s*[;}]/i)
-    if (measured) {
-      if (/px/i.test(measured[2]) || /px/i.test(measured[4])) fail('size', `@page size is in pixels (${measured[0].match(/size[^;]*/)[0]}) — use in, mm or pt`)
-      else declared = { w: toIn(measured[1], measured[2]), h: toIn(measured[3], measured[4]) }
-    } else if (named && PRESETS[named[1].toLowerCase()]) {
-      const p = PRESETS[named[1].toLowerCase()]
-      declared = /landscape/i.test(named[2] || '') ? { w: p.h, h: p.w } : { w: p.w, h: p.h }
-    } else if (named) {
-      fail('size', `@page size "${named[1]}" is not a page size this knows — give it as W H in in, mm or pt, or use one of: ${Object.keys(PRESETS).slice(0, 8).join(', ')}`)
-    } else fail('size', 'no `@page { size: W H }` rule — the document has no physical size')
-  }
+  // 1. A physical size is declared, in physical units. The renderer reads the same answer from
+  //    the same function, so the gate and the press file can never disagree about the size.
+  const said = declaredSize(text, { svg: isSvg })
+  const declared = said.size
+  if (said.problem) fail('size', said.problem)
+
 
   // 2. It matches trim + 2×bleed, when the caller says what those are.
   if (declared && (opts.trim || opts.size)) {

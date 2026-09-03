@@ -172,3 +172,31 @@ test('every garment in zones.json has a flat on disk and every zone fits inside 
     }
   }
 })
+
+test('artwork drawn at trim size is refused, not placed in the corner of the sheet', (t) => {
+  // The source goes into an iframe at exactly trim + 2×bleed. A piece drawn at TRIM size lands
+  // top-left of it with white down two edges, and the press cuts on the marks — from a run whose
+  // own summary said "page 3.75 × 2.25 · trim 3.5 × 2 · bleed 0.125", as though all agreed.
+  const d = scratch(t)
+  const card = (size) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Card</title><style>
+    @page { size: ${size}; margin: 0 }
+    html,body{margin:0}
+    .card{width:${size.split(' ')[0]};height:${size.split(' ')[1]};background:#12202c;color:#efe9dc;
+          font-family:Georgia,serif;padding:0.375in;box-sizing:border-box}
+    </style></head><body><div class="card">Harbour Swim Club</div></body></html>`
+  const run = (file, args) => spawnSync(process.execPath, [TOOL, file, ...args], { encoding: 'utf8', timeout: 120000 })
+
+  const wrong = join(d, 'trim-size.html')
+  writeFileSync(wrong, card('3.5in 2in'))
+  const bad = run(wrong, ['--trim', '3.5x2in', '--bleed', '0.125in'])
+  assert.equal(bad.status, 1, `expected a refusal, got ${bad.status}: ${bad.stdout}${bad.stderr}`)
+  assert.match(bad.stderr, /not the size of the page/)
+  assert.match(bad.stderr, /declares 3\.500 × 2\.000 in.*needs 3\.750 × 2\.250 in/s)
+  assert.equal(existsSync(join(d, 'trim-size.pdf')), false, 'nothing is written when the size is wrong')
+
+  // Sized to trim + bleed, it renders; and with no bleed asked for, trim size is right.
+  const right = join(d, 'bleed-size.html')
+  writeFileSync(right, card('3.75in 2.25in'))
+  assert.equal(run(right, ['--trim', '3.5x2in', '--bleed', '0.125in']).status, 0)
+  assert.equal(run(wrong, ['--trim', '3.5x2in', '--bleed', '0']).status, 0, 'no bleed means the page IS the trim')
+})

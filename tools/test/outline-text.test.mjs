@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { findFontkit, outline, svg, main } from '../outline-text.mjs'
+import { findFontkit, outline, svg, main, woff2Url } from '../outline-text.mjs'
 import { REPO } from '../paths.mjs'
 
 const FONTS = [
@@ -79,4 +79,36 @@ test('ink that hangs left of the origin is not clipped, and a glyph the font lac
 test('usage on a missing argument, an error on a missing file — never a stack trace', async () => {
   assert.equal(await main(['--text', 'x']), 1)
   if (fk) assert.equal(await main(['--font', join(tmpdir(), 'nope-' + process.pid + '.ttf'), '--text', 'x']), 1)
+})
+
+test('the Google face is found by its declared format, not by a file extension', () => {
+  // What the API returns for a whole family: the URL ends .woff2, and there are many blocks.
+  const whole = [
+    "/* vietnamese */", "@font-face {", "  font-family: 'Archivo';",
+    "  src: url(https://fonts.gstatic.com/s/archivo/v25/VIET.woff2) format('woff2');", "}",
+    "/* latin */", "@font-face {", "  font-family: 'Archivo';",
+    "  src: url(https://fonts.gstatic.com/s/archivo/v25/LATIN.woff2) format('woff2');", "}",
+  ].join(String.fromCharCode(10))
+  assert.match(woff2Url(whole), /LATIN\.woff2$/, 'the latin block is the one to take')
+
+  // What it returns for &text=, which is the path this tool always uses: one block, and a URL
+  // with no extension at all. Requiring ".woff2" made every Google family fail here.
+  const subset = ["@font-face {", "  font-family: 'Archivo';",
+    "  src: url(https://fonts.gstatic.com/l/font?kit=k3k6o8UDI-1M0&skey=8131191f&v=v25) format('woff2');",
+    "  unicode-range: U+48, U+61-62;", "}"].join(String.fromCharCode(10))
+  assert.equal(woff2Url(subset), 'https://fonts.gstatic.com/l/font?kit=k3k6o8UDI-1M0&skey=8131191f&v=v25')
+
+  // A stylesheet with no woff2 at all is null, not a wrong answer.
+  assert.equal(woff2Url("@font-face { src: url(x.ttf) format('truetype') }"), null)
+})
+
+test('a family that does not exist is one line and exit 1, never a libuv assertion', async () => {
+  // process.exit() while a fetch socket is closing aborts libuv on Windows with exit 127, so a
+  // caller reading the status saw a crash instead of the failure this actually is.
+  const r = spawnSync(process.execPath, [join(REPO, 'tools', 'outline-text.mjs'),
+    '--font', 'NoSuchFamilyAnywhere123', '--text', 'Harbor', '--out', join(tmpdir(), 'never-written.svg')],
+  { encoding: 'utf8', timeout: 60000 })
+  assert.equal(r.status, 1, `expected 1, got ${r.status}: ${r.stderr}`)
+  assert.doesNotMatch(r.stderr, /Assertion failed/)
+  assert.match(r.stderr, /Google Fonts answered 400/)
 })
