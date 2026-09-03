@@ -162,10 +162,21 @@ write('brand-sheet.html', `<!doctype html>
     <div><div class="tile s rev">${art('lockup-stacked-reversed.svg')}</div><p class="cap">Reversed — cream ink on the navy blank.</p></div>
   </div>
 
+  <!-- The high-water tile is drawn here rather than inlined from mark-high-water.svg: it carries
+       a GHOST of the slack-water line and an orange tick showing the rise. Two tiles of a ring
+       differ in one bar, and side by side that difference is something the reader has to hold in
+       memory. Shown against where the line was, the variable is a movement instead of a second
+       picture. The ghost is a note on this sheet and must never enter the artwork, which is why
+       it is not in the file. -->
   <h2>The one variable</h2>
   <div class="row two">
     <div><div class="tile mark">${art('mark.svg')}</div><p class="cap">Slack water — the waterline at the centre. The mark, everywhere, always.</p></div>
-    <div><div class="tile mark">${art('mark-high-water.svg')}</div><p class="cap">High water — the waterline at three quarters. Only on materials about a swim at high water; never as decoration.</p></div>
+    <div><div class="tile mark"><svg class="art" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 350" aria-label="the mark at high water, with the slack-water line shown as a ghost">
+  <circle cx="175" cy="175" r="120" fill="none" stroke="${NAVY}" stroke-width="16"/>
+  <rect x="47" y="169" width="256" height="8" fill="${NAVY}" opacity="0.14"/>
+  <path d="M175 169 L175 119" stroke="${ORANGE}" stroke-width="3" stroke-dasharray="7 7"/>
+  <rect x="71" y="111" width="208" height="8" fill="${NAVY}"/>
+</svg></div><p class="cap">High water — the waterline at three quarters, 58 units above slack (the ghost). Only on materials about a swim at high water; never as decoration.</p></div>
   </div>
 
   <h2>Clear space and minimum sizes</h2>

@@ -42,3 +42,28 @@ developer asks for is a file beside this one.
 **Considered and not made:** a second wordmark weight for the stacked lockup; a fourth
 colour for the website. The first is a second voice; the second is what the sheet forbids.
 The loop ends here.
+
+## Pass 4 — the one variable read as two pictures
+
+Looked at the sheet again, whole. The weakest thing is the section the whole identity turns on:
+**the one variable**. Two tiles, each a ring with a bar, the bar in a slightly different place.
+Side by side at that size the difference is something the reader has to hold in memory and
+compare — so the variable reads as *two pictures of a ring* rather than as one line moving.
+
+**Change.** The high-water tile now carries a ghost of the slack-water line at 14% and an orange
+tick showing the rise between them. You see the movement instead of reconstructing it, and the
+caption gives the number: 58 units above slack.
+
+Two constraints that shaped how it was done:
+
+- **The ghost is a note on the sheet, never on the artwork.** `mark-high-water.svg` is a
+  delivered file and the sheet's own NEVER list forbids anything but the ring and its line. So
+  this one tile is drawn in the generator rather than inlining the SVG, with a comment saying
+  why — every other tile on the sheet inlines its file, and the difference would otherwise look
+  like an oversight.
+- **The change went into `generate.mjs`, not into `brand-sheet.html`.** The sheet is generated.
+  Editing the HTML looks like it worked and is reverted the next time anyone runs the generator,
+  with nothing said. That is now a test: whatever is checked in has to be what the generator
+  produces.
+
+The sheet passes at 1440 and 390 with no failures.

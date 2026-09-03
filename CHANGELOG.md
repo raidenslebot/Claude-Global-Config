@@ -5,6 +5,30 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.40.0 — 2026-09-02
+
+**The identity sheet's one variable read as two pictures.** Two tiles, each a ring with a bar,
+the bar in a slightly different place — and side by side at that size the difference is something
+the reader has to hold in memory and compare. The section the whole identity turns on read as
+*two pictures of a ring* rather than as one line moving.
+
+The high-water tile carries a ghost of the slack-water line at 14% now, with an orange tick
+showing the rise, and the caption gives the number. You see the movement instead of
+reconstructing it.
+
+**And a defect in how that change was nearly made.** The first version edited `brand-sheet.html`
+directly. The sheet is *generated* — `generate.mjs` writes it — so the edit would have vanished
+the next time anyone ran the generator, silently, and the sheet would have quietly reverted to
+the weaker version. The change belongs in the generator, and now a test says so: every file the
+generator claims to write must already equal what it produces. Nothing else in this package had
+that guard, and it is the same shape as the stale index builder found in 1.34.0 — a second copy
+of something, with no one checking the two agree.
+
+The ghost is also deliberately *not* in `mark-high-water.svg`. That is a delivered file, and the
+sheet's own NEVER list forbids anything on the mark but the ring and its line. The tile is drawn
+in the generator instead of inlining the artwork, with a comment saying why — every other tile on
+the sheet inlines its file, so the difference would otherwise read as an oversight.
+
 ## 1.39.0 — 2026-09-02
 
 **The deck example: the water was never water.** The stylesheet says the idea out loud — *"the

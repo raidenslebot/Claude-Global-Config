@@ -4,7 +4,8 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { lint as slop } from '../slop-lint.mjs'
 import { lint as print } from '../print-lint.mjs'
@@ -100,4 +101,27 @@ test('an example that animates collapses under reduced motion', () => {
         `${join(ex, f)} animates without a reduced-motion branch — for a viewer with a vestibular disorder that is symptoms, not a preference`)
     }
   }
+})
+
+test('an example that is generated matches its generator, so hand-edits cannot be lost silently', (t) => {
+  // brand-sheet.html is written by generate.mjs. Editing the HTML directly looks like it worked
+  // and is reverted the next time anyone runs the generator — the edit is gone and nothing said
+  // so. Whatever is checked in has to be what the generator produces.
+  const dir = join(REPO, 'skills', 'design-fields', 'examples', 'harbor-swim-club-identity')
+  const gen = join(dir, 'generate.mjs')
+  if (!existsSync(gen)) return
+  const generated = ['brand-sheet.html', 'icon.html', 'wordmark.svg', 'mark-high-water.svg',
+    'lockup-horizontal.svg', 'lockup-horizontal-reversed.svg', 'lockup-stacked.svg', 'lockup-stacked-reversed.svg']
+  const before = new Map(generated.filter((f) => existsSync(join(dir, f))).map((f) => [f, readFileSync(join(dir, f), 'utf8')]))
+  assert.ok(before.size >= 6, 'the generator claims to write these files and they are not there')
+
+  const r = spawnSync(process.execPath, [gen], { cwd: dir, encoding: 'utf8', timeout: 180000 })
+  assert.equal(r.status, 0, `the generator does not run: ${r.stderr}`)
+  const drifted = []
+  for (const [f, was] of before) {
+    if (readFileSync(join(dir, f), 'utf8') !== was) drifted.push(f)
+  }
+  // Put back whatever the run changed, so a failing test does not also rewrite the repo.
+  for (const [f, was] of before) writeFileSync(join(dir, f), was, 'utf8')
+  assert.deepEqual(drifted, [], 'files edited by hand that generate.mjs would overwrite — make the change in the generator')
 })
