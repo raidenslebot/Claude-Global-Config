@@ -164,7 +164,22 @@ phase('Design tools')
   else fail('cgc is NOT on PATH — every gate the skills name (cgc lint, cgc audit, cgc render, cgc print) '
     + `fails outside this repo, so nothing is checked. Fix: npm link in ${REPO}, or node tools/install.mjs --only=deps.`)
   const pw = findPlaywright()
-  if (pw) ok(`browser for render and audit: playwright-core from ${pw.from}`)
+  if (pw) {
+    // The module resolving is not a browser existing: playwright-core ships none of its own, and
+    // a path check answers the wrong question because a headless launch uses the headless shell
+    // rather than the full build. So do what every gate does — launch one.
+    const LAUNCH = (dir) => spawnSync(process.execPath, ['-e',
+    'const{chromium}=require(' + JSON.stringify(dir) + ');'
+    + 'chromium.launch({headless:true}).then(b=>b.close()).then(()=>process.exit(0)).catch(()=>process.exit(3))'],
+  { encoding: 'utf8', timeout: 90000, windowsHide: true })
+    const probe = LAUNCH(join(pw.from, 'playwright-core'))
+    if (probe.status === 0) ok(`browser launches for render, audit and motion (playwright-core from ${pw.from})`)
+    else {
+      fail('playwright-core is installed but NO BROWSER LAUNCHES. Every render, audit, motion capture '
+        + 'and print proof fails without one — the package ships no browser of its own. '
+        + `Fix: node tools/install.mjs --only=mcp${probe.stderr ? ` (${String(probe.stderr).split('\n')[0].slice(0, 90)})` : ''}`)
+    }
+  }
   else warn('no browser — print-render, screen-render, page-audit and specimen cannot run; node tools/install.mjs --only=mcp installs the Playwright MCP that brings it')
 }
 

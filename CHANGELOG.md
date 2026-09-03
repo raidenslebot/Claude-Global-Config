@@ -5,6 +5,31 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.20.0 — 2026-09-02
+
+Found by doing the thing this package promises and had not been re-tested in eight releases:
+cloning it from GitHub onto a machine that has nothing, and installing it.
+
+- **A fresh install produced a design toolchain that could not draw.** `playwright-core` ships no
+  browser of its own — it says so in its own README — and the install brought the package and
+  stopped. So a friend following the README got a green install in which `cgc render`,
+  `cgc audit`, `cgc motion` and `cgc print` all failed, which is most of what this package is
+  for. The browser is now part of the install.
+
+- **And the doctor called that healthy: 41 ok, 0 failed.** It checked that the MODULE resolved,
+  which is a different question. Worse, a path check would not have helped either — a headless
+  launch uses the headless shell rather than the full build the path names, and a newer
+  `playwright-core` can want a build number that nothing has downloaded while an older build
+  sits beside it. Both the doctor and the install now answer the only honest version of the
+  question, the one every gate asks: they launch a browser and close it.
+
+- **Importing `install.mjs` performed an install.** It has no exports and acts the moment it
+  loads, so an accidental import — from a test, or from a tool reaching for one of its helpers
+  — silently ran one. It now says what it is instead.
+
+The fresh clone was then driven end to end with an isolated home and an empty browser
+directory: install, browser download, doctor, and a real `page-audit` run that exits 0. The
+line such a machine prints is `CGC v1.20.0 enabled · 42/42 checks`.
 ## 1.19.0 — 2026-09-02
 
 An adversarial review of the two newest tools returned 29 findings, and named the theme

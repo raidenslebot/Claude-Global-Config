@@ -18,9 +18,16 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync, realpathSync, renameSync } from 'node:fs'
 import { join, dirname, relative, basename } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved } from './paths.mjs'
+
+// This file has no exports: it performs an install the moment it is loaded. Importing it —
+// from a test, a tool, or by accident — would silently run one. Say so instead.
+const RUN_AS_COMMAND = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
+if (!RUN_AS_COMMAND) throw new Error('install.mjs is a command, not a module — run it with node, do not import it')
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
+import { createRequire } from 'node:module'
 
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')
@@ -406,6 +413,35 @@ if (wants('mcp')) {
   const r = run('npm', ['i', '--no-audit', '--no-fund', ...servers], { cwd: mcpRoot, timeout: 420000 })
   if (r.status === 0 || DRY) ok(`installed ${servers.join(', ')}`)
   else warn('MCP server install failed — run npm i in library/mcp-servers')
+
+  // playwright-core ships NO BROWSER. Installing the package and stopping leaves every render,
+  // audit, motion capture and print proof unable to run, which is most of what this package is
+  // for — so the browser is part of the install, not a thing the user discovers later.
+  if (!DRY) {
+    const core = join(mcpRoot, 'node_modules', 'playwright-core')
+    const cli = join(core, 'cli.js')
+    if (!existsSync(cli)) warn('playwright-core has no cli.js — cannot fetch a browser; renders and audits will not run')
+    else {
+      // Whether a browser is usable is answered by launching one, not by guessing at a path:
+      // a headless launch uses the headless shell, not the full build the path names.
+      const launches = () => run(vars.NODE, ['-e',
+        'const{chromium}=require(' + JSON.stringify(core) + ');'
+        + 'chromium.launch({headless:true}).then(b=>b.close()).then(()=>process.exit(0)).catch(()=>process.exit(3))'],
+      { timeout: 90000 }).status === 0
+      if (launches()) ok('browser already present for render, audit and motion')
+      else {
+        const b = run(vars.NODE, [cli, 'install', 'chromium', '--only-shell'], { timeout: 900000 })
+        if (launches()) ok('browser downloaded for render, audit and motion')
+        else {
+          // Some versions launch the full build rather than the shell; try that before giving up.
+          run(vars.NODE, [cli, 'install', 'chromium'], { timeout: 900000 })
+          if (launches()) ok('browser downloaded for render, audit and motion')
+          else warn('the browser could not be downloaded — renders, audits, motion captures and print '
+            + `proofs will not run. Run it by hand: "${vars.NODE}" "${cli}" install chromium${b.status === 0 ? '' : ' (the download itself failed)'}`)
+        }
+      }
+    }
+  }
 
   const cfgPath = CLAUDE_JSON
   if (existsSync(cfgPath) && !DRY) {
