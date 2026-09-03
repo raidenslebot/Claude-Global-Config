@@ -5,6 +5,55 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.16.0 — 2026-09-02
+
+An adversarial fact-check of the technique reference against MDN, caniuse and the platform
+docs. Eleven claims were wrong, misleading or overstated. Wrong facts in a reference are worse
+than no reference, because they are written as recipes and get copied into real work.
+
+- **The subgrid recipe did not work.** `.row` declared `grid-template-rows` and no columns, so it
+  had one implicit column and every card stacked in it. The promised payoff — titles and
+  footers aligning ACROSS a row — cannot happen when there is no row. This was the file’s fix
+  for what it calls the most common generated-layout defect there is, and copied verbatim it
+  produced a single column and the conclusion that subgrid is unsupported.
+
+- **The optical-sizing snippet contradicted itself.** It set `'opsz' 144` and
+  `font-optical-sizing: auto` in the same rule, with a comment saying opsz would follow the
+  font size. `font-variation-settings` overrides the basic property for the same axis wherever
+  it appears, so the auto did nothing and every heading rendered at the poster cut, including
+  on a phone. The two are now shown as the alternatives they are. The catalogue also stopped
+  scoring `font-optical-sizing: auto`, which is the property’s initial value: it was awarding a
+  technique for writing out the default.
+
+- **"Everything below is shipping in every current browser" was false**, and it disabled the
+  file’s own safety rule, which calibrates its `@supports` advice against that sentence.
+  `hanging-punctuation` is Safari only; `initial-letter` has no Firefox; `text-wrap: pretty` has
+  no Firefox; anchor positioning is partial in Firefox; scroll-driven animation arrived there
+  only very recently. Support is now stated per entry, with a table of the five that are not
+  everywhere and what to do about each — and the scroll-driven and drop-cap examples carry the
+  `@supports` gates they always needed. Without a timeline, `animation: … both` is an ordinary
+  animation that fires once at load, so every "reveal" on the page happens at the same moment.
+
+- **`mix-blend-mode: difference` does not "stay legible over anything."** It guarantees
+  inversion, not contrast: white over a mid-grey lands on that mid-grey, which is most of what
+  a photograph is made of. The claim licensed dropping the scrim, which is the actual guarantee.
+
+- **The variable-axis list called five custom axes "common".** Only `wght`, `wdth`, `opsz`,
+  `slnt` and `ital` are registered. `GRAD`, `CASL`, `MONO`, `SOFT` and `WONK` are family-specific,
+  and setting one on a family that lacks it fails silently — no error, no warning, no
+  difference — so the reader ships dark-mode grade correction that never applied. The families
+  that actually carry each axis are now named.
+
+- Also corrected: paint worklets were ranked as a high-lift move while being Chromium-only
+  (Firefox does not implement them, Safari ships the API disabled); trapping was described as
+  an expressive effect when it is a prepress correction normally applied by the RIP;
+  `display-p3` was said to be on every modern screen; haptics were called a channel the web
+  does not have at all; and SwiftUI’s `.visualEffect` was being matched as a shader modifier
+  when it is a geometry proxy.
+
+- The tide example carried `font-optical-sizing: auto` on Archivo, which has no `opsz` axis, so
+  the declaration could not do anything. It is gone, and its `review.md` records why the
+  measured count moved from 19 to 18 with no change to the design.
 ## 1.15.0 — 2026-09-02
 
 A gate for the one field that is judged as a set, and three cases where a gate asked the

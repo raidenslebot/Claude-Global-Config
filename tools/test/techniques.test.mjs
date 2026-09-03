@@ -138,7 +138,7 @@ test('an unentered dimension is only reported when the medium can express it', (
 })
 
 test('the suggestions widen the dimensions the piece has touched least', () => {
-  const typeOnly = `h1 { font-optical-sizing: auto; font-variant-numeric: tabular-nums;
+  const typeOnly = `h1 { font-variation-settings: 'opsz' 32; font-variant-numeric: tabular-nums;
     font-size: clamp(2rem, 5vw, 4rem); text-wrap: balance; -webkit-text-stroke: 1px #000; }`
   const m = measure(typeOnly, { ext: '.css' })
   assert.ok(m.byDim.type >= 4)

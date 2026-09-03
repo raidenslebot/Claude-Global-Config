@@ -1,8 +1,8 @@
 # The loop — Harbour Swim Club tide board
 
 Every pass is recorded, including the ones where the gate was right and the piece was wrong.
-Three of the five passes below found a real defect that reading the source would never have
-shown, which is the argument for the whole pipeline.
+Four of the six passes below found a real defect that reading the source would never have
+shown — three of them in the tools themselves — which is the argument for the whole pipeline.
 
 ---
 
@@ -11,7 +11,7 @@ shown, which is the argument for the whole pipeline.
 `cgc lint tide.html` → **clean, 0 of 23.** No fingerprint: no purple, no glass card, no centred
 hero, no stock copy, real faces.
 
-`cgc techniques tide.html` → **ambitious, 19 of 51.**
+`cgc techniques tide.html` → **ambitious, 18 of 51.**
 
 `cgc motion tide.html --duration 1800` → **FAIL: dead. Nothing moved across the whole capture.**
 
@@ -78,7 +78,7 @@ Rebuilt around the waterline:
 
 `cgc audit` → **no failures, no warnings, at 1440×900 and 390×844.**
 `cgc motion tide.html --duration 1200` → **ease-out, settles at 545 ms, nothing measured wrong.**
-`cgc lint` → **clean.** `cgc techniques` → **ambitious, 19 of 51.**
+`cgc lint` → **clean.** `cgc techniques` → **ambitious, 18 of 51.**
 
 ---
 
@@ -101,3 +101,22 @@ Under `prefers-reduced-motion: reduce` the water is simply **at** its level, the
 and the board loses nothing at all — no information, no hierarchy, no meaning. That is the test
 of whether motion was decoration, and this passes it in the only way that counts: the rise is
 not an effect on the datum, it *is* the datum arriving.
+
+## Pass 6 — a fact-check, and one declaration that did nothing
+
+An adversarial fact-check of the technique catalogue found that
+`font-optical-sizing: auto` is the **initial value** of that property, so writing it out is not a
+decision — and that `font-variation-settings` overrides the basic property for the same axis
+anyway. This board sets Archivo, which exposes `wght` and `wdth` and **no `opsz` axis at all**, so
+the declaration could not have done anything even if it had been the one in charge.
+
+It is gone. By this package's own standard — a technique that could be removed without the piece
+reading differently was decoration — an inert declaration in a worked example is worse than
+decoration, because it teaches the habit.
+
+The catalogue was corrected in the same pass: optical sizing is now scored for setting `opsz`
+deliberately or switching the tracking off, not for restating the default. So the measured count
+moved from 19 to 18 with no change to the design, which is the number becoming honest rather than
+the piece becoming worse.
+
+`cgc check tide.html` → **every gate clean**, and the board is unchanged to look at.

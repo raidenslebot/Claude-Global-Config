@@ -8,9 +8,23 @@ That page is not bad. It is **conventional**, and conventional is the ceiling al
 generated work sits at, because the model reaches for the capability it has seen most, and what
 it has seen most is 2015 CSS.
 
-Everything below is shipping in every current browser. Each entry says what it *unlocks* — the
-thing that is impossible without it — because a technique adopted for its own sake is
-decoration, and decoration is the failure mode this file could otherwise cause.
+Each entry says what it *unlocks* — the thing that is impossible without it — because a
+technique adopted for its own sake is decoration, and decoration is the failure mode this file
+could otherwise cause.
+
+**Support is stated per entry, and most of this is cross-engine.** Five are not, and they are
+the ones people reach for first, so they are named here rather than buried:
+
+| Not everywhere | State | What you must do |
+|---|---|---|
+| `hanging-punctuation` | **Safari only.** No Chrome, no Firefox, no Edge. | Treat as a bonus. Never let the measure depend on it. |
+| `initial-letter` | **No Firefox.** Partial in Chrome/Safari/Edge. | `@supports (initial-letter: 3)`, and a paragraph that reads without the cap. |
+| `text-wrap: pretty` | **No Firefox.** (`balance` IS cross-engine.) | Free to use; it degrades to normal wrapping. Do not rely on it to kill widows. |
+| anchor positioning | Chrome/Edge/Safari current; **Firefox partial**. | Newly Baseline. A tooltip with no fallback is an unpositioned element, not a degraded one — keep a JS or static path. |
+| scroll-driven animation | Chrome/Edge/Safari; **Firefox only very recently**. | Without a timeline, `animation: … both` runs immediately at load. Gate it in `@supports (animation-timeline: view())`. |
+
+Paint worklets are Chromium-only — Firefox does not implement them and Safari ships the API
+disabled — so treat `paint()` as an enhancement over a real background, never as the background.
 
 `cgc techniques <file>` reports which of these a piece reaches for and which it never tried, and
 knows nine further media besides this one.
@@ -93,8 +107,10 @@ inheritance control, which turns a token file into an API.
 }
 ```
 
-**Unlocks:** a signal colour with nowhere to hide, on every modern laptop and phone. Always
-behind a fallback.
+**Unlocks:** a signal colour with nowhere to hide on a wide-gamut display — most recent Apple
+hardware and better Android and desktop panels, but far from all of them, and many current
+monitors are sRGB only. Which is why the sRGB value above it is the design and this is the
+bonus, never the other way round.
 
 ---
 
@@ -105,16 +121,35 @@ behind a fallback.
 Most variable fonts ship three to six axes and almost every usage animates only `wght`.
 
 ```css
-h1 {
-  font-family: 'Fraunces', serif;
-  font-variation-settings: 'opsz' 144, 'SOFT' 40, 'WONK' 1;
-  font-optical-sizing: auto;   /* opsz follows font-size automatically */
-}
-p { font-variation-settings: 'opsz' 14; }
+/* Automatic: opsz tracks font-size. This is the default, so it is worth writing only to
+   restate it, or to switch it off. */
+p  { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+
+/* Deliberate: opsz is set by hand, for a display cut that should NOT follow the size. */
+h1 { font-family: 'Fraunces', serif; font-variation-settings: 'opsz' 144, 'SOFT' 40, 'WONK' 1; }
 ```
 
-Common axes: `opsz` optical size, `wdth` width, `slnt` slant, `GRAD` grade (weight without
-changing metrics — the trick for dark mode, where type looks heavier), `CASL` casual, `MONO`.
+**These two do not combine.** `font-variation-settings` overrides the basic property for the same
+axis wherever it appears in the cascade, so `'opsz' 144` next to `font-optical-sizing: auto` pins
+the display cut at 144 and the `auto` does nothing — including on a phone, where every heading
+then renders at the poster cut. Choose one per rule.
+
+**Registered axes** — five, all lowercase, and the only ones you can assume: `wght` weight,
+`wdth` width, `opsz` optical size, `slnt` slant, `ital` italic.
+
+**Custom axes** are per family, uppercase by convention, and setting one on a font that does not
+have it **fails silently** — no error, no console warning, no visible difference:
+
+| Axis | What it does | Families that actually have it |
+|---|---|---|
+| `GRAD` | grade: weight without changing metrics, so a line does not re-wrap | Roboto Flex, Roboto Serif, a few Google families |
+| `SOFT` | softens the terminals | Recursive, Fraunces |
+| `CASL` | casual ↔ formal | Recursive |
+| `MONO` | proportional ↔ monospace | Recursive |
+| `WONK` | swaps in the wonky glyphs | Fraunces |
+
+Grade is the one worth knowing — it is how dark-mode text stops looking fat without any layout
+moving — but check the family exposes it before relying on it, because nothing will tell you.
 
 **Unlocks:** one family behaving as a whole typographic system. Grade in particular is how you
 keep dark-mode text from looking fat without changing the layout.
@@ -159,9 +194,14 @@ the tell of type that was scaled rather than set.
 ### Editorial devices that cost one rule
 
 ```css
-.article p:first-of-type::first-letter { initial-letter: 3 2; margin-right: .08em; font-family: var(--display); }
-.pull  { hanging-punctuation: first last; }
+/* vertical-rl is cross-engine. The other two are not — see the support table at the top. */
 .spine { writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: .2em; }
+
+@supports (initial-letter: 3) {
+  .article p:first-of-type::first-letter { initial-letter: 3 2; margin-right: .08em; font-family: var(--display); }
+}
+/* Safari only. A bonus when it lands, never something the measure depends on. */
+.pull { hanging-punctuation: first last; }
 ```
 
 ---
@@ -199,9 +239,17 @@ props. Viewport media queries cannot express this and never could.
 ### Subgrid — shared baselines across cards
 
 ```css
-.row  { display: grid; grid-template-rows: auto auto 1fr auto; }
+.row  {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));  /* without this there is no ROW */
+  grid-template-rows: auto auto 1fr auto;
+}
 .card { display: grid; grid-row: span 4; grid-template-rows: subgrid; }
 ```
+
+The columns are the part that is always forgotten. A `.row` with only `grid-template-rows` has
+one implicit column, every card auto-places into it, and they stack — which looks like subgrid
+being unsupported and is actually the grid having no row to align across.
 
 **Unlocks:** every card's title, body and footer aligning across the row even with different
 content lengths. The ragged card row is the most common generated-layout defect there is.
@@ -244,13 +292,18 @@ that is not a rectangle at all.
 ### Blend modes — ink that reacts to what is under it
 
 ```css
-.headline { mix-blend-mode: difference; color: #fff; }   /* stays legible over anything */
+.headline { mix-blend-mode: difference; color: #fff; }   /* inverts against the backdrop */
 .ink      { mix-blend-mode: multiply; }                  /* overlapping shapes behave like real ink */
 .duotone  { background-blend-mode: luminosity; background-color: var(--signal); background-image: url(photo.jpg); }
 ```
 
-**Unlocks:** a headline that crosses an image and inverts instead of needing a scrim; two-colour
+**Unlocks:** a headline that crosses an image and inverts instead of sitting in a box; two-colour
 printing behaviour on screen.
+
+**It guarantees inversion, not contrast.** `difference` computes |backdrop − source|, so white
+over a mid-grey `#808080` gives `#7f7f7f` — the headline disappears into exactly the mid-tones a
+photograph is mostly made of. Use it where the backdrop is dark or light, not where it is
+neither, and keep a scrim for the general case.
 
 ### Real grain, generated
 
@@ -300,13 +353,19 @@ the environment:
 
 ```css
 @keyframes rise { from { opacity: 0; transform: translateY(2rem) } to { opacity: 1; transform: none } }
-.reveal {
-  animation: rise linear both;
-  animation-timeline: view();
-  animation-range: entry 10% cover 35%;
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: rise linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 35%;
+  }
 }
 @media (prefers-reduced-motion: reduce) { .reveal { animation: none } }
 ```
+
+The `@supports` gate is not optional here. Without a timeline, `animation: rise … both` is an
+ordinary animation: it runs once, immediately, at load — so every element on the page reveals
+itself at the same moment and nothing is tied to the scroll at all.
 
 Runs on the compositor, so it cannot jank the way a scroll handler does. `scroll()` ties to the
 scroller's own progress — a reading progress bar is four lines with no JS.
