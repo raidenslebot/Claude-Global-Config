@@ -5,6 +5,34 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.42.0 — 2026-09-03
+
+Running each tool the way a hurried person runs it — the bare command, no optional flags — the
+way the mockup was run in 1.41.0. Every documented invocation passes the flags; nothing checked
+what happens without them. Three tools said something untrue.
+
+- **`cgc audit page.html` reported "No failures" on a page with two hard failures.** Without
+  `--mobile` only the desktop is opened, and sideways scroll is a *warning* at 1440 and a
+  *failure* at 390, while tap targets are not measured on a desktop at all. A page 1264px wide
+  with a 20px control came back clean, closing with "That is the floor" — which reads as a pass.
+  The summary now says the phone was never opened and names what only runs there. An explicit
+  `--viewport` is a deliberate choice of canvas and is left alone.
+
+- **`cgc motion` measured the first second of a three-second move and reported where it
+  "settles".** Arithmetically right about the wrong second, and stated as fact. It reads what the
+  page declares before deciding how long to watch: with no `--duration` it extends the window to
+  cover the motion and says it did; with one, it obeys and says the readings describe that part
+  only. The same 3200 ms move now measures 2036 ms and earns the *too-slow* warning the short
+  window was hiding.
+
+- **`cgc icons one.svg` answered "the set agrees with itself".** True of one icon by arithmetic,
+  and this tool exists because *a single icon is almost never wrong while a set is wrong
+  constantly* — its own header says so. One icon is not a set, and it says that now, with where
+  to point it instead.
+
+Each is the same defect in a different tool: the honest answer to a question that was never asked
+is not "no problems found".
+
 ## 1.41.0 — 2026-09-02
 
 **A garment mockup that shows nothing looks exactly like a garment mockup.** I rendered the

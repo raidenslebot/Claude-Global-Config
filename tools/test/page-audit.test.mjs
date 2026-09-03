@@ -371,3 +371,36 @@ test('a page sitting exactly on every threshold passes', { skip }, async (t) => 
   assert.deepEqual(bad.map((x) => x.rule + ': ' + x.msg.slice(0, 70)), [], 'a page on the line was reported')
   assert.equal(r.ok, true)
 })
+
+test('without --mobile the summary says the phone was never opened', { skip }, async (t) => {
+  // "No failures" about a page nobody has looked at on a phone is the same sentence as "No
+  // failures" about one that passed there. Sideways scroll is only a FAILURE on a phone, tap
+  // targets are measured only there, and that is where most of them are.
+  const d = scratch(t)
+  const f = join(d, 'wide.html')
+  writeFileSync(f, `<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Wide</title><style>
+    body{margin:0;padding:32px;background:#fff;color:#1d2530;font-family:Georgia,serif;font-size:18px;line-height:1.55}
+    .wide{width:1200px;background:#eee;padding:16px}
+    a.tiny{display:block;width:20px;height:20px;background:#eee;color:#1d2530;text-align:center}
+    </style></head><body><h1>Fine on a desktop</h1>
+    <div class="wide">Twelve hundred pixels wide, which fits at 1440 and does not fit on a phone.</div>
+    <p>A paragraph of ordinary text so there is something to measure.</p>
+    <a class="tiny" href="#">x</a></body></html>`)
+  const run = (args) => spawnSync(process.execPath, [join(REPO, 'tools', 'page-audit.mjs'), f, ...args],
+    { encoding: 'utf8', timeout: 180000 })
+
+  const desktop = run([])
+  assert.equal(desktop.status, 0, 'a desktop-only run of this page has nothing to fail on')
+  assert.match(desktop.stdout, /nothing here has been seen on a phone/)
+  assert.doesNotMatch(desktop.stdout, /That is the floor, not the ceiling/, 'that line is a clean bill of health')
+
+  // And the phone finds both of them.
+  const phone = run(['--mobile'])
+  assert.equal(phone.status, 1)
+  assert.match(phone.stdout, /scrolls sideways/)
+  assert.match(phone.stdout, /thumb cannot hit/)
+
+  // An explicit viewport is a deliberate choice of canvas and is not nagged.
+  assert.doesNotMatch(run(['--viewport', '390x844']).stdout, /been seen on a phone/)
+})

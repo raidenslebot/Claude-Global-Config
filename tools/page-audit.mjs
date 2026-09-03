@@ -808,7 +808,18 @@ export async function main(argv = process.argv.slice(2)) {
       console.log(`  ${mark} ${f.rule.padEnd(15)} ${f.msg}${f.sample ? `  \x1b[90m“${f.sample}”\x1b[0m` : ''}`)
     }
   }
-  console.log(r.ok ? '\n  No failures. That is the floor, not the ceiling — the loop decides whether it is good.' : '\n  A page that fails here is not finished, whatever it looks like.')
+  // Three checks only exist on a phone: sideways scroll is a FAILURE there and a warning here,
+  // tap targets are not measured on a desktop at all, and the reading measure is judged against
+  // a different column. Without --mobile none of them ran, and "No failures" about a page nobody
+  // has looked at on a phone is the same sentence as "No failures" about one that passed there.
+  const sawPhone = Boolean(args.mobile) || Boolean(args.viewport)
+  if (!r.ok) console.log('\n  A page that fails here is not finished, whatever it looks like.')
+  else if (sawPhone) console.log('\n  No failures. That is the floor, not the ceiling — the loop decides whether it is good.')
+  else {
+    console.log('\n  No failures at 1440 — but nothing here has been seen on a phone. Sideways scroll is only a')
+    console.log('  failure there, tap targets are measured only there, and that is where most of them are.')
+    console.log('  Run it again with --mobile before calling this clean.')
+  }
   return r.ok ? 0 : 1
 }
 

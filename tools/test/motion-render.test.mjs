@@ -100,8 +100,10 @@ test('the sheet carries every frame, its time, and the line to judge the curve a
 // pages that had done the right thing, which is the worst kind of gate. These three cases are
 // the whole contract, so they are checked against the browser rather than against a model.
 import { findPlaywright } from '../print-render.mjs'
-import { mkdtempSync as mkdtemp2, writeFileSync as write2 } from 'node:fs'
+import { mkdtempSync as mkdtemp2, writeFileSync as write2, rmSync as rmSync2 } from 'node:fs'
 import { tmpdir as tmp2 } from 'node:os'
+import { spawnSync } from 'node:child_process'
+import { REPO } from '../paths.mjs'
 import { spawnSync as spawn2 } from 'node:child_process'
 
 const BROWSER = Boolean(findPlaywright())
@@ -156,4 +158,30 @@ test('a page that animates from a timer is not reported as dead', { skip: needsB
   ['--duration', '1000', '--frames', '12'])
   assert.ok(!json.findings.some((f) => f.id === 'dead'), 'the page animates; it must not be called dead')
   assert.notEqual(json.easing, 'none')
+})
+
+test('a window shorter than the motion is extended, or said out loud', (t) => {
+  // A 3.2s move photographed for the default second reported "settles at 909 ms" — arithmetically
+  // right about the wrong second. A wrong number stated as fact is worse than no number.
+  const d = mkdtemp2(join(tmp2(), 'motion-slow-'))
+  t.after(() => rmSync2(d, { recursive: true, force: true }))
+  const f = join(d, 'slow.html')
+  write2(f, `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Slow</title><style>
+    body{margin:0;background:#f4f1ea;color:#1d2530;font-family:Georgia,serif;padding:40px;font-size:18px}
+    .b{width:120px;height:120px;background:#1d2530;animation:go 3200ms cubic-bezier(.2,.8,.2,1) both}
+    @keyframes go{from{transform:translateX(0)}to{transform:translateX(600px)}}
+    @media (prefers-reduced-motion:reduce){.b{animation:none}}
+    </style></head><body><h1>A move that takes three seconds</h1><div class="b"></div></body></html>`)
+  const run = (args) => spawnSync(process.execPath, [join(REPO, 'tools', 'motion-render.mjs'), f, '--out', join(d, 'm'), ...args],
+    { encoding: 'utf8', timeout: 300000 })
+
+  const auto = run([])
+  assert.match(auto.stderr, /declares 3200 ms of motion; watching all of it/, auto.stderr)
+  assert.match(auto.stdout, /3200 ms/, 'the sheet covers the whole move')
+  assert.doesNotMatch(auto.stdout, /settles at 9\d\d ms/, 'and does not report the first second as the whole')
+
+  // Asked for a window explicitly, it obeys — and says what the readings describe.
+  const asked = run(['--duration', '1000'])
+  assert.match(asked.stderr, /declares 3200 ms of motion and this is watching 1000 ms/)
+  assert.match(asked.stdout, /1000 ms/)
 })

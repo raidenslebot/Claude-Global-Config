@@ -324,7 +324,14 @@ export function main(argv = process.argv.slice(2)) {
     ? `\n  ${r.count} drawings that do not share a grid — judged as separate pieces, not as a set`
     : `\n  ${r.count} icon${r.count === 1 ? '' : 's'} · grid ${r.grid || '?'} · stroke ${r.stroke ?? 'n/a'} · judged at ${size}px`)
   if (!r.findings.length) {
-    console.log(`  ${C.green}the set agrees with itself${C.off}`)
+    // "The set agrees with itself" is true of one icon by arithmetic, and this tool exists
+    // because a single icon is almost never wrong while a set is wrong constantly. Saying the
+    // vacuous thing reads as a pass on the questions that were never asked.
+    console.log(r.count === 1
+      ? `  ${C.yellow}one icon is not a set${C.off} — nothing here could disagree with anything. The grid, the`
+        + `
+  weight, the colour and the small size are questions about a SET; point this at the folder.`
+      : `  ${C.green}the set agrees with itself${C.off}`)
     console.log(`  ${C.dim}Now look at the contact sheet at ${size}px: consistency is the floor, and it cannot tell you whether the metaphors are any good.${C.off}\n`)
     return 0
   }

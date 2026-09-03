@@ -296,7 +296,8 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const frames = Math.max(3, Math.min(48, Number(args.frames) || 12))
-  const duration = Math.max(50, Math.min(20000, Number(args.duration) || 1000))
+  const askedDuration = args.duration !== undefined
+  let duration = Math.max(50, Math.min(20000, Number(args.duration) || 1000))
   const trigger = String(args.trigger || 'load')
   const scrolling = trigger === 'scroll'
   const outBase = args.out ? resolve(String(args.out))
@@ -347,6 +348,30 @@ export async function main(argv = process.argv.slice(2)) {
         const sel = m[2].replace(/^["']|["']$/g, '')
         try { await (m[1] === 'hover' ? page.hover(sel, { timeout: 4000 }) : page.click(sel, { timeout: 4000 })) }
         catch { if (!reduced) console.error(`motion-render: --trigger ${trigger} — no element matched "${sel}"; captured the page untriggered.`) }
+      }
+
+      // What the page says it does, before deciding how long to watch. A window shorter than the
+      // motion measures the first part of it and reports the answer as if it were the whole.
+      let declared = 0
+      if (!scrolling) {
+        declared = await page.evaluate(() => {
+          let end = 0
+          for (const a of document.getAnimations()) {
+            let ti = {}
+            try { ti = a.effect.getTiming() } catch { continue }
+            if (ti.iterations === Infinity) continue          // endless: there is no end to reach
+            const one = (Number(ti.duration) || 0) * (Number(ti.iterations) || 1) + (Number(ti.delay) || 0)
+            if (Number.isFinite(one)) end = Math.max(end, one)
+          }
+          return Math.round(end)
+        }).catch(() => 0)
+      }
+      if (!askedDuration && declared > duration && declared <= 20000) {
+        console.error(`motion-render: the page declares ${declared} ms of motion; watching all of it rather than the default ${duration} ms.`)
+        duration = declared
+      } else if (declared > duration) {
+        console.error(`motion-render: the page declares ${declared} ms of motion and this is watching ${duration} ms — `
+          + `every reading below describes that first part, not the whole move.`)
       }
 
       const height = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - window.innerHeight))
