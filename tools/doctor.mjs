@@ -9,11 +9,14 @@
 import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp } from './paths.mjs'
 import { buildVars } from './paths.mjs'
 
 const { LIBRARY_ROOT } = buildVars()
 import { findPlaywright } from './print-render.mjs'
+
+// A request for help is never a request to do the thing.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const JSON_OUT = process.argv.includes('--json')
 const results = []

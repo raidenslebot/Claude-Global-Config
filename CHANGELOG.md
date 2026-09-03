@@ -5,6 +5,40 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.26.0 — 2026-09-02
+
+Asking a command what it does is no longer the same as asking it to do it, and a render in the
+wrong face is no longer a success.
+
+**`--help` did the thing.** `cgc sync --help` performed a sync — the command that *writes*.
+`cgc scan --help` scanned the tree, `cgc doctor --help` ran the doctor, `cgc install --help`
+would have installed, and `cgc test --help` would have run the whole suite. Six tools had no
+`--help` at all and simply ignored the flag. Each now prints its own header block, which is
+where every one of them already documented itself, and does nothing else. A test walks every
+command and asserts both halves: that usage appears, and that the action did not run.
+
+**A face that was never served is now caught.** `document.fonts` only knows about faces the
+page *declared*. A stylesheet that was never served — a misspelled Google family answers 400 —
+declares nothing, so nothing can fail to load, and `screen-render` returned a page set in the
+system serif with no word said about it. It measures every family the page asks for against the
+three generics now, exactly as the audit does, and names the ones that came back as their own
+fallback.
+
+**And a fallback render is not a success.** `screen-render` printed "font failed to load … the
+design you judged is not the one that shipped" and then returned **0**. Its own JSON said
+`ok: false` while its exit code said fine, and a gate reads the code. Both say the same thing
+now.
+
+**`specimen` refused to be a specimen of nothing.** Given two families that do not exist it
+rendered the pairing in the system fallback, said nothing, and exited 0 — from the one tool
+whose whole purpose is that a face is chosen by looking at it set rather than by its name. It
+now asks Google which of the requested families it will actually serve, before writing
+anything, and stops with the family named. Being offline is reported as being offline and
+blocks nothing: not reaching the server is not the same as the face not existing.
+
+`specimen` also exits by code rather than by `process.exit()`, for the same reason
+`outline-text` does: exiting in the turn a fetch settled in aborts libuv on Windows with 127.
+
 ## 1.25.0 — 2026-09-02
 
 Two tools at the end of the pipeline, where a mistake becomes a physical object.

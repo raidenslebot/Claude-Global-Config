@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp } from './paths.mjs'
 
 // This file has no exports: it performs an install the moment it is loaded. Importing it —
 // from a test, a tool, or by accident — would silently run one. Say so instead.
@@ -28,6 +28,9 @@ const RUN_AS_COMMAND = (() => { try { return Boolean(process.argv[1]) && realpat
 if (!RUN_AS_COMMAND) throw new Error('install.mjs is a command, not a module — run it with node, do not import it')
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
 import { createRequire } from 'node:module'
+
+// A request for help is never a request to do the thing.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')

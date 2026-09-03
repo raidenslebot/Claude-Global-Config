@@ -397,3 +397,32 @@ test('the repo own tree scans clean', () => {
   assert.deepEqual(report.findings, [], `secrets in the repo:\n${JSON.stringify(report.findings, null, 2)}`)
   assert.equal(r.status, 0, JSON.stringify(report.notes, null, 2))
 })
+
+test('every command answers --help with its usage, and never by doing the thing', () => {
+  // `cgc sync --help` performed a sync. `cgc scan --help` scanned the tree. `cgc doctor --help`
+  // ran the doctor, and `cgc test --help` would have run the suite. Asking what a command does
+  // must never be the same as asking it to do it — least of all for the one that writes.
+  const cgc = join(TOOLS, 'cgc.mjs')
+  const forbidden = {
+    doctor: /── Summary|Install is healthy|Install is broken/,
+    sync: /\d+ tracked, \d+ (updated|drifted)/,
+    scan: /── Forbidden paths|Safe to publish/,
+    install: /── Summary|Next: /,
+    uninstall: /Nothing was changed|Uninstall incomplete/,
+    test: /# tests \d|ℹ tests \d/,
+  }
+  for (const [cmd, ran] of Object.entries(forbidden)) {
+    const r = spawnSync(process.execPath, [cgc, cmd, '--help'], { encoding: 'utf8', timeout: 120000 })
+    const out = (r.stdout || '') + (r.stderr || '')
+    assert.equal(r.status, 0, `cgc ${cmd} --help should exit 0, got ${r.status}`)
+    assert.match(out, /usage|node tools\//i, `cgc ${cmd} --help printed no usage:\n${out.slice(0, 200)}`)
+    assert.doesNotMatch(out, ran, `cgc ${cmd} --help DID THE THING instead of explaining it`)
+  }
+
+  // And the tools that already had usage still have it, from the same entry point.
+  for (const cmd of ['check', 'lint', 'audit', 'techniques', 'motion', 'render', 'print', 'print-lint', 'icons', 'outline', 'specimen']) {
+    const r = spawnSync(process.execPath, [cgc, cmd, '--help'], { encoding: 'utf8', timeout: 120000 })
+    assert.equal(r.status, 0, `cgc ${cmd} --help exited ${r.status}`)
+    assert.match((r.stdout || '') + (r.stderr || ''), /usage|—/i, `cgc ${cmd} --help said nothing`)
+  }
+})

@@ -20,6 +20,10 @@ import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { askedForHelp } from './paths.mjs'
+
+// A request for help is never a request to run the suite.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const TEST_DIR = join(HERE, 'test')

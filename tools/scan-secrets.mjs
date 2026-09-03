@@ -18,7 +18,10 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs'
 import { join, relative, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO } from './paths.mjs'
+import { REPO, askedForHelp } from './paths.mjs'
+
+// A request for help is never a request to do the thing.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const args = process.argv.slice(2)
 const JSON_OUT = args.includes('--json')

@@ -8,7 +8,11 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { specimenHtml, main } from '../specimen.mjs'
+import { REPO } from '../paths.mjs'
+
+const TOOL = join(REPO, 'tools', 'specimen.mjs')
 
 test('the font request carries both families with their axis specs, and the roles are assigned in order', () => {
   const html = specimenHtml({
@@ -47,4 +51,28 @@ test('the CLI writes the page beside the requested base and stops before renderi
 
 test('usage, not a crash, when a face is missing', async () => {
   assert.equal(await main(['--display', 'Fraunces']), 1)
+})
+
+test('a family Google does not serve is refused, because a fallback specimen is a specimen of nothing', async () => {
+  // This tool exists because a face is chosen by looking at it set. Asked for two families that
+  // are not real it rendered the pairing in the system fallback, said nothing, and exited 0.
+  const bad = spawnSync(process.execPath, [TOOL, '--display', 'NoSuchFamilyAnywhere123',
+    '--text', 'Source Serif 4', '--out', join(mkdtempSync(join(tmpdir(), 'spec-')), 'x')],
+  { encoding: 'utf8', timeout: 120000 })
+  assert.equal(bad.status, 1, `expected a refusal, got ${bad.status}`)
+  assert.match(bad.stderr, /serves no face for "NoSuchFamilyAnywhere123"/)
+  assert.match(bad.stderr, /specimen of nothing/)
+  assert.doesNotMatch(bad.stderr, /Assertion failed/, 'exit by code, never by aborting libuv')
+})
+
+test('the served families are read from the stylesheet, and being offline is not being wrong', async () => {
+  const { missingFamilies } = await import('../specimen.mjs')
+  // A stylesheet that serves one of the two.
+  const one = await missingFamilies(['Archivo', 'Ghost Face'], 'data:text/css,' + encodeURIComponent(
+    "@font-face { font-family: 'Archivo'; src: url(x) format('woff2') }"))
+  assert.deepEqual(one.missing, ['Ghost Face'])
+  // Unreachable is reported as unreachable and blocks nothing: offline is not the same as wrong.
+  const off = await missingFamilies(['Archivo'], 'http://127.0.0.1:1/none.css')
+  assert.deepEqual(off.missing, [])
+  assert.match(off.why, /could not reach|ECONN|fetch failed/i)
 })

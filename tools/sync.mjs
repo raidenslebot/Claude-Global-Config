@@ -9,7 +9,10 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
-import { REPO, CONFIG_ROOT, buildVars, templatize, unresolved } from './paths.mjs'
+import { REPO, CONFIG_ROOT, buildVars, templatize, unresolved, askedForHelp } from './paths.mjs'
+
+// A request for help is never a request to do the thing.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const CHECK = process.argv.includes('--check')
 const vars = buildVars()

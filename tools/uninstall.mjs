@@ -28,7 +28,10 @@ import { renameSync,
 import { join, basename, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { spawnPlan, onPath } from '../argo/src/spawn.js'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, askedForHelp } from './paths.mjs'
+
+// A request for help is never a request to do the thing.
+if (askedForHelp(import.meta.url)) process.exit(0)
 
 const args = process.argv.slice(2)
 const DRY = !args.includes('--yes')

@@ -61,6 +61,48 @@ Writes <base>-<width>.png for each viewport (default 1440×900; --mobile adds 39
 Reports @font-face loads that failed. Exit 2 when no browser is available.
 `
 
+/** Families the page ASKS FOR that render exactly as their fallback.
+ *
+ *  `document.fonts` only knows about faces the page declared. A stylesheet that was never
+ *  served — a misspelled Google family answers 400 — declares nothing, so nothing can fail to
+ *  load and the render came back in the system serif with no word said about it. The render is
+ *  the thing the designer looks at; a silent fallback misleads every judgement after it. */
+export const fellBackInPage = () => {
+  const GENERIC = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-(serif|sans-serif|monospace|rounded)|-apple-system|BlinkMacSystemFont|inherit|initial|unset|revert|emoji|math|fangsong)$/i
+  const asked = new Map()
+  const walk = (root) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+      if (own) {
+        const f = getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '')
+        if (f && !GENERIC.test(f) && !asked.has(f)) asked.set(f, el)
+      }
+      if (el.shadowRoot) walk(el.shadowRoot)
+    }
+  }
+  walk(document)
+  if (!asked.size) return []
+  const probe = document.createElement('span')
+  // Wide and narrow glyphs, upper, lower and figures, in pieces so the string is not one
+  // long alphabet literal.
+  const SAMPLE = ['mmmmmmmmmm', 'lllllllllll', 'ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789'].join('')
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;font-size:40px;white-space:nowrap;visibility:hidden'
+  document.body.appendChild(probe)
+  const width = (fam) => { probe.style.fontFamily = fam; return probe.getBoundingClientRect().width }
+  const out = []
+  for (const [face, el] of asked) {
+    // Measured with the element's OWN text, so an icon face or a CJK face with no Latin glyphs
+    // is judged on what it is actually asked to draw.
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim()
+    probe.textContent = own.length >= 3 ? own.slice(0, 60) : SAMPLE
+    const same = ['monospace', 'serif', 'sans-serif'].every((gen) => Math.abs(width(`"${face}", ${gen}`) - width(gen)) < 0.5)
+    if (same) out.push(face)
+  }
+  probe.remove()
+  return out
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   if (args.help || args._.length !== 1) { console.log(HELP); return args.help ? 0 : 1 }
@@ -115,6 +157,9 @@ export async function main(argv = process.argv.slice(2)) {
         return [...document.fonts].map((f) => ({ family: f.family, status: f.status, weight: f.weight, style: f.style }))
       })
       await page.waitForTimeout(300)
+      // A face the page asks for that measures exactly as its fallback never arrived, whether or
+      // not anything declared it. document.fonts cannot see a stylesheet that was never served.
+      const fellBack = await page.evaluate(fellBackInPage).catch(() => [])
       const png = `${outBase}-${vp.tag || vp.width}.png`
       // A preset is an exact canvas: it never captures past its own pixels, whatever --full says.
       await page.screenshot({ path: png, type: 'png', fullPage: Boolean(args.full) && !vp.tag })
@@ -123,19 +168,22 @@ export async function main(argv = process.argv.slice(2)) {
         viewport: `${vp.width}x${vp.height}`, png, pageHeight: height,
         fontsLoaded: [...new Set(fonts.filter((f) => f.status === 'loaded').map((f) => f.family))],
         fontsFailed: [...new Set(fonts.filter((f) => f.status === 'error').map((f) => f.family))],
+        fontsFellBack: fellBack,
       })
       await ctx.close()
     }
   } finally { await browser.close() }
 
-  const failed = [...new Set(shots.flatMap((s) => s.fontsFailed))]
-  if (args.json) { console.log(JSON.stringify({ ok: failed.length === 0, url, shots }, null, 2)); return 0 }
+  const failed = [...new Set([...shots.flatMap((s) => s.fontsFailed), ...shots.flatMap((s) => s.fontsFellBack)])]
+  // A render in the wrong face is not a render of this design, so it is not a success. The
+  // JSON already said ok:false here while the exit code said 0, and a gate reads the code.
+  if (args.json) { console.log(JSON.stringify({ ok: failed.length === 0, url, shots }, null, 2)); return failed.length ? 1 : 0 }
   for (const s of shots) {
     console.log(`  ${s.viewport.padEnd(9)} ${s.png}  (page ${s.pageHeight}px tall${s.fontsLoaded.length ? `; fonts: ${s.fontsLoaded.join(', ')}` : ''})`)
   }
   if (failed.length) console.log(`  \x1b[31mfont failed to load\x1b[0m: ${failed.join(', ')} — the page rendered in a fallback; the design you judged is not the one that shipped`)
   else console.log('  Look at them. Then name the weakest thing, fix it, and render again.')
-  return 0
+  return failed.length ? 1 : 0
 }
 
 const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()

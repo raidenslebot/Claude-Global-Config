@@ -99,6 +99,31 @@ function parseArgs(argv) {
   return out
 }
 
+// A browser-like UA so the CSS API answers with the same stylesheet the page will get.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+
+/** Which of the requested families Google will actually serve.
+ *
+ *  This tool exists because a face is chosen by looking at it set, not by its name — so a
+ *  specimen of a family that does not exist is the one output it must never produce quietly.
+ *  Asked for two families that are not real, it rendered the pairing in the system fallback,
+ *  said nothing, and exited 0: a picture of a decision nobody made. */
+export async function missingFamilies(families, link) {
+  let css = ''
+  try {
+    const r = await fetch(link, { headers: { 'User-Agent': UA } })
+    // A 400 means Google rejected the whole request: NO face is served, not one of them.
+    if (!r.ok) return { missing: families.slice(), why: `Google Fonts answered ${r.status}` }
+    css = await r.text()
+  } catch (e) {
+    // Offline is not the same as wrong. Say so, and let the render proceed.
+    return { missing: [], why: `could not reach fonts.googleapis.com (${String(e.message || e).slice(0, 60)})` }
+  }
+  const served = new Set()
+  for (const m of css.matchAll(/font-family:\s*['"]([^'"]+)['"]/gi)) served.add(m[1].toLowerCase())
+  return { missing: families.filter((f) => !served.has(f.toLowerCase())), why: '' }
+}
+
 const HELP = `usage:
   cgc specimen --display <Google Fonts family[:axes]> --text <family[:axes]> [--mono <family>] [--italic]
            [--palette "<css colour>,<css colour>,…"] [--words "<display line>"] [--out <base>] [--no-render]
@@ -113,6 +138,18 @@ export async function main(argv = process.argv.slice(2)) {
   const palette = args.palette ? String(args.palette).split(/\s*,(?![^(]*\))\s*/).map((s) => s.trim()).filter(Boolean) : []
   const out = resolve(String(args.out || `specimen-${family(args.display).replace(/\W+/g, '-').toLowerCase()}`))
   mkdirSync(dirname(out), { recursive: true })
+  const specs = [String(args.display), String(args.text), args.mono ? String(args.mono) : ''].filter(Boolean)
+  // Before anything is written: will Google serve these faces at all? A specimen set in the
+  // system fallback is a picture of a decision nobody made, and it looks like a specimen.
+  const check = await missingFamilies(specs.map(family), `https://fonts.googleapis.com/css2?${gf(specs)}&display=swap`)
+  if (check.missing.length) {
+    console.error(`specimen: Google Fonts serves no face for ${check.missing.map((f) => `"${f}"`).join(', ')}`
+      + (check.why ? ` — ${check.why}` : '') + '.')
+    console.error('  Rendered anyway it would be set in the system fallback, which is a specimen of nothing.')
+    console.error('  Check the spelling at fonts.google.com, or pass a local face to cgc outline instead.')
+    return 1
+  }
+  if (check.why) console.error(`specimen: ${check.why} — the faces could not be confirmed before rendering.`)
   const html = specimenHtml({ display: String(args.display), text: String(args.text), mono: args.mono ? String(args.mono) : '', italic: Boolean(args.italic), palette, words: args.words ? String(args.words) : undefined })
   writeFileSync(`${out}.html`, html, 'utf8')
   console.log(`  wrote ${out}.html`)
@@ -122,5 +159,9 @@ export async function main(argv = process.argv.slice(2)) {
 
 const isEntry = (() => { try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)) } catch { return false } })()
 if (isEntry) {
-  main().then((code) => process.exit(code), (e) => { console.error(`specimen: ${e.message}`); process.exit(1) })
+  // Never process.exit() here: this fetches before it renders, and exiting in the turn a fetch
+  // settled in aborts libuv on Windows with exit 127, so a caller reading the status sees a
+  // crash instead of the code this means.
+  const leave = (code) => { process.exitCode = code }
+  main().then(leave, (e) => { console.error(`specimen: ${e.message}`); leave(1) })
 }

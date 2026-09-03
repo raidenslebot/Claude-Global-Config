@@ -5,7 +5,7 @@
 // target machine. This is what makes the repo work on a setup that is not this one.
 
 import { homedir, platform } from 'node:os'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
@@ -121,4 +121,25 @@ export function realize(text, vars, { slash = 'native' } = {}) {
 /** Any token left unresolved after install is a bug — report, don't ship silently. */
 export function unresolved(text) {
   return [...new Set([...text.matchAll(/\{\{([A-Z0-9_]+)(?::url)?\}\}/g)].map((m) => m[1]))]
+}
+
+/** Print a script's own header comment as its usage, and say whether --help was asked for.
+ *
+ *  Every tool here documents itself in the comment block at the top of the file, and every one
+ *  of these five ran its ACTION when asked for help — `cgc sync --help` performed a sync, `cgc
+ *  scan --help` scanned, `cgc doctor --help` ran the doctor. A request for help must never be
+ *  a request to do the thing. */
+export function askedForHelp(metaUrl, argv = process.argv.slice(2)) {
+  if (!argv.some((a) => a === '--help' || a === '-h')) return false
+  let text = ''
+  try { text = readFileSync(fileURLToPath(metaUrl), 'utf8') } catch { /* printed bare below */ }
+  const lines = []
+  for (const line of text.split(/\r?\n/).slice(1)) {
+    if (line.startsWith('//')) lines.push(line.replace(/^\/\/ ?/, ''))
+    else if (lines.length) break
+  }
+  // Trailing blank comment lines read as an accident; the block itself is the usage.
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
+  console.log(lines.length ? lines.join('\n') : `usage: node ${fileURLToPath(metaUrl)}`)
+  return true
 }
