@@ -116,10 +116,11 @@ test('every planted defect is named at its level', { skip }, async (t) => {
   const motion = r.results[0].findings.find((x) => x.rule === 'motion')
   assert.match(motion.msg, /3 animation\(s\): 2 finite, 1 infinite/)
   assert.ok(!warns.includes('motion-noise'), 'one spinner is not garnish')
-  // Lowest ratio first: #aaa on white (2.32:1) outranks the #999 paragraph (2.85:1); both are named.
+  // Lowest ratio first, and the ground is now taken from the painted pixels rather than
+  // from the computed-style chain — the two agree exactly on an ordinary page like this one.
   const contrast = r.results[0].findings.filter((x) => x.rule === 'contrast' && x.level === 'fail')
   assert.match(contrast[0].msg, /^2\.3\d:1 — #aaaaaa on #ffffff/)
-  assert.ok(contrast.some((x) => /^2\.8\d:1 — #999999 on #ffffff at 16px; needs 4\.5:1/.test(x.msg)), contrast.map((x) => x.msg).join('\n'))
+  assert.ok(contrast.some((x) => /^2\.8\d:1 — #999999 on #ffffff on its PAINTED ground, at 16px; needs 4\.5:1/.test(x.msg)), contrast.map((x) => x.msg).join('\n'))
   const widow = r.results[0].findings.find((x) => x.rule === 'widow')
   assert.match(widow.msg, /"eeee"/)
   const pal = r.results[0].findings.filter((x) => x.rule === 'palette' && x.level === 'warn').map((x) => x.msg).join(' ')
@@ -158,4 +159,86 @@ test('no browser: exit 2 with the install hint, never a stack trace', { skip: BR
   const r = spawnSync(process.execPath, [join(REPO, 'tools', 'page-audit.mjs'), join(REPO, 'README.md')], { encoding: 'utf8', timeout: 60000 })
   assert.equal(r.status, 2)
   assert.match(r.stderr, /playwright-core not found/)
+})
+
+// ── Contrast is measured from the painted pixels ─────────────────────────────────────────────
+// The computed-style chain answers "what did the author declare". Five separate false passes
+// came from that: a background-image anywhere turned the whole check off, a scrim painted over
+// the text was invisible to it, a blend mode measured the declared colour, a decorative layer
+// with pointer-events:none composited the wrong ground, and a gradient could only ever inform.
+// Every one of them ended in "no failures".
+
+const CLI = join(REPO, 'tools', 'page-audit.mjs')
+const runCli = (args) => {
+  const r = spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', timeout: 180000 })
+  let json = null
+  try { json = JSON.parse(r.stdout) } catch { json = null }
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, json }
+}
+const painted = (t, body) => {
+  const dir = scratch(t)
+  const file = join(dir, 'page.html')
+  writeFileSync(file, body, 'utf8')
+  return runCli([file, '--json'])
+}
+const failures = (r) => (r.json?.results?.[0]?.findings || []).filter((f) => f.level === 'fail')
+
+test('a background image does not switch the contrast check off', { skip }, (t) => {
+  // A 1×1 transparent GIF changes no pixel, and used to disable contrast for the entire page.
+  const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+  const r = painted(t, `<!doctype html><style>body{background:#fff;background-image:url("${gif}");margin:0;padding:2rem}`
+    + 'h1{color:#f4f4f4;font-size:40px}p{color:#f6f6f6;font-size:18px}</style>'
+    + '<h1>Invisible heading</h1><p>Invisible paragraph text a reader cannot see.</p>')
+  const bad = failures(r).filter((f) => f.rule === 'contrast')
+  assert.ok(bad.length >= 2, `both runs must fail, got ${JSON.stringify(failures(r).map((f) => f.msg))}`)
+  assert.match(bad[0].msg, /PAINTED ground/)
+})
+
+test('a scrim painted over the text is caught, and says the declaration passes', { skip }, (t) => {
+  const r = painted(t, '<!doctype html><style>body{margin:0;background:#fff}.wrap{position:relative;padding:2rem}'
+    + '.ink{color:#444;font-size:40px}.veil{position:absolute;inset:0;background:rgba(255,255,255,0.93);z-index:5}</style>'
+    + '<div class="wrap"><div class="ink">Under a veil</div><div class="veil"></div></div>')
+  const f = failures(r).find((x) => x.rule === 'contrast')
+  assert.ok(f, 'text under a veil is unreadable however it was declared')
+  assert.match(f.msg, /declared .* but painted /)
+  assert.match(f.msg, /something is drawn over this text/)
+})
+
+test('text that changes nothing in the render is invisible, not unmeasurable', { skip }, (t) => {
+  const r = painted(t, '<!doctype html><style>body{margin:0;background:#fff;padding:2rem}'
+    + 'h1{color:#000;mix-blend-mode:difference;font-size:40px}</style><h1>White on white really</h1>')
+  const f = failures(r).find((x) => x.rule === 'contrast')
+  assert.ok(f, 'a blend that renders white on white is a failure, not an unknown')
+  assert.match(f.msg, /invisible where it sits/)
+})
+
+test('shadow DOM, SVG text, body text and one-character runs are all measured', { skip }, (t) => {
+  const cases = {
+    'shadow DOM': '<!doctype html><body style="margin:0;background:#fff"><div id="h"></div><script>'
+      + 'document.getElementById("h").attachShadow({mode:"open"}).innerHTML='
+      + '\'<p style="color:#f2f2f2;font-size:20px">a shadow dom paragraph nobody can read at all</p>\';</script></body>',
+    'SVG text': '<!doctype html><body style="margin:0;background:#fff"><svg width="900" height="80">'
+      + '<text x="10" y="40" fill="#f2f2f2" font-size="20">an svg run nobody can read at all</text></svg></body>',
+    'body text': '<!doctype html><body style="margin:0;background:#fff;color:#f2f2f2;font-size:20px">'
+      + 'text sitting directly inside body with no wrapping element at all</body>',
+    'one character': '<!doctype html><body style="margin:0;background:#fff;padding:2rem">'
+      + '<span style="color:#f4f4f4;font-size:30px">3</span></body>',
+  }
+  for (const [what, body] of Object.entries(cases)) {
+    const r = painted(t, body)
+    assert.ok(failures(r).some((f) => f.rule === 'contrast'), `${what} must be measured, not skipped`)
+  }
+})
+
+test('decorative text hidden from assistive technology is not a contrast failure', { skip }, (t) => {
+  // A submerged gauge numeral is MEANT to be illegible; the data it stands for is elsewhere.
+  const r = painted(t, '<!doctype html><style>body{margin:0;background:#fff;padding:2rem}'
+    + '.buried{color:#fdfdfd;font-size:20px}p{color:#111;font-size:18px}</style>'
+    + '<div aria-hidden="true"><span class="buried">6</span></div><p>The reading, in text anyone can see.</p>')
+  assert.deepEqual(failures(r).filter((f) => f.rule === 'contrast'), [])
+})
+
+test('an error page is not audited as though it were the page you meant', { skip }, (t) => {
+  const r = runCli([join(scratch(t), 'does-not-exist.html'), '--json'])
+  assert.notEqual(r.status, 0, 'a page that never loaded has not been audited')
 })

@@ -5,6 +5,60 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.21.0 — 2026-09-02
+
+An adversarial review of the accessibility gate returned fifteen findings, nearly all of them
+false passes — real defects shipping under "no failures". Five shared one root cause: contrast
+was derived from the computed-style chain, which answers "what did the author declare" rather
+than "what does the reader see".
+
+- **A background image anywhere turned the contrast check off for the entire page**, and said
+  so as an `info` line, which the summary counted as clean. A 1×1 transparent GIF on `<body>` —
+  changing not one rendered pixel — was enough to hide white-on-white text from the gate. Any
+  noise texture or subtle gradient did the same.
+
+- **A scrim painted over the text was invisible to it**, because the composite walked only from
+  the bottom of the stack up to the text and dropped everything above. Ink at 1.3:1 under a 93%
+  white veil measured 9.7:1 and reported nothing at all.
+
+- **A decorative layer with `pointer-events: none` composited the wrong ground** — the composite
+  used hit-testing, which by definition skips exactly the layer every hero overlay is written
+  with. Two files differing by 22 characters that change nothing on screen gave opposite
+  verdicts.
+
+- **A blend mode measured the declared colour**, so black text rendering white on white was
+  computed at 21:1. And **a gradient ground could only ever inform**, which is the commonest
+  hero contrast failure there is.
+
+Contrast is now measured from the pixels. The page is photographed twice — once as it is, once
+with every glyph made transparent — and the difference between the two shots is the ink, on
+whatever it turns out to be sitting on. Two ratios come out of that, and both are needed: the
+declared ink on the **painted** ground, which is the ratio the standard defines and the only
+one that is fair at small sizes; and the painted ink on the painted ground, which is what the
+reader sees. When the second collapses to a quarter of the first, something is drawn over the
+text and it says so. Glyphs that change nothing between the two renders are not unmeasurable —
+they are invisible, which is a finding rather than the absence of one.
+
+- **Text in a shadow root, in an `<svg><text>`, directly inside `<body>`, or one character long was
+  never measured at all.** A page built from web components audited as if it were blank, and
+  said "no failures" with a palette line that made it look measured. Badges, counters, close
+  glyphs and single-letter avatars — the runs most likely to be too small or too faint — were
+  skipped by a two-character minimum.
+
+- **An HTTP error page was audited as though it were the page you meant.** A typo, a stale
+  route or a dev server that had moved on gave "No failures" and exit 0. And a page whose load
+  never completed exited 1 — the code for "this page has accessibility failures" — so a caller
+  could not tell a bad page from an audit that never happened.
+
+- **`outline: 2px solid transparent` counted as a visible focus state.** It is a routine reset
+  idiom, and two pages equally unusable by keyboard gave opposite verdicts. A flag placed
+  before the path also swallowed it, so `page-audit --json page.html` handed a JSON consumer
+  the usage banner.
+
+Text explicitly hidden from assistive technology is now exempt from contrast: a submerged gauge
+numeral is meant to be illegible, and the reading it stands for is carried in text that is not
+hidden. The tide example gained that exemption and lost a pair of 9.9px axis labels the widened
+collection caught — a real defect in it that nothing had ever measured.
 ## 1.20.0 — 2026-09-02
 
 Found by doing the thing this package promises and had not been re-tested in eight releases:

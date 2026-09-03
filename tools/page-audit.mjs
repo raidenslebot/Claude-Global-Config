@@ -112,8 +112,19 @@ function auditInPage({ mobile }) {
   // Opacity dims the ink as surely as alpha does, all the way up the tree.
   const alphaOf = (el) => { let a = 1; for (let e = el; e && e.nodeType === 1; e = e.parentElement) a *= Math.min(1, Math.max(0, +getComputedStyle(e).opacity)); return a }
 
-  const all = [...document.querySelectorAll('body *')].filter((el) => el.namespaceURI === HTML && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName))
-  const textEls = all.filter((el) => ownText(el).length >= 2 && visible(el))
+  const deep = (root, into) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue
+      into.push(el)
+      if (el.shadowRoot) deep(el.shadowRoot, into)
+    }
+    return into
+  }
+  const everything = deep(document, [document.body].filter(Boolean))
+  const all = everything.filter((el) => el.namespaceURI === HTML)
+  // One character is a badge, a counter, a close glyph or a chevron — exactly the runs most
+  // likely to be too small or too faint, and they were all being skipped.
+  const textEls = everything.filter((el) => ownText(el).length >= 1 && visible(el))
 
   // 1. Contrast.
   let unknownGround = 0, low = []
@@ -132,9 +143,9 @@ function auditInPage({ mobile }) {
   }
   scrollTo(scroll0[0], scroll0[1])
   low.sort((a, b) => a.r - b.r)
-  for (const x of low.slice(0, 6)) push('contrast', 'fail', `${x.r.toFixed(2)}:1 — ${hex(x.fg)} on ${hex(x.g)} at ${x.fs.toFixed(0)}px; needs ${x.fs >= 24 ? 3 : 4.5}:1`, ownText(x.el))
-  if (low.length > 6) push('contrast', 'fail', `… and ${low.length - 6} more text runs below the minimum`)
-  if (unknownGround) push('contrast', 'info', `${unknownGround} text run(s) sit on an image or a background image — contrast not measurable, check by eye`)
+  // Contrast is measured from the painted pixels instead (see measureInkFromPixels); these
+  // computed-style figures are kept only as the fallback when that pass cannot run.
+  void low; void unknownGround
 
   // 2. Faces that fell back. A face that is not available renders exactly as its fallback —
   // measured with the page's own text in that face, so an icon face or a CJK face with no
@@ -272,7 +283,10 @@ function checkActiveInPage() {
   const keys = ['outlineStyle', 'outlineWidth', 'outlineColor', 'boxShadow', 'borderColor', 'backgroundColor', 'color', 'textDecorationLine', 'textDecorationColor']
   const cs = getComputedStyle(el)
   const now = keys.map((k) => cs[k])
-  const changed = now.some((v, i) => v !== el.__rest[i]) && !(cs.outlineStyle === 'none' && now.slice(3).every((v, i) => v === el.__rest[i + 3]))
+  // An outline that is transparent, or zero-width, is not a focus state anybody can see.
+  const noRing = cs.outlineStyle === 'none' || parseFloat(cs.outlineWidth) === 0
+    || cs.outlineColor === 'transparent' || /rgba?\([^)]*,\s*0(?:\.0+)?\s*\)/.test(cs.outlineColor)
+  const changed = now.some((v, i) => v !== el.__rest[i]) && !(noRing && now.slice(3).every((v, i) => v === el.__rest[i + 3]))
   return { changed, sample: (el.textContent || el.getAttribute('aria-label') || el.tagName).trim().slice(0, 40) }
 }
 function runningAnimationsInPage() {
@@ -343,12 +357,18 @@ function motionFindings(list) {
 }
 
 // ── driver ───────────────────────────────────────────────────────────────────
+const BOOLEAN_FLAGS = new Set(['mobile', 'json', 'help', 'full'])
 function parseArgs(argv) {
   const out = { _: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a.startsWith('--')) { const k = a.slice(2); if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]; else out[k] = true }
-    else out._.push(a)
+    if (a.startsWith('--')) {
+      const k = a.slice(2)
+      // A flag that takes no value must not swallow the path that follows it.
+      if (BOOLEAN_FLAGS.has(k)) { out[k] = true; continue }
+      if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) out[k] = argv[++i]
+      else out[k] = true
+    } else out._.push(a)
   }
   return out
 }
@@ -365,6 +385,152 @@ linear easing on movement, layout properties animated, entrances over 1.5s, one 
 every animation, more than three that never stop.
 Exit 1 on any FAIL; 2 when no browser is available.
 `
+
+
+// ── Contrast, measured from the pixels ───────────────────────────────────────
+// The computed-style chain answers a different question from the one that matters. A gradient,
+// an image, a blend mode, a scrim painted over the text, a decorative layer with
+// pointer-events: none — in every one of those the declared colours and the painted result
+// disagree, and the reader only ever sees the painted result.
+//
+// So: photograph the page, make every glyph transparent, photograph it again. The pixels that
+// changed ARE the ink, and the same pixels in the second shot ARE the ground behind it. That is
+// true whatever produced them, and it needs no model of how the page was built.
+
+/** Tag every text run and return its box in PAGE coordinates. */
+export const tagTextRunsInPage = () => {
+  const HTML = 'http://www.w3.org/1999/xhtml'
+  const own = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()
+  const deep = (root, into) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue
+      into.push(el)
+      if (el.shadowRoot) deep(el.shadowRoot, into)
+    }
+    return into
+  }
+  const runs = []
+  const els = deep(document, [document.body].filter(Boolean))
+  for (const el of els) {
+    const text = own(el)
+    if (!text) continue
+    const cs = getComputedStyle(el)
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue
+    // Text explicitly hidden from assistive technology is decoration, not reading matter: a
+    // submerged gauge numeral or a decorative watermark is meant to be illegible, and the
+    // information it stands for is carried in text that is not hidden.
+    if (el.closest && el.closest('[aria-hidden="true"], [role="presentation"], [role="none"]')) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < 2 || r.height < 2) continue
+    const fs = parseFloat(cs.fontSize) || 16
+    const weight = Number(cs.fontWeight) || 400
+    runs.push({
+      x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY),
+      w: Math.round(r.width), h: Math.round(r.height),
+      fs, large: fs >= 24 || (fs >= 18.66 && weight >= 700),
+      colour: cs.color,
+      text: text.replace(/\s+/g, ' ').slice(0, 70),
+      svg: el.namespaceURI !== HTML,
+    })
+  }
+  return runs
+}
+
+/** Make every glyph transparent without disturbing anything that is painted behind it. */
+export const hideGlyphsInPage = () => {
+  const s = document.createElement('style')
+  s.id = '__cgc_hide_glyphs'
+  s.textContent = '*, *::before, *::after { color: transparent !important;'
+    + ' -webkit-text-fill-color: transparent !important; text-shadow: none !important;'
+    + ' text-decoration-color: transparent !important; caret-color: transparent !important; }'
+    // SVG glyphs are painted with fill, not color, so a colour-only rule leaves them on the
+    // page — and text that does not vanish looks exactly like text that was never there.
+    + ' text, tspan, textPath { fill: transparent !important; stroke: transparent !important; }'
+  document.documentElement.appendChild(s)
+  return true
+}
+
+/** Compare the two shots inside the page, where a canvas can decode them. */
+export const measureInkFromPixels = async ([withGlyphs, ground, runs]) => {
+  const load = (src) => new Promise((res, rej) => {
+    const i = new Image()
+    i.onload = () => res(i)
+    i.onerror = () => rej(new Error('the screenshot could not be decoded'))
+    i.src = src
+  })
+  const [a, b] = await Promise.all([load(withGlyphs), load(ground)])
+  const cv = document.createElement('canvas')
+  const cx = cv.getContext('2d', { willReadFrequently: true })
+
+  const lum = (r, g, bl) => {
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl)
+  }
+  const ratio = (p, q) => {
+    const x = lum(p[0], p[1], p[2]), y = lum(q[0], q[1], q[2])
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+  }
+  const hex = (p) => '#' + p.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')
+
+  const out = []
+  for (const run of runs) {
+    const w = Math.min(run.w, a.width - run.x), h = Math.min(run.h, a.height - run.y)
+    if (w < 2 || h < 2 || run.x < 0 || run.y < 0) { out.push({ ...run, measured: false }); continue }
+    cv.width = w; cv.height = h
+    cx.clearRect(0, 0, w, h); cx.drawImage(a, run.x, run.y, w, h, 0, 0, w, h)
+    const A = cx.getImageData(0, 0, w, h).data
+    cx.clearRect(0, 0, w, h); cx.drawImage(b, run.x, run.y, w, h, 0, 0, w, h)
+    const B = cx.getImageData(0, 0, w, h).data
+
+    // The glyph pixels are the ones that changed, and they are used to find the GROUND — the
+    // thing the computed-style chain gets wrong whenever there is an image, a gradient, a scrim
+    // or a blend. The INK stays the declared colour, because that is what the contrast standard
+    // is defined on and because no pixel of a small glyph is ever fully ink: measuring the
+    // render for ink would fail every 11px run on earth.
+    let maxDiff = 0
+    const diffs = new Float32Array(w * h)
+    for (let p = 0, q = 0; p < A.length; p += 4, q++) {
+      const d = Math.abs(A[p] - B[p]) + Math.abs(A[p + 1] - B[p + 1]) + Math.abs(A[p + 2] - B[p + 2])
+      diffs[q] = d
+      if (d > maxDiff) maxDiff = d
+    }
+    // Glyphs that changed nothing between the two renders did not fail to be measured —
+    // they are INVISIBLE. That is a contrast of about 1:1, which is the finding, not an
+    // absence of one. It is how a blend mode, a matching colour or a covered layer reads.
+    if (maxDiff < 12) { out.push({ ...run, measured: true, invisible: true, ratio: 1, ink: "(nothing painted)", ground: "(unchanged)" }); continue }
+    const floor = maxDiff * 0.6
+
+    // The declared ink, composited over whatever it turns out to be sitting on.
+    const m = /rgba?\(([^)]+)\)/.exec(run.colour || '')
+    const parts = m ? m[1].split(',').map((s) => parseFloat(s)) : [0, 0, 0, 1]
+    const inkRGB = [parts[0] || 0, parts[1] || 0, parts[2] || 0]
+    const inkA = parts.length > 3 && Number.isFinite(parts[3]) ? parts[3] : 1
+
+    // The worst legible point in the run: a gradient is fine at one end and gone at the other.
+    let worst = Infinity, worstInk = null, worstGround = null, cores = 0
+    // The BEST-inked pixel, not the worst: every glyph has antialiased edges that are half
+    // ground, and if any pixel of the stroke reaches the declared colour the ink got through.
+    let painted = 0, paintedInk = null
+    for (let q = 0; q < diffs.length; q++) {
+      if (diffs[q] < floor) continue
+      cores++
+      const p = q * 4
+      const bg = [B[p], B[p + 1], B[p + 2]]
+      const ink = inkA >= 1 ? inkRGB : inkRGB.map((v, k) => v * inkA + bg[k] * (1 - inkA))
+      const r = ratio(ink, bg)
+      if (r < worst) { worst = r; worstInk = ink; worstGround = bg }
+      // What the reader sees, from the glyph core as it was actually painted.
+      const seen = ratio([A[p], A[p + 1], A[p + 2]], bg)
+      if (seen > painted) { painted = seen; paintedInk = [A[p], A[p + 1], A[p + 2]] }
+    }
+    if (cores < 6) { out.push({ ...run, measured: false }); continue }
+    out.push({
+      ...run, measured: true, ratio: worst, ink: hex(worstInk), ground: hex(worstGround),
+      painted, paintedInk: paintedInk ? hex(paintedInk) : null,
+    })
+  }
+  return out
+}
 
 export async function audit(src, { mobile = false, viewport = null, pw = findPlaywright() } = {}) {
   if (!pw) throw new Error('playwright-core not found')
@@ -387,10 +553,65 @@ export async function audit(src, { mobile = false, viewport = null, pw = findPla
       const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, isMobile, hasTouch: isMobile })
       const page = await ctx.newPage()
       await page.addInitScript(motionRecorderInit)
-      try { await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 }) } catch { await page.goto(url, { waitUntil: 'load', timeout: 20000 }) }
+      let response = null
+      try { response = await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 }) } catch {
+        try { response = await page.goto(url, { waitUntil: 'load', timeout: 20000 }) } catch (e) {
+          // Never loading is not a finding about the design. It is the audit not happening.
+          const err = new Error(`${url} never finished loading — ${String(e.message || e).split('\n')[0]}`)
+          err.code = 2
+          throw err
+        }
+      }
+      const status = response && typeof response.status === 'function' ? response.status() : 0
+      if (status >= 400) {
+        results.push({ viewport: `${vp.width}x${vp.height}`, findings: [{ rule: 'page', level: 'fail', sample: url,
+          msg: `the server answered ${status} — this is an error page, not the page you meant to audit` }] })
+        await ctx.close()
+        continue
+      }
       await page.evaluate(() => document.fonts.ready)
       await page.waitForTimeout(250)
       const findings = await page.evaluate(auditInPage, { mobile: isMobile })
+
+      // Contrast from the painted pixels. Two full-page shots, one with the glyphs and one
+      // without, and the difference between them is the ink on its real ground.
+      try {
+        const runs = await page.evaluate(tagTextRunsInPage)
+        if (runs.length) {
+          const shotWith = await page.screenshot({ type: 'png', fullPage: true })
+          await page.evaluate(hideGlyphsInPage)
+          const shotGround = await page.screenshot({ type: 'png', fullPage: true })
+          await page.evaluate(() => { const s = document.getElementById('__cgc_hide_glyphs'); if (s) s.remove() })
+          const uri = (buf) => 'data:image/png;base64,' + buf.toString('base64')
+          const measured = await page.evaluate(measureInkFromPixels, [uri(shotWith), uri(shotGround), runs])
+          const bad = measured.filter((m) => m.measured && m.ratio < (m.large ? 3 : 4.5)).sort((a, b) => a.ratio - b.ratio)
+          for (const m of bad.slice(0, 6)) {
+            findings.push({ rule: 'contrast', level: 'fail', sample: m.text,
+              msg: m.invisible
+                ? `the glyphs changed nothing in the render at ${m.fs.toFixed(0)}px — this text is invisible where it sits (about 1:1)`
+                : `${m.ratio.toFixed(2)}:1 — ${m.ink} on ${m.ground} on its PAINTED ground, at ${m.fs.toFixed(0)}px; needs ${m.large ? 3 : 4.5}:1` })
+          }
+          if (bad.length > 6) findings.push({ rule: 'contrast', level: 'fail', sample: '', msg: `… and ${bad.length - 6} more text runs below the minimum` })
+          // Legible by its declaration and not by its render: something is painted over it.
+          const covered = measured.filter((m) => m.measured && !m.invisible
+            && m.ratio >= (m.large ? 3 : 4.5)
+            // Antialiasing alone roughly halves the painted ratio at small sizes, so only a
+            // COLLAPSE counts: a quarter of the declared ratio is a scrim, not a soft edge.
+            && Number.isFinite(m.painted) && m.painted < 3 && m.painted < m.ratio * 0.25)
+          for (const m of covered.slice(0, 4)) {
+            findings.push({ rule: 'contrast', level: 'fail', sample: m.text,
+              msg: `declared ${m.ratio.toFixed(2)}:1 but painted ${m.painted.toFixed(2)}:1 — something is drawn over this text (a scrim, an overlay, a blend, an opacity). The declaration passes and the reader cannot read it.` })
+          }
+          const unmeasured = measured.filter((m) => !m.measured)
+          if (unmeasured.length) {
+            findings.push({ rule: 'contrast', level: 'warn', sample: unmeasured[0].text,
+              msg: `${unmeasured.length} text run(s) could not be measured — nothing of them changed between the two renders. Unmeasured is not the same as passing: look at them.` })
+          }
+        }
+      } catch (e) {
+        findings.push({ rule: 'contrast', level: 'warn', sample: '',
+          msg: `contrast could not be measured from the pixels — ${String(e.message || e).slice(0, 80)}. Unmeasured is not the same as passing.` })
+      }
       const motion = await page.evaluate(() => (window.__pageAuditMotion ? window.__pageAuditMotion() : [])).catch(() => [])
       findings.push(...motionFindings(motion))
       // focus
