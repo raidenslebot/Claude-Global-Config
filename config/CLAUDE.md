@@ -121,7 +121,9 @@ gradient at all, variable font axes past weight and optical sizing, `text-box` t
 queries and subgrid, deliberate grid overlap, gradient masks instead of another card, blend modes,
 generated grain from `feTurbulence`, scroll-driven animation with no library, View Transitions,
 `@starting-style`. Verdicts: assembled (0–1 techniques), conventional (2–4), considered (5–8),
-ambitious (9+); a hook reports it on every substantial screen file written. Quantity is not
+ambitious (9+); a hook reports it on every substantial design file written, in whichever medium
+it recognises — a fragment shader is judged as a shader and never handed CSS advice, and a file
+in no recognised medium is left alone. Quantity is not
 quality and a technique adopted for its own sake is decoration — pick the one or two the IDEA
 requires, and let them change the STRUCTURE rather than the surface: if it could be removed and
 the piece would read the same, it was decoration. But a piece that reaches for none of them was

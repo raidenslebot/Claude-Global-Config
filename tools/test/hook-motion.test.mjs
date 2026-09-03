@@ -61,6 +61,16 @@ test('a file that animates and never mentions reduced motion is reported', () =>
   assert.match(ctx, /vestibular/)
 })
 
+test('a scroll-driven animation is meant to be linear, and is not reported', () => {
+  // Its easing comes from the scroll position; a curve on top of that double-eases it.
+  const scrolled = run('sd.css', '.reveal { animation: rise linear both; animation-timeline: view(); animation-range: entry 10% cover 35% }\n@media (prefers-reduced-motion: reduce) { .reveal { animation: none } }')
+  assert.ok(scrolled, 'the file animates, so the hook still speaks')
+  assert.doesNotMatch(scrolled, /linear \(L/, 'scroll-driven animation is meant to be linear')
+  // A plain timed animation with the same keyword still is.
+  const timed = run('t.css', '.x { animation: rise 400ms linear both }\n@media (prefers-reduced-motion: reduce) { .x { animation: none } }')
+  assert.match(timed, /linear \(L1\)/)
+})
+
 test('a long duration is reported, an infinite marquee is not', () => {
   const slow = run('g.css', '.x { transition: transform 2400ms cubic-bezier(.2,.8,.2,1) }\n@media (prefers-reduced-motion: reduce) { .x { transition: none } }')
   assert.match(slow, /slow \(L1\)/)

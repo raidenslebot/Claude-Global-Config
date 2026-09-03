@@ -1,0 +1,69 @@
+/* Members card for the swim club: letterpress on a heavy uncoated duplex, with a
+   die-cut notch at the tide mark. Fixture for the print vocabulary. */
+
+@page {
+  size: 3.5in 2in;      /* trim */
+  margin: 0;
+  marks: crop cross;
+  bleed: 0.125in;
+}
+
+/* The stock is a value, not a substrate: 600gsm duplex, colorplan cobalt against
+   natural white, so the edge of the card is part of the design. */
+:root {
+  --stock: colorplan cobalt duplex 600gsm uncoated;
+  --edge-paint: pantone 1655 C;
+  --spot-colour: PMS 2767 C;       /* the navy, as a separation rather than a mix */
+  --baseline-grid: 9pt;
+  --column-grid: 4;
+  --gutter: 1p6;                   /* a pica and a half */
+}
+
+.card {
+  width: 3.5in; height: 2in;
+  padding: 0.25in 0.28in;
+  /* Overprint: the two inks interact rather than one knocking the other out.
+     The rule below is trapped by 0.15pt so a misregister does not show white. */
+  --ink-model: overprint;
+  --trapping: 0.15pt;
+}
+
+.wordmark {
+  font-family: Archivo, sans-serif;
+  font-size: 34pt;                 /* the display size */
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+
+.rule { border-top: 0.5pt solid; }
+
+.detail {
+  font-size: 7pt;                  /* against 34pt: a real scale jump */
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+/* Finish: a blind deboss of the staff gauge, foil only on the number, and a spot
+   varnish over the waterline so it catches the light when the card is turned. */
+.deboss { --finish: blind deboss; }
+.number { --finish: foil brass matte; }
+.waterline { --finish: spot uv gloss; }
+.soft { --lamination: soft touch; }
+
+/* The notch is cut, not printed: a kiss cut through the laminate and a die-cut
+   through the board at mean high water, with a score line for the fold-out table. */
+.notch { --die-cut: notch 6mm; --score-line: 1.75in; --kiss-cut: laminate; --perforation: none; }
+
+/* The verso is a designed surface, not a blank: the tide table screened as a riso
+   duotone at 65 lpi, the screen angle turned off the horizontal so the halftone
+   reads as texture rather than as a moire. */
+.verso {
+  --reverse-side: tide table;
+  --halftone: duotone riso;
+  --lpi: 65;
+  --screen-angle: 22deg;
+}
+
+/* Every card carries its member number and joining year, so no two are the same
+   object: variable data across a numbered edition of 400. */
+.member { --variable-data: member number, year; --edition: numbered edition of 400; }

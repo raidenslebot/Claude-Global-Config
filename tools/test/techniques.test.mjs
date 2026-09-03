@@ -211,3 +211,43 @@ test('the command reports, and its exit code is usable as a gate', () => {
   assert.ok(out.missing.every((m) => m.what && m.dim))
   assert.ok(Array.isArray(out.untouched))
 })
+
+// Every technique must be detectable by code someone would actually write. Writing these
+// fixtures found five dead patterns: a terminal detector that matched any "[", two escape
+// sequences that only matched when written as one literal string, a fluid-type rule that
+// missed the token form (which is the better practice), and a shadow rule that counted the
+// commas inside rgba(). A vocabulary nobody can trigger is worse than no vocabulary, because
+// it reports the piece as empty and the author believes it.
+test('every technique in every medium is triggered by a realistic fixture', async () => {
+  const { readdirSync, readFileSync, existsSync } = await import('node:fs')
+  const { join, extname } = await import('node:path')
+  const { REPO } = await import('../paths.mjs')
+  const base = join(REPO, 'tools', 'test', 'fixtures', 'media')
+
+  for (const medium of MEDIA) {
+    const dir = join(base, medium.id)
+    assert.ok(existsSync(dir), `${medium.id} has no fixture — a new medium ships with one, or nothing proves its patterns fire`)
+    const files = readdirSync(dir)
+    assert.ok(files.length, `${dir} is empty`)
+    const text = files.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n')
+    const ext = files.map((f) => extname(f)).join('\n')
+    const m = measure(text, { ext })
+
+    assert.ok(m.media.some((x) => x.id === medium.id),
+      `the ${medium.id} fixture is not detected as ${medium.id} (got ${m.media.map((x) => x.id).join('+')})`)
+
+    const missing = medium.techniques.filter((t) => !m.usedIds.has(t.id)).map((t) => t.id)
+    assert.deepEqual(missing, [],
+      `${medium.id}: no realistic code triggers ${missing.join(', ')} — either the pattern is dead or the fixture must grow`)
+  }
+})
+
+test('a fixture directory belongs to a medium that exists', async () => {
+  const { readdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { REPO } = await import('../paths.mjs')
+  const ids = new Set(MEDIA.map((m) => m.id))
+  for (const dir of readdirSync(join(REPO, 'tools', 'test', 'fixtures', 'media'))) {
+    assert.ok(ids.has(dir), `fixtures/media/${dir} names no medium — rename it or remove it`)
+  }
+})

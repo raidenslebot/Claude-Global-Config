@@ -199,7 +199,8 @@ function main() {
     'queries, subgrid, deliberate grid overlap, gradient masks instead of another card, blend modes, ' +
     'generated grain from feTurbulence, scroll-driven animation with no library, View Transitions, ' +
     '@starting-style, anchor positioning, display-p3. Verdicts: assembled (0–1), conventional (2–4), ' +
-    'considered (5–8), ambitious (9+). Pick the ONE OR TWO the idea actually requires and let them change ' +
+    'considered (5–8), ambitious (9+), reported by a hook on every substantial design file in whichever ' +
+    'medium it recognises. Pick the ONE OR TWO the idea actually requires and let them change ' +
     'the STRUCTURE, not the surface — a technique that could be removed without the piece reading ' +
     'differently was decoration. The recipes with real parameters are in ' +
     'visual-design-mastery/references/advanced-techniques.md. ' +

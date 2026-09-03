@@ -20,7 +20,13 @@ const NODE_TOKEN = '{{NODE:url}}'
 const REPO = REPO_TOKEN.includes('{{') ? path.resolve(__dirname, '..', '..') : REPO_TOKEN
 const NODE = NODE_TOKEN.includes('{{') ? process.execPath : NODE_TOKEN
 
+// The fingerprint half is web-only, because its tells are web tells.
 const EXTS = new Set(['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', '.svelte', '.astro'])
+// The ambition half is not. A shader, a Unity script, a SwiftUI view, a Godot scene and a
+// terminal UI are all things a human will look at, and until now none of them got a word.
+const DESIGN_EXTS = new Set([...EXTS,
+  '.svg', '.glsl', '.frag', '.vert', '.wgsl', '.shader', '.hlsl',
+  '.swift', '.kt', '.dart', '.cs', '.gd', '.js', '.ts', '.mjs'])
 const PHYSICAL = /@page\s*\{[^}]*\bsize\s*:\s*[\d.]+\s*(?:in|mm|cm|pt)\b/i
 // Below this a file is a fragment, and asking a fragment to be ambitious is noise.
 const SUBSTANTIAL = 1200
@@ -35,14 +41,16 @@ function main() {
   try { payload = JSON.parse(fs.readFileSync(0, 'utf8') || '{}') } catch { return }
   if (!/^(Write|Edit|MultiEdit)$/.test(String(payload.tool_name || ''))) return
   const file = String(payload.tool_input?.file_path || '')
-  if (!file || !EXTS.has(path.extname(file).toLowerCase())) return
+  const ext = path.extname(file).toLowerCase()
+  if (!file || !DESIGN_EXTS.has(ext)) return
   let text
   try { text = fs.readFileSync(file, 'utf8') } catch { return }
   if (PHYSICAL.test(text)) return
 
   const parts = []
+  const web = EXTS.has(ext)
 
-  const slop = (tool('slop-lint.mjs', [file, '--json']) || {}).files?.[0]
+  const slop = web ? (tool('slop-lint.mjs', [file, '--json']) || {}).files?.[0] : null
   if (slop && slop.score >= 2) {
     const list = slop.findings.map((f) => `${f.id} (L${f.line}: ${f.sample.slice(0, 50)})`).join('; ')
     const verdict = slop.verdict === 'centroid'
@@ -57,10 +65,13 @@ function main() {
   // The other direction: what it never tried.
   if (text.length >= SUBSTANTIAL) {
     const t = tool('techniques.mjs', [file, '--json'])
-    if (t && (t.verdict === 'assembled' || t.verdict === 'conventional')) {
+    // Outside the web extensions the medium must be recognised, or the file is a build script
+    // rather than a design and the advice would be noise.
+    const speaks = t && (web || t.detected)
+    if (speaks && (t.verdict === 'assembled' || t.verdict === 'conventional')) {
       const tried = t.used.length ? t.used.map((u) => u.id).join(', ') : 'nothing'
       const reach = t.missing.slice(0, 5).map((m) => m.what).join(' ')
-      parts.push(`AMBITION in ${path.basename(file)} — ${t.verdict}: it reaches for ${t.count} of ${t.total} real capabilities (${tried}). `
+      parts.push(`AMBITION in ${path.basename(file)} (${t.media.map((x) => x.label).join(' + ')}) — ${t.verdict}: it reaches for ${t.count} of ${t.pool} of that medium's capabilities (${tried}). `
         + (t.verdict === 'assembled'
           ? 'Nothing in this file does anything a default cannot do. It was assembled, not designed. '
           : 'It is correct and unremarkable — which is the ceiling, not the floor. ')

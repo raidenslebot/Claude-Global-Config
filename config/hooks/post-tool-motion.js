@@ -25,7 +25,10 @@ function findings(text) {
   // A straight line is the absence of a decision. linear-gradient and the linear() easing
   // function are not that, so both are excluded.
   for (const m of text.matchAll(/(?:transition|animation)(?:-timing-function)?\s*:[^;{}]*?\blinear\b(?!-gradient|\s*\()/g)) {
-    add('linear', m.index, 'linear easing — nothing in the physical world starts and stops at full speed. cubic-bezier(.2,.8,.2,1) for something arriving, cubic-bezier(.4,0,1,1) for something leaving. The one honest use is a marquee or a spinner.')
+    // The rule this declaration sits in, roughly: enough to see its neighbours.
+    const rule = text.slice(Math.max(0, m.index - 240), m.index + 240)
+    if (/animation-timeline\s*:|scroll-timeline|view-timeline|\binfinite\b/.test(rule)) continue
+    add('linear', m.index, 'linear easing — nothing in the physical world starts and stops at full speed. cubic-bezier(.2,.8,.2,1) for something arriving, cubic-bezier(.4,0,1,1) for something leaving. The honest uses are a marquee, a spinner, and a scroll-driven animation whose easing comes from the scroll itself.')
     break
   }
   for (const m of text.matchAll(/transition\s*:\s*all\b/g)) {

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>House specimen — Harbour Swim Club</title>
+<style>
+  /* Typed custom properties: the only way to animate an angle, a stop or a ramp,
+     and the thing that turns a token file into an API with types and defaults. */
+  @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  @property --lift  { syntax: '<number>'; initial-value: 0; inherits: true; }
+
+  :root {
+    color-scheme: light dark;
+    /* Perceptually even lightness, so a ramp steps evenly and two hues at the
+       same L really match in weight. */
+    --ink: oklch(0.28 0.05 264);
+    --paper: oklch(0.94 0.02 88);
+    --signal: oklch(0.62 0.19 32);
+    /* Derived, not pasted: change the source and every state follows. */
+    --tint: oklch(from var(--signal) 0.96 0.03 h);
+    --edge: color-mix(in oklab, var(--ink) 22%, transparent);
+    --faint: color-mix(in oklab, var(--ink) 76%, transparent);
+    --surface: light-dark(var(--paper), oklch(0.18 0.03 264));
+    --step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+    --step-5: clamp(2.75rem, 1.6rem + 7vw, 7rem);
+  }
+  /* Colours that do not exist in sRGB, behind a fallback. */
+  @supports (color: color(display-p3 1 0 0)) {
+    @media (color-gamut: p3) { :root { --signal: color(display-p3 0.92 0.28 0.12); } }
+  }
+
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--surface); color: var(--ink);
+         font-family: Archivo, system-ui, sans-serif; font-size: var(--step-0); line-height: 1.55;
+         font-optical-sizing: auto; }
+  ::selection { background: var(--ink); color: var(--paper) }
+  :root { accent-color: var(--signal); caret-color: var(--signal) }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 3px }
+
+  h1 { font-size: var(--step-5); line-height: 0.9; letter-spacing: -0.03em; text-wrap: balance;
+       font-variation-settings: 'opsz' 144, 'GRAD' 40, 'wdth' 92;
+       -webkit-text-stroke: 0.5px var(--ink); paint-order: stroke fill;
+       text-box: trim-both cap alphabetic; view-transition-name: title; }
+  p { text-wrap: pretty; max-width: 62ch }
+  .figures { font-variant-numeric: tabular-nums slashed-zero; font-feature-settings: 'ss01' 1, 'dlig' 1 }
+  .article p:first-of-type::first-letter { initial-letter: 3 2; margin-right: 0.08em }
+  .pull { hanging-punctuation: first last }
+  .spine { writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.2em }
+
+  /* One component, correct in a sidebar and in a hero, with no variants. */
+  .host { container-type: inline-size; container-name: card }
+  @container card (min-width: 34rem) { .card { grid-template-columns: 12rem 1fr } }
+  /* Cards whose titles, bodies and footers line up across the row. */
+  .row { display: grid; grid-template-rows: auto auto 1fr auto }
+  .card { display: grid; grid-row: span 4; grid-template-rows: subgrid }
+
+  /* Something breaking its box: two children in one cell, and a caption crossing out. */
+  .spread { display: grid; grid-template-columns: repeat(12, 1fr); position: relative }
+  .figure { grid-column: 1 / 8; grid-row: 1 }
+  .panel  { grid-column: 6 / 13; grid-row: 1; z-index: 1; margin-top: -6vh }
+  .caption { position: absolute; left: 0; right: -8%; bottom: 12% }
+  .drop { float: left; width: 12rem; height: 12rem; shape-outside: circle(50%); clip-path: circle(50%) }
+
+  /* Surface: masks instead of another card, ink that reacts, generated grain. */
+  .fade { -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+          mask-image: linear-gradient(to bottom, #000 62%, transparent) }
+  .knock { background: url(sea.jpg) center/cover; background-clip: text; color: transparent }
+  .over { mix-blend-mode: difference } .ink { background-blend-mode: multiply }
+  .grain::after { content: ''; position: absolute; inset: 0; filter: url(#grain); opacity: 0.3;
+                  mix-blend-mode: overlay; pointer-events: none }
+  .dial { background: conic-gradient(from var(--angle), var(--signal), var(--tint) 62%, var(--signal));
+          transition: --angle 900ms cubic-bezier(.2,.8,.2,1) }
+  .dial:hover { --angle: 180deg }
+  .halftone { background-image: repeating-radial-gradient(circle at 0 0, var(--ink) 0 1px, transparent 1px 4px) }
+  @supports (background: paint(grain)) { .worklet { background: paint(grain) } }
+
+  /* Depth: layered falloff, a real z axis, and a scrim that is not a glass card. */
+  .lift { box-shadow: 0 1px 1px color-mix(in oklab, var(--ink) 5%, transparent),
+                      0 2px 4px color-mix(in oklab, var(--ink) 5%, transparent),
+                      0 6px 12px color-mix(in oklab, var(--ink) 6%, transparent),
+                      0 14px 28px color-mix(in oklab, var(--ink) 7%, transparent) }
+  .stage { perspective: 900px }
+  .stage > * { transform-style: preserve-3d; transform: translateZ(24px) rotateY(6deg) }
+  .scrim { backdrop-filter: blur(8px) saturate(120%) }
+
+  /* Anchor positioning: a tip tethered to its trigger with no library. */
+  .trigger { anchor-name: --tip }
+  .tip { position: fixed; position-anchor: --tip; position-area: block-start center }
+
+  /* Motion. Scroll-driven on the compositor, a stagger that leads the eye, a line
+     that draws itself, a marker on a path, and an entry animation for the dialog. */
+  @keyframes rise { from { opacity: 0; translate: 0 2rem } to { opacity: 1; translate: none } }
+  @keyframes draw { to { stroke-dashoffset: 0 } }
+  @keyframes travel { to { offset-distance: 100% } }
+  .reveal { animation: rise linear both; animation-timeline: view(); animation-range: entry 10% cover 35% }
+  .item { animation: rise 420ms cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * 45ms) }
+  .stroke { stroke-dasharray: 1200; stroke-dashoffset: 1200; animation: draw 900ms ease-out forwards }
+  .dot { offset-path: path('M10,80 C80,10 220,10 290,80'); offset-rotate: auto; offset-distance: 0;
+         animation: travel 3s cubic-bezier(.4,0,.2,1) infinite }
+  dialog { opacity: 0; translate: 0 1rem;
+           transition: opacity 240ms, translate 240ms, overlay 240ms allow-discrete, display 240ms allow-discrete }
+  dialog[open] { opacity: 1; translate: 0 0 }
+  @starting-style { dialog[open] { opacity: 0; translate: 0 1rem } }
+  ::view-transition-old(title), ::view-transition-new(title) { animation-duration: 420ms }
+
+  /* Response: state read from the children, a surface that tracks the pointer, and
+     a run of items that lands where it should. */
+  .field:has(input:invalid:not(:placeholder-shown)) { --edge: var(--signal) }
+  .glow { background: radial-gradient(18rem circle at var(--mx, 50%) var(--my, 50%), var(--tint), transparent 60%) }
+  .rail { display: flex; overflow-x: auto; scroll-snap-type: x mandatory }
+  .rail > * { scroll-snap-align: start }
+  .cursor { cursor: url(pin.svg) 4 4, crosshair }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal, .item, .stroke, .dot { animation: none }
+    dialog { transition: none }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true">
+  <filter id="grain">
+    <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/>
+    <feColorMatrix type="saturate" values="0"/>
+    <feDisplacementMap in="SourceGraphic" scale="2"/>
+  </filter>
+</svg>
+
+<main class="host">
+  <h1 class="knock">Harbour house specimen</h1>
+
+  <div class="spread grain">
+    <figure class="figure fade"><img src="sea.jpg" alt="The outer basin at low water"></figure>
+    <div class="panel lift stage"><p class="pull figures">6 tides · 04:12 · 10:30 · 16:41</p></div>
+    <div class="caption spine">Outer basin</div>
+  </div>
+
+  <div class="row">
+    <article class="card article reveal">
+      <h2>Stock</h2>
+      <p class="drop">The paper is a value, not a substrate, and the edge is part of the design.</p>
+    </article>
+  </div>
+
+  <div class="rail">
+    <div class="item" style="--i:0">One</div>
+    <div class="item" style="--i:1">Two</div>
+    <div class="item" style="--i:2">Three</div>
+  </div>
+
+  <label class="field">Member number <input required placeholder="0000"></label>
+
+  <button class="trigger" popovertarget="tip">Legend</button>
+  <div id="tip" class="tip scrim" popover>Heights are metres above chart datum.</div>
+  <dialog id="table"><p>The printed table for this month.</p></dialog>
+
+  <svg viewBox="0 0 300 100" class="dial halftone over">
+    <path class="stroke" d="M10 80 C80 10 220 10 290 80" fill="none" stroke="currentColor"/>
+    <circle class="dot" r="4"/>
+  </svg>
+
+  <div class="glow cursor worklet" id="glow"></div>
+</main>
+
+<script>
+  // Style driven by state: the surface differs per pointer, per row, per value,
+  // rather than rendering one fixed picture for everyone.
+  const glow = document.getElementById('glow')
+  glow.addEventListener('pointermove', (e) => {
+    const r = glow.getBoundingClientRect()
+    glow.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%')
+    glow.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%')
+  })
+
+  // A spring, because the panel is dragged and a fixed duration is the wrong model.
+  const spring = { stiffness: 420, damping: 32, value: 0, velocity: 0 }
+  function settle(target, dt) {
+    const force = (target - spring.value) * spring.stiffness
+    spring.velocity = (spring.velocity + force * dt) * (1 - spring.damping * dt)
+    spring.value += spring.velocity * dt
+    document.documentElement.style.setProperty('--lift', spring.value.toFixed(3))
+  }
+  requestAnimationFrame(() => settle(1, 1 / 60))
+
+  // Morph between states rather than crossfading them.
+  document.getElementById('table').addEventListener('close', () => {
+    if (document.startViewTransition) {
+      document.startViewTransition(() => document.body.classList.toggle('compact'))
+    }
+  })
+</script>
+</body>
+</html>

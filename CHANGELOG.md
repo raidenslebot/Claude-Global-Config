@@ -5,6 +5,34 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.13.0 — 2026-09-02
+
+Proving the vocabularies work, and letting them speak outside the browser.
+
+- **Five dead patterns, found by writing code that would actually trigger them.** Every
+  medium now ships a realistic fixture, and a test requires each one to trigger every
+  technique that medium claims. Writing them exposed: a terminal detector whose first
+  alternative matched any `[`, so every file on earth was a TUI; two escape-sequence patterns
+  that only matched when the sequence was written as one literal string, which real code never
+  does; a fluid-type rule that missed `clamp()` on a token and caught it only on `font-size`, so
+  the better practice went undetected; and a layered-shadow rule that counted the commas inside
+  `rgba()`, so one shadow read as four. A vocabulary nobody can trigger is worse than none: it
+  reports the piece as empty and the author believes it.
+
+- **The write-time report was web-only.** A shader, a Unity script, a SwiftUI view, a Godot
+  scene, an SVG or a terminal UI got no word at all when it was written, which is most of what
+  this package claims to cover. The ambition half now runs on all of them and judges each in
+  its own medium — a fragment shader is never handed advice about container queries. The
+  fingerprint half stays web-only, because its tells are web tells, and a file in no recognised
+  medium is left alone rather than lectured.
+
+- **The motion hook called a scroll-driven animation linear.** It is meant to be: the easing
+  comes from the scroll position, and a curve on top of that double-eases it. Same for anything
+  that spins forever. Both are now exceptions, with a test that a plain timed animation with
+  the same keyword is still reported.
+
+- Overlap detection learned the negative-inset idiom, and a word-boundary bug meant the `%` unit
+  — the one a bleed is usually written in — could never match.
 ## 1.12.0 — 2026-09-02
 
 Using the new gates on real work, which is the only way to find out whether they are any good.

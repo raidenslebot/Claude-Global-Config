@@ -154,7 +154,9 @@ using three across three, and the dimension it never entered is reported as a qu
 piece rather than a feature to bolt on.
 
 Verdicts are assembled (0–1 techniques), conventional (2–4), considered (5–8) and ambitious (9+),
-and a hook reports them on every substantial screen file written. Quantity is not quality — a
+and a hook reports them on every substantial design file written, in whichever medium it
+recognises: a fragment shader is judged as a shader, a Unity script as an engine piece, a
+SwiftUI view as native UI. A file in no recognised medium is left alone. Quantity is not quality — a
 technique that could be removed without the piece reading differently was decoration — but a
 piece that reaches for none of them was assembled rather than designed.
 

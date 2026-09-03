@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <title>Tide plate — a worked SVG that exercises the vocabulary</title>
+  <defs>
+    <radialGradient id="sky" cx="0.3" cy="0.2" r="0.9" spreadMethod="pad"
+                    gradientTransform="rotate(12 0.5 0.5)">
+      <stop offset="0" stop-color="#efe9dc"/>
+      <stop offset="1" stop-color="#cfc7b6"/>
+    </radialGradient>
+
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#1f2a44" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    </pattern>
+
+    <filter id="grain" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="g"/>
+      <feDisplacementMap in="SourceGraphic" in2="g" scale="3"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+
+    <filter id="carve" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology operator="dilate" radius="0.5" result="thick"/>
+      <feDiffuseLighting in="thick" surfaceScale="2" diffuseConstant="1" lighting-color="#fff">
+        <fePointLight x="80" y="-40" z="90"/>
+      </feDiffuseLighting>
+      <feSpecularLighting surfaceScale="3" specularConstant="0.6" specularExponent="18" lighting-color="#fff">
+        <feDistantLight azimuth="220" elevation="40"/>
+      </feSpecularLighting>
+    </filter>
+
+    <clipPath id="basin"><path d="M20 40 H460 V300 Q240 320 20 300 Z"/></clipPath>
+    <mask id="fade">
+      <rect width="480" height="320" fill="url(#hatch)"/>
+    </mask>
+
+    <marker id="tip" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 Z" fill="#1f2a44"/>
+    </marker>
+
+    <symbol id="cleat" viewBox="0 0 24 24">
+      <path d="M4 12h16M8 8v8M16 8v8" stroke="#1f2a44" stroke-width="2" fill="none"/>
+    </symbol>
+
+    <path id="rim" d="M40 70 Q240 20 440 70"/>
+  </defs>
+
+  <rect width="480" height="320" fill="url(#sky)"/>
+
+  <g clip-path="url(#basin)" filter="url(#grain)">
+    <rect y="180" width="480" height="140" fill="#1f2a44" opacity="0.9"/>
+    <path d="M0 180 Q120 168 240 180 T480 180" fill="none" stroke="#1f2a44" stroke-width="2"
+          pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" marker-end="url(#tip)">
+      <animate attributeName="stroke-dashoffset" from="100" to="0" dur="1.2s" fill="freeze"/>
+    </path>
+  </g>
+
+  <g mask="url(#fade)" opacity="0.35">
+    <rect x="20" y="40" width="440" height="40"/>
+  </g>
+
+  <text filter="url(#carve)" font-family="Archivo, sans-serif" font-size="15" fill="#1f2a44">
+    <textPath href="#rim" startOffset="8%">OUTER BASIN · STAFF GAUGE NO. 2</textPath>
+  </text>
+
+  <use href="#cleat" x="30" y="264" width="20" height="20"/>
+  <use href="#cleat" x="430" y="264" width="20" height="20"/>
+
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -2; 0 0"
+                      dur="7s" repeatCount="indefinite"/>
+    <circle cx="240" cy="188" r="3" fill="#1f2a44"/>
+    <animateMotion dur="9s" repeatCount="indefinite" path="M0 0 q40 -6 80 0"/>
+  </g>
+</svg>

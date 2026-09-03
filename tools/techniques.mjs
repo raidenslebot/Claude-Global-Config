@@ -91,7 +91,7 @@ export const MEDIA = [
       T('optical-sizing', 'type', 2, /font-optical-sizing\s*:\s*auto/i, 'optical sizing — the display cut at display size and the text cut at reading size. The difference between typeset and merely scaled.'),
       T('opentype', 'type', 2, /font-feature-settings\s*:|font-variant-(?:numeric|ligatures|caps|alternates)\s*:/i, 'OpenType features — stylistic sets, discretionary ligatures, tabular or old-style figures, small caps. The character the type designer drew and nobody switches on.'),
       T('text-stroke', 'type', 2, /-webkit-text-stroke|paint-order\s*:\s*stroke|text-box(?:-trim|-edge)?\s*:/i, 'outlined type and text-box trim — a wordmark that is a shape, and headings spaced from the letterforms rather than the line box.'),
-      T('fluid-type', 'type', 2, /font-size\s*:\s*clamp\(/i, 'fluid type with clamp() — a scale that interpolates instead of three breakpoints of guessed pixels.'),
+      T('fluid-type', 'type', 2, /font-size\s*:\s*clamp\(|--[\w-]*(?:step|size|type|text|font|scale)[\w-]*\s*:\s*clamp\(/i, 'fluid type with clamp() — a scale that interpolates instead of three breakpoints of guessed pixels.'),
       T('editorial-type', 'type', 2, /initial-letter\s*:|::first-letter|hanging-punctuation\s*:|writing-mode\s*:\s*(?:vertical|sideways)/i, 'drop caps, hanging punctuation, vertical running heads — editorial weight from one rule each.'),
       T('typed-property', 'time', 3, /@property\s+--/i, '@property — typed custom properties, the ONLY way to animate a gradient stop, an angle or a colour ramp. Unlocks motion CSS otherwise cannot do at all.'),
       T('scroll-driven', 'time', 3, /animation-timeline\s*:|scroll-timeline|view-timeline|animation-range\s*:/i, 'scroll-driven animation — animation-timeline: view(), tied to scroll by the compositor with no listener and no library.'),
@@ -223,13 +223,13 @@ export const MEDIA = [
     id: 'tui', label: 'terminal / TUI',
     detect: /\[|\\x1b\[|\\033\[|\\u001b\[|blessed|ratatui|curses|from ['"]ink['"]|chalk\.|rich\.|termion|crossterm|tcell|bubbletea|lipgloss/i,
     techniques: [
-      T('truecolor', 'material', 3, /38;2;\d|48;2;\d|truecolou?r|\bhex\(|setRgb/i, '24-bit colour — the 16-colour palette is a constraint from 1985, not a style.'),
+      T('truecolor', 'material', 3, /[34]8;2;|truecolou?r|\bhex\(|setRgb|rgbToAnsi/i, '24-bit colour — the 16-colour palette is a constraint from 1985, not a style.'),
       T('box-drawing', 'structure', 2, /[─-╿]/u, 'box-drawing characters — real rules and frames instead of dashes and pipes.'),
       T('block-braille', 'generative', 3, /[▀-▟]|[⠀-⣿]/u, 'block and braille glyphs — a 2×4 pixel grid per cell, which is how a terminal draws a real chart or an image.'),
       T('gradient-text', 'material', 2, /gradient|interpolate[\s\S]{0,20}colou?r/i, 'a gradient across a run of text or a bar — colour as data, not decoration.'),
       T('sparkline', 'generative', 2, /sparkline|histogram|[▁-█]{3}/u, 'sparklines and inline histograms — data in the width of a word.'),
       T('alt-screen', 'structure', 2, /\?1049h|alternate ?screen|smcup|altScreen/i, 'the alternate screen — a full-screen application that leaves the scrollback intact on exit.'),
-      T('frame-loop', 'time', 3, /cursor ?up|render ?loop|\[2J|clearLine|moveCursor|\[\d*A\b/i, 'redraw in place — a live view rather than a wall of appended lines.'),
+      T('frame-loop', 'time', 3, /cursor ?up|render ?loop|\b2J\b|clearLine|moveCursor|cursorTo|\bredraw\b|\[\d*A\b/i, 'redraw in place — a live view rather than a wall of appended lines.'),
       T('mouse-input', 'response', 2, /\?100[06]h|mouse ?event|enableMouse/i, 'mouse reporting — a TUI that can be clicked.'),
       T('width-aware', 'structure', 2, /stringWidth|wcwidth|unicode[_ ]?width/i, 'grapheme-aware width — the difference between a table that aligns and one that shears on emoji or CJK.'),
       T('degrade', 'variation', 2, /NO_COLOR|isTTY|supportsColor|\bTERM\b/i, 'degrading honestly with no TTY or no colour, instead of writing escapes into a log file.'),
@@ -317,7 +317,9 @@ export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
   const hay = ext ? `${text}\n${ext}` : text
   let media = reg.filter((m) => m.detect.test(hay))
   // A file in no recognised medium is still measured against the broadest vocabulary rather
-  // than being called empty — silence would read as approval.
+  // than being called empty — silence would read as approval. Callers that must not give web
+  // advice to a file that is not web read `detected`.
+  const detected = media.length > 0
   if (!media.length) media = reg.filter((m) => m.id === 'web')
 
   const seen = new Map()
@@ -341,7 +343,7 @@ export function measure(text, { ext = '', cwd = process.cwd() } = {}) {
 
   return {
     media: media.map((m) => ({ id: m.id, label: m.label })),
-    used, usedIds, byDim, untouched, count: n, pool: all.length, verdict, missing,
+    detected, used, usedIds, byDim, untouched, count: n, pool: all.length, verdict, missing,
   }
 }
 
@@ -405,7 +407,7 @@ export function main(argv = process.argv.slice(2)) {
 
   if (args.json) {
     console.log(JSON.stringify({
-      files: files.length, media: m.media, count: m.count, pool: m.pool, verdict: m.verdict,
+      files: files.length, media: m.media, detected: m.detected, count: m.count, pool: m.pool, verdict: m.verdict,
       byDimension: m.byDim, untouched: m.untouched.map((d) => ({ dim: d, ask: DIMENSIONS[d].ask })),
       used: m.used.map((t) => ({ id: t.id, dim: t.dim })),
       missing: m.missing.slice(0, 12).map((t) => ({ id: t.id, dim: t.dim, what: t.what })),
