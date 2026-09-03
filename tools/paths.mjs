@@ -219,8 +219,16 @@ export function unrenderable(src) {
   let head
   try { head = readFileSync(src) } catch { return null }
   const scan = head.subarray(0, 4096)
-  // A NUL byte in the first pages is the one reliable mark of a binary. Every format these
-  // tools take — HTML, SVG, CSS — is text, and none of them contains one.
-  if (scan.includes(0)) return `${basename(src)} is not a text file — a browser will render it as mojibake and this would report on that.`
-  return null
+  if (!scan.includes(0)) return null
+  // A NUL is the mark of a binary — EXCEPT in UTF-16, where every ASCII character carries one.
+  // Windows editors and PowerShell redirection write UTF-16LE by default, and Chromium renders
+  // it correctly from the byte-order mark. Refusing those was a false alarm on a real page.
+  const bom = head.length >= 2 && ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff))
+  if (bom) return null
+  // No mark, but every second byte a NUL, is UTF-16 written without one. Let the browser decide
+  // rather than call a page binary because of how it was saved.
+  let nulls = 0, alternating = 0
+  for (let i = 0; i < scan.length; i++) if (scan[i] === 0) { nulls++; if (i % 2 === 1 || scan[i + 1] !== 0) alternating++ }
+  if (nulls > 0 && alternating / nulls > 0.9 && nulls / scan.length > 0.25) return null
+  return `${basename(src)} is not a text file — a browser will render it as mojibake and this would report on that.`
 }

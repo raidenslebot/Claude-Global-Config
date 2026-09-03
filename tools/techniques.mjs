@@ -350,8 +350,10 @@ export function blankProse(text) {
     .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
     .replace(/(<(pre|code|samp|textarea)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi,
       (w, o, tag, body, c) => o + ' '.repeat(body.length) + c)
-    // A line comment, but only where one starts a line or follows whitespace: not the // in a URL.
-    .replace(/(^|[\s;{(])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length))
+    // A line comment, but only where one starts a line or follows whitespace or a statement end.
+    // NOT after "(" — url(//cdn.example.com/a.css) is a protocol-relative URL, and treating that
+    // as a comment blanked the rest of the line, which on a minified stylesheet is the whole file.
+    .replace(/(^|[\s;{])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length))
 }
 
 export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {

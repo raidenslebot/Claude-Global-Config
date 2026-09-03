@@ -460,3 +460,27 @@ test('the hook and the installer agree on where the lock lives', async () => {
   assert.match(hook, /const STATE = path\.join\(CONFIG_ROOT, '\.cgc'\)/)
   assert.equal(UPDATE_LOCK, join(CONFIG_ROOT, '.cgc', 'update.lock'))
 })
+
+test('a page saved as UTF-16 is a page, not a binary', (t) => {
+  // Windows editors and PowerShell redirection write UTF-16LE by default, and every ASCII
+  // character in it carries a NUL — the mark the binary check reads. Chromium renders it
+  // correctly from the byte-order mark, so refusing it was a false alarm on a real page.
+  const d = scratch(t, 'cgc-utf16-')
+  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>U</title>'
+    + '<style>body{margin:0;padding:40px;font-family:Georgia,serif;font-size:18px}</style>'
+    + '</head><body><h1>A page saved as UTF-16</h1><p>Which is what Windows writes by default.</p></body></html>'
+  writeFileSync(join(d, 'bom.html'), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(html, 'utf16le')]))
+  writeFileSync(join(d, 'nobom.html'), Buffer.from(html, 'utf16le'))
+  writeFileSync(join(d, 'binary.html'), Buffer.from(Array.from({ length: 600 }, (_, i) => (i * 37) % 256)))
+
+  const render = (f) => spawnSync(process.execPath, [join(TOOLS, 'screen-render.mjs'), join(d, f), '--out', join(d, 'o-' + f)],
+    { cwd: REPO, encoding: 'utf8', timeout: 180000 })
+  for (const f of ['bom.html', 'nobom.html']) {
+    const r = render(f)
+    assert.equal(r.status, 0, `${f} was refused: ${r.stderr}`)
+    assert.ok(existsSync(join(d, `o-${f}-1440.png`)), `${f} produced no render`)
+  }
+  const bin = render('binary.html')
+  assert.equal(bin.status, 1, 'a real binary is still refused')
+  assert.match(bin.stderr, /not a text file/)
+})

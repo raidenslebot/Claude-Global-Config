@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.36.0 — 2026-09-02
+
+Two false alarms, both introduced by yesterday's own fixes. New code is the least-reviewed code
+in a repository, and the pass that goes looking for what a fix broke is the one nobody runs.
+
+- **A page saved as UTF-16 was refused as a binary.** The guard added in 1.31.0 reads a NUL byte
+  as the mark of a binary file — true of every format these tools take, and false of UTF-16,
+  where every ASCII character carries one. Windows editors and PowerShell redirection write
+  UTF-16LE by default. Chromium renders it correctly from the byte-order mark, and the render
+  proves it: the page comes out as type, not mojibake. A byte-order mark, or NULs falling in a
+  strictly alternating pattern, is text. A real binary is still refused.
+- **A protocol-relative URL swallowed the rest of its line.** The comment-blanking added in
+  1.23.0 treats `//` after an opening bracket as a line comment, and `url(//cdn.example.com/a.css)`
+  starts with two slashes. On a minified stylesheet — one line — that blanked the whole file, so
+  a page using half the vocabulary measured as using none of it. A comment now has to start a
+  line or follow whitespace or a statement end; the comment cases both languages actually use
+  are unaffected, and the two that matter are tested.
+
+Neither was reachable from any test that existed, because both were introduced with their tests
+and the tests asked whether the new rule fires — not what else it fires on.
+
 ## 1.35.0 — 2026-09-02
 
 A clone from the remote onto a sandbox machine, installed, then the whole loop run out of it:

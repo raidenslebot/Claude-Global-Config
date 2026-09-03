@@ -361,3 +361,16 @@ test('the width axis counts however it is written, and decided line breaks are t
   assert.ok(measure("h1{font-variation-settings:'wdth' 92}", { ext: '.css' }).usedIds.has('variable-axes'))
   assert.ok(measure('h1{text-wrap:balance}p{text-wrap:pretty}', { ext: '.css' }).usedIds.has('wrap-quality'))
 })
+
+test('a protocol-relative URL is not a comment, and a comment still is', () => {
+  // url(//cdn.example.com/a.css) begins with two slashes. Treating that as a line comment
+  // blanked the rest of the line — on a minified stylesheet, the whole file, so a page using
+  // half the vocabulary measured as using none of it.
+  const oneLine = '@import url(//cdn.example.com/a.css);.x{mix-blend-mode:multiply;background:oklch(60% .2 250)}'
+  const ids = measure(oneLine, { ext: '.css' }).usedIds
+  assert.ok(ids.has('blend') && ids.has('oklch'), `lost to a URL: ${[...ids]}`)
+
+  // And the thing the blanking is for still works, in both languages that use it.
+  assert.equal(measure('float x = 1.0; // domain warping here\n', { ext: '.frag' }).usedIds.has('domain-warp'), false)
+  assert.equal(measure('a\n// oklch would be nice one day\nb', { ext: '.css' }).usedIds.has('oklch'), false)
+})
