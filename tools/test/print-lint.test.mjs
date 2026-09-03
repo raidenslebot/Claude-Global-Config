@@ -247,3 +247,54 @@ test('a bare run says what it could not check; with a size it says it passed', (
   // The same file with the size given does fail — which is what the bare run could not say.
   assert.match(cli(['--size', 'business-card-us']).stdout, /FAIL\s+bleed/)
 })
+
+// THE NEAR-MISS CORPUS. The tests above ask whether each rule fires. These ask what else it
+// fires on — and every one of them sits exactly ON a threshold, where a rule one comparison out
+// rejects a piece that is precisely right. A press gate that fails correct work is a gate the
+// shop learns to override.
+test('every rule passes the legitimate version, and the piece that sits exactly on the line', (t) => {
+  const d = scratch(t)
+  const png = (w, h) => {
+    const b = Buffer.alloc(33)
+    b.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); b.writeUInt32BE(13, 8); b.write('IHDR', 12, 'latin1')
+    b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20)
+    return b
+  }
+  writeFileSync(join(d, 'p300.png'), png(1200, 800))   // 1200px at 4in = exactly 300dpi
+  const file = (name, body) => { const p = join(d, name); writeFileSync(p, body); return p }
+  const card = (style, body = '<p>Harbour Swim Club</p>') =>
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>C</title><style>${style}</style></head><body>${body}</body></html>`
+  
+  const cases = [
+    // Flush trim: the piece IS the trim size, and no bleed was asked for. Correct, not "no bleed".
+    ['flush trim, bleed 0', file('flush.html', card('@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}')),
+      { trim: { w: 3.5, h: 2 }, bleed: 0 }],
+    // Exactly the minimum type: 6pt on paper is the floor, and the floor passes.
+    ['type at exactly 6pt', file('six.html', card('@page{size:8.5in 11in;margin:0}.f{font-size:6pt}', '<p class="f">legal line</p>')), {}],
+    // Exactly the minimum rule weight.
+    ['rule at exactly 0.25pt', file('rule.html', card('@page{size:8.5in 11in;margin:0}body{font-size:10pt}.r{border-top:0.25pt solid}', '<div class="r"></div>')), {}],
+    // Exactly 300dpi, placed as a background and as an image.
+    ['raster at exactly 300dpi', file('r300.html', card('@page{size:8.5in 11in;margin:0}body{font-size:10pt}.c{width:4in;background-image:url("p300.png")}', '<div class="c"></div>')), {}],
+    ['image tag at exactly 300dpi', file('i300.html', card('@page{size:8.5in 11in;margin:0}body{font-size:10pt}img{width:4in}', '<img src="p300.png">')), {}],
+    // A named page size, which is how most people write it.
+    ['a named page size', file('a4.html', card('@page{size:A4;margin:0}body{font-family:Archivo;font-size:10pt}')), {}],
+    // A safety cap is not the placed width.
+    ['max-width is not the placed width', file('cap.html', card('@page{size:8.5in 11in;margin:0}body{font-size:10pt}img{max-width:8in;width:4in}', '<img src="p300.png">')), {}],
+    // A muted colour, inside the CMYK gamut.
+    ['a muted ink', file('muted.html', card('@page{size:8.5in 11in;margin:0}body{font-size:10pt;color:#5f5a51;background:#f4f1ea}')), {}],
+    // A gradient is fine for DTG — the method decides, and this one can print one.
+    ['a gradient for DTG', file('dtg.html', card('@page{size:12in 16in;margin:0}body{font-size:14pt}.g{background:linear-gradient(#b4451f,#e0a33c)}', '<div class="g">art</div>')), { method: 'dtg' }],
+    // A single hyphen in an SVG comment is legal; it is the double that breaks the parser.
+    ['one hyphen in an SVG comment', file('svg.svg',
+      '<svg xmlns="http://www.w3.org/2000/svg" width="3.5in" height="2in" viewBox="0 0 252 144"><!-- a note - with one hyphen -->'
+      + '<rect width="252" height="144" fill="#f4f1ea"/><path d="M20 20 L60 60" stroke="#1d2530" stroke-width="2" fill="none"/></svg>'), {}],
+  ]
+
+  const fired = []
+  for (const [name, path, opts] of cases) {
+    const bad = lint(path, opts).findings.filter((f) => f.level === 'fail')
+    if (bad.length) fired.push(name + ' → ' + bad.map((f) => f.rule).join(', '))
+  }
+  assert.deepEqual(fired, [], 'press-ready files the gate rejected')
+  assert.ok(cases.length >= 10)
+})

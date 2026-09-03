@@ -246,3 +246,69 @@ test('a folder of drawings that share no grid is not judged as an icon set', () 
   assert.ok(rids.has('hardcoded-colour'))
   assert.equal(rids.has('not-a-set'), false)
 })
+
+// THE NEAR-MISS CORPUS. What else does each rule fire on — and what happens to a set that sits
+// exactly on a threshold. A stroke of 2 on a 24 grid renders 1.33px at 16px: above one pixel,
+// which is the whole of that rule.
+test('a set that is right, including exactly at the limits, is left alone', () => {
+  const svg = (body, attrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"') =>
+    `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}>${body}</svg>`
+  const set = (files) => lintSet(files.flatMap(([n, t]) => icons(t, n)).map(read), { size: 16 })
+  const fails = (r) => r.findings.filter((f) => f.level === 'fail').map((f) => `${f.id}:${f.icon}`)
+  
+  const cases = {
+    // A coherent set: one grid, one weight, currentColor, drawn on the grid.
+    'a set that agrees with itself': [
+      ['a.svg', svg('<path d="M4 12 L20 12"/>')],
+      ['b.svg', svg('<path d="M12 4 L12 20"/>')],
+      ['c.svg', svg('<path d="M6 6 L18 18"/>')],
+    ],
+    // Colour deferred through var() and a gradient reference is the opposite of pinned.
+    'colour deferred, not pinned': [
+      ['a.svg', svg('<path d="M4 12 L20 12" stroke="var(--icon)"/>')],
+      ['b.svg', svg('<path d="M12 4 L12 20" stroke="url(#g)"/>')],
+      ['c.svg', svg('<path d="M6 6 L18 18"/>')],
+    ],
+    // A filled set — an idiom, consistently held, is not "mixed".
+    'a filled set, held consistently': [
+      ['a.svg', svg('<path d="M4 4 H20 V20 H4 Z" fill="currentColor"/>', 'viewBox="0 0 24 24"')],
+      ['b.svg', svg('<path d="M12 4 L20 20 H4 Z" fill="currentColor"/>', 'viewBox="0 0 24 24"')],
+      ['c.svg', svg('<path d="M4 12 H20 V20 H4 Z" fill="currentColor"/>', 'viewBox="0 0 24 24"')],
+    ],
+    // Stroke 2 on a 24 grid renders 1.33px at 16px — above one pixel, which is the whole rule.
+    'stroke exactly above one pixel at 16px': [
+      ['a.svg', svg('<path d="M4 12 L20 12"/>')],
+      ['b.svg', svg('<path d="M12 4 L12 20"/>')],
+      ['c.svg', svg('<path d="M4 4 L20 20"/>')],
+    ],
+    // Coordinates on the half-grid: 0.5 is where a 1px stroke lands to stay crisp, not a trace.
+    'half-grid coordinates are deliberate': [
+      ['a.svg', svg('<path d="M4.5 12.5 L19.5 12.5"/>')],
+      ['b.svg', svg('<path d="M12.5 4.5 L12.5 19.5"/>')],
+      ['c.svg', svg('<path d="M6.5 6.5 L17.5 17.5"/>')],
+    ],
+    // A sprite: symbols inheriting the root's grid and weight are one set, not many.
+    'a sprite is one set': [['sprite.svg',
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+      + '<symbol id="a" viewBox="0 0 24 24"><path d="M4 12 L20 12"/></symbol>'
+      + '<symbol id="b" viewBox="0 0 24 24"><path d="M12 4 L12 20"/></symbol>'
+      + '<symbol id="c" viewBox="0 0 24 24"><path d="M6 6 L18 18"/></symbol></svg>']],
+  }
+
+  const fired = []
+  for (const [name, files] of Object.entries(cases)) {
+    const f = fails(set(files))
+    if (f.length) fired.push(name + ' → ' + f.join(', '))
+  }
+  assert.deepEqual(fired, [], 'sets the gate failed that are correct')
+
+  // The control, so this cannot pass by the gate having stopped working.
+  const bad = fails(set([
+    ['a.svg', svg('<path d="M4 12 L20 12"/>')],
+    ['b.svg', svg('<path d="M12 4 L12 20" stroke-width="0.4"/>')],
+    ['c.svg', svg('<text x="4" y="12">A</text>', 'viewBox="0 0 32 32"')],
+  ]))
+  for (const id of ['stroke-weight', 'thin-at-size', 'live-text', 'off-grid-set']) {
+    assert.ok(bad.some((x) => x.startsWith(id)), id + ' went missing')
+  }
+})

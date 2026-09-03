@@ -5,6 +5,33 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.38.0 — 2026-09-02
+
+The near-miss method, taken to the three gates that did not have it: the press gate, the icon set
+gate, and the rendered-page audit. Twenty-three more cases, and every one of them either does the
+legitimate version of what a rule catches or sits **exactly on the threshold** — which is where a
+rule one comparison out rejects work that is precisely right.
+
+**`print-lint`, ten files.** A piece at trim size with the bleed given as zero, because a flush
+trim is a real instruction. Type at exactly 6pt. A rule at exactly 0.25pt. A raster at exactly
+300 dpi, placed both ways. A named page size. A `max-width` safety cap that is not the placed
+width. A muted ink inside the CMYK gamut. A gradient for DTG, which can print one. A single
+hyphen in an SVG comment, because it is the double that breaks the parser.
+
+**`icon-lint`, six sets.** A set that agrees with itself. Colour deferred through `var()` and a
+gradient reference, which is the opposite of pinned. A filled set held consistently, which is an
+idiom rather than a mixture. A stroke of 2 on a 24 grid — 1.33px at 16px, above one pixel, which
+is the whole of that rule. Half-grid coordinates, where a 1px stroke lands to stay crisp rather
+than because it was traced. A sprite, whose symbols inherit one grid and are one set.
+
+**`page-audit`, one page on every line at once.** Contrast at 4.54:1 — the standard's own worked
+example of the minimum. Twelve-pixel text. A leading of 1.4. A target of exactly 44 × 44. A
+visible focus ring. An animation that stops under reduce.
+
+All twenty-three passed. No rule in these three is off by one, and now none can drift into being.
+A gate that fails correct work is a gate people learn to switch off, which costs more than
+everything it would ever have caught.
+
 ## 1.37.0 — 2026-09-02
 
 **The near-miss corpus.** Every rule in this package was tested for whether it fires. None was

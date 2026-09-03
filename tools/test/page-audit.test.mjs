@@ -353,3 +353,21 @@ test('a directory, an empty file and a binary are refused; an SVG is sent where 
   // The SVG refusal names somewhere to go, because not answering is not the same as no answer.
   assert.match(run('mark.svg').stderr, /cgc icons|cgc print-lint/)
 })
+
+
+// THE NEAR-MISS PAGE. Every threshold here is met EXACTLY: contrast at 4.54:1 (the standard's
+// own worked example of the minimum), twelve-pixel text, a leading of 1.4, a target of 44 × 44,
+// a visible focus ring, an animation that stops under reduce. A comparison one step out on any
+// of these fails a page that is precisely right, and a gate that fails correct work is a gate
+// people learn to switch off.
+const ON_THE_LINE = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>On the line</title><style>\n  body{margin:0;padding:24px;background:#fff;color:#1d2530;font-family:Georgia,serif;font-size:18px;line-height:1.55}\n  h1{font-size:40px;line-height:1.05;margin:0 0 16px;max-width:18ch;text-wrap:balance}\n  p{max-width:60ch;margin:0 0 16px}\n  /* 4.54:1 — the standard's own worked example of the minimum for body text. */\n  .min-contrast{color:#767676}\n  /* 12px exactly: the floor, not below it. */\n  .min-size{font-size:12px;color:#1d2530}\n  /* 1.4 exactly: the floor for prose. */\n  .min-leading{line-height:1.4}\n  /* 44 × 44 exactly: the target size, met exactly. */\n  a.btn{display:inline-block;width:44px;height:44px;line-height:44px;text-align:center;color:#1d2530;border:1px solid #1d2530}\n  a.btn:focus-visible{outline:3px solid #b4451f;outline-offset:2px}\n  .fade{animation:in 300ms cubic-bezier(.2,.8,.2,1) both}\n  @keyframes in{from{opacity:0}to{opacity:1}}\n  @media (prefers-reduced-motion:reduce){.fade{animation:none}}\n</style></head><body>\n<h1 class=\"fade\">A page sitting exactly on every line</h1>\n<p class=\"min-leading\">A paragraph at the leading floor, long enough to be judged on more than one line of running text and to give the measure something real to count.</p>\n<p class=\"min-contrast\">A paragraph at the contrast minimum, which is a pass and must be read as one, with enough words to be measured properly.</p>\n<p class=\"min-size\">A note at twelve pixels, which is the floor and not below it.</p>\n<p><a class=\"btn\" href=\"#\">→</a></p>\n<img src=\"data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==\" alt=\"a one-pixel spacer\" width=\"1\" height=\"1\">\n</body></html>\n"
+
+test('a page sitting exactly on every threshold passes', { skip }, async (t) => {
+  const d = scratch(t)
+  const f = join(d, 'edge.html')
+  writeFileSync(f, ON_THE_LINE)
+  const r = await audit(f, { mobile: true })
+  const bad = r.results.flatMap((v) => v.findings).filter((x) => x.level !== 'info')
+  assert.deepEqual(bad.map((x) => x.rule + ': ' + x.msg.slice(0, 70)), [], 'a page on the line was reported')
+  assert.equal(r.ok, true)
+})
