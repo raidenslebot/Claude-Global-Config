@@ -6,6 +6,7 @@
 //   node tools/install.mjs --skip-library  skip cloning the Tier-3 skill library (~200MB)
 //   node tools/install.mjs --skip-npm      skip global npm packages
 //   node tools/install.mjs --only=config   run one phase: config|skills|hooks|deps|npm|mcp|library|argo
+//   node tools/install.mjs --help          this text, and nothing else
 //   node tools/install.mjs --only=config,hooks,skills,deps   several (what the auto-update hook re-applies)
 //
 // Idempotent: re-running is safe and repairs drift. Never touches .credentials.json,

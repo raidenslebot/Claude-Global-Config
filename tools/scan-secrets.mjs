@@ -3,6 +3,7 @@
 //
 //   node tools/scan-secrets.mjs          scan the tree, exit 1 on any finding
 //   node tools/scan-secrets.mjs --json   same checks, machine-readable, same exit code
+//   node tools/scan-secrets.mjs --help   this text, and nothing else
 //
 // WHY this file is the highest-stakes one in the repo: the tree mirrors ~/.claude, which
 // lives next door to .credentials.json (live Claude OAuth access + refresh tokens) and

@@ -5,6 +5,7 @@
 //   node tools/uninstall.mjs --dry-run                the same thing, said out loud
 //   node tools/uninstall.mjs --yes                    actually remove
 //   node tools/uninstall.mjs --yes --purge-library    also delete the cloned Tier-3 repos (~200MB)
+//   node tools/uninstall.mjs --help                   this text, and nothing else
 //
 // The dry run is the DEFAULT on purpose. Read the list, then opt in with --yes.
 //

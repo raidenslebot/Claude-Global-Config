@@ -3,6 +3,7 @@
 //
 //   node tools/sync.mjs          # sync live -> repo
 //   node tools/sync.mjs --check  # report drift, write nothing (use in CI / pre-commit)
+//   node tools/sync.mjs --help   # this text, and nothing else
 //
 // The inverse of install.mjs. Run this after editing ~/.claude by hand so the repo
 // stays the source of truth instead of silently falling behind.

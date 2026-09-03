@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.29.0 — 2026-09-02
+
+**Every command written in the docs is now checked against the CLI that has to run it.**
+
+A skill saying `cgc render page.html --preset ig-post` is not documentation. It is an
+instruction a future session will type verbatim, and a flag that was renamed fails at the exact
+moment somebody is trying to do the work — reading as the tool being broken rather than the
+sentence being stale. There was nothing stopping that drift.
+
+`tools/test/docs-commands.test.mjs` walks every markdown file in the package — 159 invocations
+across 62 files today — and checks each one against `cgc --help` and the tool's own flags. A
+second test does the same for every `--preset` and `--size` named anywhere, against the real
+preset tables. Both were verified by planting a stale flag and a renamed canvas and watching
+the file and line come back.
+
+The CHANGELOG is excluded on purpose: it records what *was* true, and a flag named in the entry
+that removed it is the entry doing its job.
+
+The six tools that gained `--help` in 1.26.0 now also *say* they have it. The usage a tool
+prints should name the flag that printed it, and none of them did.
+
 ## 1.28.0 — 2026-09-02
 
 The lock from 1.27.0 covered the session hook. It now covers every writer, because the hook was

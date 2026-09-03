@@ -3,6 +3,7 @@
 //
 //   node tools/run-tests.mjs            all tests
 //   node tools/run-tests.mjs paths      only files whose name contains "paths"
+//   node tools/run-tests.mjs --help     this text, and nothing else
 //
 // Why this exists rather than `node --test tools/test/` in the npm script:
 //

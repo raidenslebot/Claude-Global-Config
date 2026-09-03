@@ -3,6 +3,7 @@
 //
 //   node tools/doctor.mjs          human-readable report
 //   node tools/doctor.mjs --json   machine-readable report
+//   node tools/doctor.mjs --help   this text, and nothing else
 //
 // Exit 1 if any check FAILS. Warnings alone exit 0.
 
