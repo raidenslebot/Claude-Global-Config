@@ -73,7 +73,8 @@ const STOCK = [
   'streamline your', 'boost (your )?productivity', 'all[- ]in[- ]one', 'cutting[- ]edge', 'state[- ]of[- ]the[- ]art',
   'unlock (the|your)', 'empower(ing)? (your|teams)', 'one platform',
 ]
-const STOCK_RE = new RegExp(`\\b(${STOCK.join('|')})\\b`, 'gi')
+// No trailing boundary: several entries are stems, and a stem cannot have one.
+const STOCK_RE = new RegExp(`\\b(?:${STOCK.join('|')})`, 'gi')
 
 function count(re, t) { return (t.match(re) || []).length }
 function first(re, t) { const m = new RegExp(re.source, re.flags.replace('g', '')).exec(t); return m ? { i: m.index, s: m[0] } : null }
@@ -82,7 +83,9 @@ export const FAMILIES = [
   {
     id: 'type-default', weight: 1,
     why: 'the only faces are defaults — nothing was typeset. Choose a display face with a point of view and a text face to hold it',
-    find(t) {
+    find(orig, resolved) {
+      // A face, a colour or a ground named through a token is still what is on the page.
+      const t = resolved || orig
       const fams = new Set()
       let firstAt = null
       for (const m of t.matchAll(/font-family\s*:\s*([^;}\n]+)|fontFamily\s*:\s*["'`]([^"'`]+)|family=([A-Za-z+ ]+)/g)) {
@@ -107,7 +110,9 @@ export const FAMILIES = [
   {
     id: 'gradient-purple', weight: 2,
     why: 'the purple→pink/indigo gradient is the single most recognisable tell. A gradient can stay; this one cannot. Take the hue from the subject and use one colour flat, or a two-ink overprint',
-    find(t) {
+    find(orig, resolved) {
+      // A face, a colour or a ground named through a token is still what is on the page.
+      const t = resolved || orig
       const tw = first(/\bfrom-(purple|violet|indigo|fuchsia|pink)-\d+\b[^"'`]*\b(via|to)-(purple|violet|indigo|fuchsia|pink|blue|rose)-\d+\b/, t)
       if (tw) return { i: tw.i, s: tw.s.slice(0, 60) }
       for (const m of t.matchAll(/(?:linear|radial|conic)-gradient\(((?:[^()]|\([^()]*\))*)\)/g)) {
@@ -122,17 +127,26 @@ export const FAMILIES = [
     id: 'glass', weight: 2,
     why: 'the glass card (backdrop blur over translucent white) is decoration standing in for structure. Give the surface a real material — paper, ink, a rule — or no card at all',
     find(t) {
-      const m = first(/backdrop-blur(-\w+)?\b|backdrop-filter\s*:\s*[^;]*blur\(/, t)
-      if (!m) return null
-      return /bg-white\/\d+|bg-black\/\d+|rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*0?\.\d+|border-white\/\d+/.test(t) ? { i: m.i, s: m.s } : null
+      const TRANSLUCENT = /bg-white\/\d+|bg-black\/\d+|border-white\/\d+|rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*0?\.\d+|rgba?\(\s*255\s+255\s+255\s*\/\s*0?\.\d+/
+      const BLUR = /backdrop-blur(-\w+)?\b|backdrop-filter\s*:\s*[^;]*blur\(/g
+      // The two have to be on the same thing. A translucent sticky nav elsewhere on the page is
+      // a different decision, and often a good one.
+      // A sticky or fixed bar with a blur behind it is a navigation bar, not a glass card, and
+      // it is one of the few genuinely good uses of backdrop-filter there is.
+      const BAR = /position\s*:\s*(sticky|fixed)|\bsticky\b|\bfixed\s+top-0|<nav\b|<header\b|\bnav\s*\{|\bheader\s*\{/
+      for (const m of t.matchAll(BLUR)) {
+        const near = t.slice(Math.max(0, m.index - 220), m.index + 220)
+        if (TRANSLUCENT.test(near) && !BAR.test(near)) return { i: m.index, s: m[0] }
+      }
+      return null
     },
   },
   {
     id: 'three-grid', weight: 1,
     why: 'three identical cards in a row is the feature grid every template ships. State one thing at full width, or set the rest as a list with a real hierarchy',
     find(t) {
-      const m = first(/\bgrid-cols-3\b|grid-template-columns\s*:\s*repeat\(\s*3\s*,/, t)
-      return m && /\bcard|feature/i.test(t) ? { i: m.i, s: m.s } : null
+      const m = first(/\bgrid-cols-3\b|grid-template-columns\s*:\s*repeat\(\s*3\s*,|grid-template-columns\s*:\s*(?:1fr\s+){2}1fr\b|grid-template-columns\s*:\s*(?:minmax\([^)]*\)\s*){3}/, t)
+      return m && /\bcards?\b|\bfeatures?\b/i.test(t) ? { i: m.i, s: m.s } : null
     },
   },
   {
@@ -143,7 +157,9 @@ export const FAMILIES = [
       if (!h) return null
       const win = t.slice(Math.max(0, h.i - 800), h.i + 1800)
       const ctas = count(/<(a|button)\b[^>]*(btn|button|cta|rounded-full|rounded-(md|lg|xl)|px-\d)/gi, win)
-      const centred = /text-center|text-align\s*:\s*center|items-center[^"']*justify-center|mx-auto/.test(win)
+      // Centring is declared in the head of a single-file page, not beside the h1 — but the
+      // STRUCTURE (a headline, a paragraph, two calls to action) still has to be in the window.
+      const centred = /text-center\b|text-align\s*:\s*center|items-center[^"']*justify-center/.test(t)
       return /<p\b/.test(win) && ctas >= 2 && centred ? { i: h.i, s: 'h1, a paragraph, two buttons, centred' } : null
     },
   },
@@ -162,7 +178,12 @@ export const FAMILIES = [
     id: 'emoji-icons', weight: 2,
     why: 'emoji as section markers read as a pitch deck. Draw a mark, set a numeral, or use nothing',
     find(t) {
-      const body = t.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+      const body = t.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|(?<=^|\s)\/\/[^\n]*/g, '')
+        // &#128640; renders as 🚀 and was invisible to a scan over code points.
+        .replace(/&#(\d+);|&#x([0-9a-f]+);/gi, (whole, dec, hex) => {
+          const n = dec ? Number(dec) : parseInt(hex, 16)
+          return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : whole
+        })
       // Emoji_Presentation, not Extended_Pictographic: © ® ™ ↗ ✔ are typography, not icons.
       const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}️/gu
       const all = body.match(EMOJI) || []
@@ -183,14 +204,31 @@ export const FAMILIES = [
   {
     id: 'acid-on-black', weight: 1,
     why: 'one electric green/cyan glowing on near-black is the dev-tool default. Dark is not #0a0a0a and an accent is not a palette — build neutrals with a hue and choose an accent from the subject',
-    find(t) {
+    find(orig, resolved) {
+      // A face, a colour or a ground named through a token is still what is on the page.
+      const t = resolved || orig
       const dark = first(/\bbg-(black|(gray|zinc|neutral|slate|stone)-950)\b/, t)
         || [...t.matchAll(/background(?:-color)?\s*:\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\))/gi)].map((m) => ({ i: m.index, s: m[1], c: hsl(m[1]) })).find((x) => nearBlack(x.c))
       if (!dark) return null
       const tw = first(/\b(text|bg|border|from|to)-(green|emerald|lime|cyan)-(400|500)\b/, t)
       if (tw) return { i: dark.i, s: `${dark.s} + ${tw.s}` }
       const acid = (t.match(COLOUR) || []).find((c) => isAcid(hsl(c)))
-      return acid ? { i: dark.i, s: `${dark.s} + ${acid}` } : null
+      if (!acid) return null
+      // Saturated hues, bucketed at 40° so a tint and its shade count once.
+      const hues = new Set()
+      // Gradient stops are one gesture, and a token DECLARATION is not a use — the resolved
+      // text already carries the colour everywhere it is actually painted.
+      const flat = t.replace(/(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/gi, ' ')
+        .replace(/--[\w-]+\s*:[^;}]*/g, ' ')
+      for (const c of flat.match(COLOUR) || []) {
+        const k = hsl(c)
+        if (k && k.s >= 0.35 && k.l >= 0.15 && k.l <= 0.9) hues.add(Math.round(k.h / 40))
+      }
+      for (const m of flat.matchAll(/\b(green|emerald|lime|cyan|red|rose|amber|orange|yellow|blue|indigo|violet|purple|pink|teal|sky)-(4|5|6)00\b/gi)) {
+        hues.add('tw:' + m[1].toLowerCase())
+      }
+      if (hues.size >= 3) return null
+      return { i: dark.i, s: `${dark.s} + ${acid}` }
     },
   },
   {
@@ -199,10 +237,11 @@ export const FAMILIES = [
     find(t) {
       for (const m of t.matchAll(/<(div|span)\b[^>]{0,400}>/g)) {
         const tag = m[0]
-        if (/blur-(2xl|3xl)|blur\(\s*(\d{2,3})px/.test(tag) && /rounded-full|border-radius\s*:\s*(50%|9999px)/.test(tag) && /absolute|fixed/.test(tag)) return { i: m.index, s: tag.slice(0, 60) }
+        if (/blur-(2xl|3xl)|blur\(\s*(?:\d{2,3}px|[4-9](?:\.\d+)?r?em|\d\d+(?:\.\d+)?r?em)/.test(tag) && /rounded-full|border-radius\s*:\s*(50%|9999px)/.test(tag) && /absolute|fixed/.test(tag)) return { i: m.index, s: tag.slice(0, 60) }
       }
-      const css = first(/filter\s*:\s*blur\(\s*(\d{2,3})px\s*\)/, t)
-      if (css && +css.s.match(/\d+/)[0] >= 40 && /border-radius\s*:\s*(50%|9999px)/.test(t) && /position\s*:\s*absolute/.test(t)) return { i: css.i, s: css.s }
+      const css = first(/filter\s*:\s*blur\(\s*(\d+(?:\.\d+)?)(px|r?em)\s*\)/, t)
+      const cssPx = css ? (/r?em/.test(css.s) ? parseFloat(css.s.match(/[\d.]+/)[0]) * 16 : parseFloat(css.s.match(/[\d.]+/)[0])) : 0
+      if (css && cssPx >= 40 && /border-radius\s*:\s*(50%|9999px)/.test(t) && /position\s*:\s*absolute/.test(t)) return { i: css.i, s: css.s }
       return null
     },
   },
@@ -246,7 +285,20 @@ export const FAMILIES = [
         const [r, g, b] = [h.slice(0, 2), h.slice(2, 4), h.slice(4, 6)]
         if (r === g && g === b && !/^(00|ff)$/i.test(r)) { greys.add(h.toLowerCase()); at ??= m.index }
       }
-      return greys.size >= 4 ? { i: at, s: [...greys].slice(0, 4).map((g) => '#' + g).join(' ') } : null
+      if (greys.size < 4) return null
+      // Neutrals that are nearly grey but not quite: a channel spread of 1–24 of 255 is the
+      // signature of a ramp built at one hue, which is exactly what the fix asks for.
+      let hued = 0
+      for (const m of t.matchAll(/#([0-9a-f]{6})\b/gi)) {
+        const [r, g, b] = [0, 2, 4].map((k) => parseInt(m[1].slice(k, k + 2), 16))
+        const spread = Math.max(r, g, b) - Math.min(r, g, b)
+        if (spread > 0 && spread <= 24) hued++
+      }
+      // hsl()/oklch() neutrals say it outright.
+      for (const m of t.matchAll(/hsla?\(\s*[\d.]+(?:deg)?[\s,]+([\d.]+)%/gi)) if (Number(m[1]) > 0 && Number(m[1]) <= 20) hued++
+      for (const m of t.matchAll(/oklch\(\s*[\d.%]+[\s,]+([\d.]+)/gi)) if (Number(m[1]) > 0 && Number(m[1]) <= 0.04) hued++
+      if (hued >= greys.size) return null
+      return { i: at, s: [...greys].slice(0, 4).map((g) => '#' + g).join(' ') }
     },
   },
   {
@@ -259,12 +311,38 @@ export const FAMILIES = [
 export const MAX_SCORE = FAMILIES.reduce((a, f) => a + f.weight, 0)
 
 /** Lint one text. `name` is for the report only. */
+/** Blank the content of code samples, keeping the length so positions stay exact. */
+export function blankQuotedCode(text) {
+  return text.replace(/(<(pre|code|textarea|samp)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi,
+    (whole, open, tag, body, close) => open + ' '.repeat(body.length) + close)
+}
+
+/** Substitute `--x: value` definitions into their var() uses. Two passes: tokens that point
+ *  at tokens are the normal shape of a real token file. */
+export function resolveVars(text) {
+  const defs = new Map()
+  for (const m of text.matchAll(/(--[\w-]+)\s*:\s*([^;{}]+)/g)) defs.set(m[1], m[2].trim())
+  if (!defs.size) return text
+  let out = text
+  for (let pass = 0; pass < 2; pass++) {
+    out = out.replace(/var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/g, (whole, name) => {
+      const v = defs.get(name)
+      return v && !/var\(/.test(v) ? v : whole
+    })
+  }
+  return out
+}
+
 export function lintText(text, name = 'text') {
   const lineOf = (i) => (i == null || i < 0 ? 0 : text.slice(0, i).split('\n').length)
   const findings = []
+  // What is linted is the file with its code samples blanked and its tokens resolved: a design
+  // is what the page does, not what it quotes, and a token is still the value it stands for.
+  const scan = blankQuotedCode(text)
+  const resolved = resolveVars(scan)
   for (const f of FAMILIES) {
     let hit = null
-    try { hit = f.find(text) } catch { hit = null }
+    try { hit = f.find(scan, resolved) } catch { hit = null }
     if (hit) findings.push({ id: f.id, weight: f.weight, line: lineOf(hit.i), sample: String(hit.s).replace(/\s+/g, ' ').trim(), why: f.why })
   }
   const score = findings.reduce((a, f) => a + f.weight, 0)

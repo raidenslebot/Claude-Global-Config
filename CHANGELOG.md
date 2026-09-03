@@ -5,6 +5,64 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.22.0 — 2026-09-02
+
+A second adversarial review, this time of the two static gates — `slop-lint` and `print-lint`.
+Both were passing files they should have failed, and failing files they should have passed. The
+pattern behind most of it: a gate read the file as characters rather than as what the browser
+would do with it. A token was not resolved, a comment was not skipped, a code sample was read
+as if it were a stylesheet.
+
+**`slop-lint` reads the page, not the source.**
+
+- **Design tokens no longer hide the fingerprint.** `--font-body: system-ui` used through
+  `var()`, a purple gradient assembled from two token colours, an acid accent on a
+  `var(--ink)` ground — all three families read the resolved text now. A project that names
+  its colours was invisible to the gate, which is every project of any size.
+- **A page that documents a technique is not using it.** The content of `<pre>`, `<code>`,
+  `<samp>` and `<textarea>` is blanked before linting — blanked, not removed, so every line
+  number still points where the reader would look. An article explaining why the glass card
+  fails was reporting itself as a glass card.
+- **A translucent sticky bar is navigation.** `backdrop-filter` behind a `position: sticky`
+  header is one of the few genuinely good uses of it; the *glass card* is a content surface
+  with a blur standing in for structure. Only the second is reported.
+- **A state colour is not an accent.** A dark dashboard needs a green that means "running"
+  beside a red that means "failed". The dev-tool default is one saturated hue carrying an
+  entire design, so `acid-on-black` now counts the hues first — excluding gradient stops (one
+  gesture, not two accents) and token declarations (a declaration is not a use).
+- **A ramp built at one hue answers the grey charge.** Four dead greys still fail; a page whose
+  neutrals carry a little chroma has already done the thing the family exists to ask for.
+
+**`print-lint` measures what goes to press.**
+
+- **A raster placed as a background is checked.** `background-image: url(...)` with a physical
+  width is how a full-bleed cover is usually placed — and it was the one way a raster reached
+  the page unchecked. The commonest placement of the largest image on the piece.
+- **The page size is read from the rules the browser would apply.** An `@page` quoted in a
+  comment beside the real one — exactly what a designer writes — was taken as the size, and
+  every downstream check (bleed, and every SVG unit conversion) inherited it.
+- **Named sizes are sizes.** `@page { size: A4 }` and `@page :first { … }` are how most people
+  write this; both were rejected as "no `@page` rule".
+- **`min-width` and `max-width` are not the placed width.** A `min-width: 1in` passed a 150dpi
+  image; a routine `max-width: 8in` failed a 450dpi one. In both directions, from one `\b`.
+- **Single-quoted attributes are read**, which several SVG exporters emit, and class and id
+  names are escaped before they become a `RegExp`.
+- **The same finding a thousand times is one line.** An exported SVG with four thousand
+  hairlines printed four thousand identical FAIL lines and buried everything else; it now
+  prints once, with a count.
+- **A failing measurement reads as failing.** "2.1mm = 6.0pt, below the 6pt minimum" was a
+  rounding artefact; it prints at whatever precision it takes to be visibly below the limit.
+- **A bare run says what it did not check.** With no `--size` or `--trim` there is nothing to
+  compare against, so the bleed check never ran — and a document at exactly trim size looks
+  identical to a correct one from there. It no longer says "Passes the physical checks" after
+  skipping the check most likely to send a job back. Apparel methods are exempt: a screen-print
+  film is not cut out of a larger sheet.
+
+**The loop no longer trips over its own footprints.** `cgc check` walked into the frames
+directory `motion-render` writes beside a design and audited the contact sheet as if it were
+one — fourteen failures, on a diagnostic photograph. A `-frames` directory is the tool's own
+output and is skipped.
+
 ## 1.21.0 — 2026-09-02
 
 An adversarial review of the accessibility gate returned fifteen findings, nearly all of them

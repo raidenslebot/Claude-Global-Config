@@ -110,6 +110,9 @@ function walk(p, out = [], seen = new Set()) {
     try { entries = readdirSync(p) } catch { return out }
     for (const e of entries) {
       if (e === 'node_modules' || e === '.git' || e.startsWith('.')) continue
+      // This tool's own scratch output. A contact sheet is a diagnostic photograph of a
+      // design, not a design, and auditing it fails every check a design has to pass.
+      if (/-frames$/.test(e)) continue
       walk(join(p, e), out, seen)
     }
   } else if (DESIGN.has(extname(p).toLowerCase())) out.push(p)

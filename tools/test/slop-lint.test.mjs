@@ -162,3 +162,54 @@ test('the shipped screen example passes its own gate', () => {
   const r = lint(ex)
   assert.equal(r.verdict, 'clean', JSON.stringify(r.findings, null, 1))
 })
+
+test('a design token hides nothing: the face, the gradient and the ground are read through var()', () => {
+  // Every one of these is the fingerprint written the way a real project writes it.
+  const tokens = `<style>:root{--font-body:system-ui;--from:#667eea;--to:#764ba2;--ink:#0a0a0a;--acid:#39ff14}
+    body{font-family:var(--font-body);background:var(--ink)}
+    .hero{background:linear-gradient(135deg,var(--from),var(--to))}
+    a{color:var(--acid)}</style><p>x</p>`
+  const r = ids(lintText(tokens, 'tokens.html'))
+  assert.ok(r.includes('type-default'), 'a default face named through a token is still the default face')
+  assert.ok(r.includes('gradient-purple'))
+  assert.ok(r.includes('acid-on-black'))
+})
+
+test('a page that documents a technique is not using it — code samples are read as prose', () => {
+  const doc = `<!doctype html><style>body{font-family:"Archivo Expanded",serif}</style>
+    <h1>Why the glass card fails</h1>
+    <pre><code>.card { backdrop-filter: blur(12px); background: rgba(255,255,255,0.6); }</code></pre>
+    <p>Do not do that.</p>`
+  assert.ok(!ids(lintText(doc, 'article.html')).includes('glass'), 'quoting a class is not shipping it')
+  // The same declaration outside a code sample still counts.
+  const used = doc.replace('<pre><code>', '<style>').replace('</code></pre>', '</style>')
+  assert.ok(ids(lintText(used, 'used.html')).includes('glass'))
+})
+
+test('a translucent bar is navigation, not a glass card; a state colour is not the acid accent', () => {
+  const bar = `<style>body{font-family:"Archivo Expanded",serif}
+    header{position:sticky;top:0;backdrop-filter:blur(10px);background:rgba(255,255,255,0.7)}</style><header>nav</header>`
+  assert.ok(!ids(lintText(bar, 'bar.html')).includes('glass'))
+
+  // A dark dashboard whose green means "running", beside a red and an amber that mean something else.
+  const dash = `<style>body{background:#0b0b0c;font-family:"Archivo Expanded",serif}
+    .ok{color:#22c55e}.bad{color:#ef4444}.warn{color:#f59e0b}.link{color:#3b82f6}</style>
+    <p class="ok">running</p><p class="bad">failed</p>`
+  assert.ok(!ids(lintText(dash, 'dash.html')).includes('acid-on-black'), 'four hues is a palette, not the dev-tool default')
+
+  // One saturated hue carrying the whole design still is.
+  const acid = `<style>body{background:#0a0a0a;color:#e5e5e5;font-family:"Archivo Expanded",serif}
+    a{color:#39ff14}</style><a href="#">go</a>`
+  assert.ok(ids(lintText(acid, 'acid.html')).includes('acid-on-black'))
+})
+
+test('a ramp built at one hue answers the grey charge; four dead greys still do not', () => {
+  const ramp = `<style>:root{--g1:#f7f6f4;--g2:#e6e4e0;--g3:#c9c6c0;--g4:#8b8781;--g5:#4a4742;--g6:#26241f}
+    body{font-family:"Archivo Expanded",serif;background:var(--g1)}
+    .a{color:#888}.b{color:#ccc}.c{color:#333}.d{color:#666}</style><p class="a">x</p>`
+  assert.ok(!ids(lintText(ramp, 'ramp.html')).includes('grey-neutrals'))
+
+  const dead = `<style>body{font-family:"Archivo Expanded",serif;background:#fff}
+    .a{color:#888}.b{border-color:#ccc}.c{color:#333}.d{background:#666}</style><p class="a">x</p>`
+  assert.ok(ids(lintText(dead, 'dead.html')).includes('grey-neutrals'))
+})

@@ -79,14 +79,37 @@ export function colours(text) {
 
 // ── the checks ───────────────────────────────────────────────────────────────
 
+/** Blank comments and script bodies, keeping length so every position stays exact. A size
+ *  quoted in a comment beside the real rule is the commonest thing a designer writes. */
+export function blankQuoted(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, (m) => ' '.repeat(m.length))
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
+    .replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi, (w, o, b, c) => o + ' '.repeat(b.length) + c)
+}
+
+/** Print a measurement at enough precision that it reads as below the limit it failed. */
+export function belowLimit(v, limit) {
+  for (let d = 1; d < 5; d++) if (Number(v.toFixed(d)) < limit) return v.toFixed(d)
+  return String(v)
+}
+
 export function lint(file, opts = {}) {
   const text = readFileSync(file, 'utf8')
   const isSvg = extname(file).toLowerCase() === '.svg'
   const method = MINIMUMS[opts.method || 'paper']
   if (!method) throw new Error(`unknown --method "${opts.method}" — one of ${Object.keys(MINIMUMS).join(', ')}`)
   const findings = []
-  const fail = (rule, msg) => findings.push({ level: 'fail', rule, msg })
-  const warn = (rule, msg) => findings.push({ level: 'warn', rule, msg })
+  const seen = new Map()
+  const say = (level, rule, msg) => {
+    const prior = seen.get(level + rule + msg)
+    if (prior) { prior.n++; return }
+    const f = { level, rule, msg, n: 1 }
+    seen.set(level + rule + msg, f)
+    findings.push(f)
+  }
+  const fail = (rule, msg) => say('fail', rule, msg)
+  const warn = (rule, msg) => say('warn', rule, msg)
 
   // 0. An SVG has to be well-formed XML before anything else matters, and the one malformation
   //    that reaches this pipeline in practice is a double hyphen inside a comment (a command
@@ -110,10 +133,19 @@ export function lint(file, opts = {}) {
     else if (w && h) fail('size', `SVG width/height are "${w}" × "${h}" — give them physical units (in, mm, pt) or the printer gets pixels`)
     else fail('size', 'SVG has no width/height — a print file needs a physical size')
   } else {
-    const m = text.match(/@page\s*\{[^}]*\bsize\s*:\s*([\d.]+)\s*(in|mm|cm|pt|px)\s+([\d.]+)\s*(in|mm|cm|pt|px)/i)
-    if (!m) fail('size', 'no `@page { size: W H }` rule — the document has no physical size')
-    else if (/px/i.test(m[2]) || /px/i.test(m[4])) fail('size', `@page size is in pixels (${m[0].match(/size[^;]*/)[0]}) — use in, mm or pt`)
-    else declared = { w: toIn(m[1], m[2]), h: toIn(m[3], m[4]) }
+    // Only the rules the browser would apply: a size quoted in a comment or a string is prose.
+    const live = blankQuoted(text)
+    const measured = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([\d.]+)\s*(in|mm|cm|pt|px)\s+([\d.]+)\s*(in|mm|cm|pt|px)/i)
+    const named = live.match(/@page[^{]*\{[^}]*\bsize\s*:\s*([a-z][a-z0-9]{1,9})\s*(landscape|portrait)?\s*[;}]/i)
+    if (measured) {
+      if (/px/i.test(measured[2]) || /px/i.test(measured[4])) fail('size', `@page size is in pixels (${measured[0].match(/size[^;]*/)[0]}) — use in, mm or pt`)
+      else declared = { w: toIn(measured[1], measured[2]), h: toIn(measured[3], measured[4]) }
+    } else if (named && PRESETS[named[1].toLowerCase()]) {
+      const p = PRESETS[named[1].toLowerCase()]
+      declared = /landscape/i.test(named[2] || '') ? { w: p.h, h: p.w } : { w: p.w, h: p.h }
+    } else if (named) {
+      fail('size', `@page size "${named[1]}" is not a page size this knows — give it as W H in in, mm or pt, or use one of: ${Object.keys(PRESETS).slice(0, 8).join(', ')}`)
+    } else fail('size', 'no `@page { size: W H }` rule — the document has no physical size')
   }
 
   // 2. It matches trim + 2×bleed, when the caller says what those are.
@@ -148,28 +180,45 @@ export function lint(file, opts = {}) {
     // No viewBox: a user unit is a CSS pixel, so the px conversion is the right fallback, not a skip.
     if (s.u === 'svg') { if (!declared) { warn('type', `${s.src} — unitless SVG font-size; declare the SVG in physical units to check it`); continue } pt = svgUserToPt(text, declared, Number(s.v)) ?? toPt(s.v, 'px') }
     else pt = toPt(s.v, s.u)
-    if (pt < method.text) fail('type', `${s.src} = ${pt.toFixed(1)}pt, below the ${method.text}pt minimum for ${method.label}`)
-    else if (pt < method.reversedText) warn('type', `${s.src} = ${pt.toFixed(1)}pt — fine positive; too small if reversed (light on dark) for ${method.label}`)
+    if (pt < method.text) fail('type', `${s.src} = ${belowLimit(pt, method.text)}pt, below the ${method.text}pt minimum for ${method.label}`)
+    else if (pt < method.reversedText) warn('type', `${s.src} = ${belowLimit(pt, method.reversedText)}pt — fine positive; too small if reversed (light on dark) for ${method.label}`)
   }
   if (sizes.length === 0) warn('type', 'no font-size found — if type is set by an external stylesheet this lint cannot see it')
 
   // 5. Lines below the minimum.
   for (const m of text.matchAll(/\b(?:border(?:-(?:top|right|bottom|left))?(?:-width)?|outline(?:-width)?)\s*:\s*([\d.]+)(pt|px|mm|in)/gi)) {
     const pt = toPt(m[1], m[2])
-    if (pt > 0 && pt < method.line) fail('line', `${m[0]} = ${pt.toFixed(2)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
+    if (pt > 0 && pt < method.line) fail('line', `${m[0]} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
   }
   for (const m of text.matchAll(/stroke-width\s*[:=]\s*"?([\d.]+)(pt|px|mm|in)?/gi)) {
+    // The match stops at the number, so the attribute form has no closing quote.
+    const src = m[0] + (m[0].split('"').length === 2 ? '"' : '')
     let pt
     if (m[2]) pt = toPt(m[1], m[2])
     else if (isSvg && declared) { pt = svgUserToPt(text, declared, Number(m[1])) ?? toPt(m[1], 'px') }
     else pt = toPt(m[1], 'px')
-    if (pt > 0 && pt < method.line) fail('line', `${m[0]} = ${pt.toFixed(2)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
+    if (pt > 0 && pt < method.line) fail('line', `${src} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
   }
 
   // 6. Rasters placed below the required dpi.
   if (method.raster) {
+    // A raster placed as a background: the rule that names the image usually names its width too.
+    for (const rule of blankQuoted(text).matchAll(/\{([^{}]*background(?:-image)?\s*:[^;{}]*url\(\s*["']?([^"')]+)["']?\s*\)[^{}]*)\}/gi)) {
+      const body = rule[1]
+      const srcRaw = rule[2]
+      if (/^(https?:|data:)/i.test(srcRaw)) { warn('raster', `${srcRaw.slice(0, 40)}… — remote or inline background image; cannot verify resolution`); continue }
+      const wm = body.match(/(?<![-\w])width\s*:\s*([\d.]+)\s*(in|mm|cm|pt)/i)
+      if (!wm) continue
+      let p
+      try { p = /^file:/i.test(srcRaw) ? fileURLToPath(srcRaw) : resolve(dirname(file), decodeURIComponent(srcRaw)) } catch { p = resolve(dirname(file), srcRaw) }
+      const px = rasterWidth(p)
+      if (!px) { warn('raster', `${srcRaw} — background image not found or not a readable PNG/JPEG at ${p}; its resolution cannot be verified`); continue }
+      const inches = toIn(wm[1], wm[2])
+      const dpi = Math.round(px / inches)
+      if (dpi < method.raster) fail('raster', `${srcRaw} is ${px}px placed as a background at ${inches.toFixed(2)}in = ${dpi}dpi, below ${method.raster} — it will print soft`)
+    }
     // An HTML <img src> or an SVG <image href> — a raster placed in an SVG prints just as soft.
-    for (const m of text.matchAll(/<(?:img|image)\b[^>]*\b(?:src|href|xlink:href)="([^"]+)"[^>]*>/gi)) {
+    for (const m of text.matchAll(/<(?:img|image)\b[^>]*\b(?:src|href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
       const tag = m[0]
       const srcRaw = m[1]
       if (/^(https?:|data:)/i.test(srcRaw)) { warn('raster', `${srcRaw.slice(0, 40)}… — remote or inline image; cannot verify resolution`); continue }
@@ -182,7 +231,7 @@ export function lint(file, opts = {}) {
       // The placed width: an inline style or width attribute on the tag, else a stylesheet
       // rule whose selector actually targets this image — `img`, one of its classes, or its
       // id. Never "the first width in the file", which is usually the sheet itself.
-      let wm = tag.match(/width\s*[:=]\s*"?([\d.]+)\s*(in|mm|cm|pt)/i)
+      let wm = tag.match(/(?<![-\w])width\s*[:=]\s*["']?([\d.]+)\s*(in|mm|cm|pt)/i)
       // An SVG <image width="N"> is in user units: through the viewBox to inches, or CSS px without one.
       if (!wm && isSvg && declared) {
         const u = tag.match(/\bwidth="([\d.]+)"/i)
@@ -190,11 +239,14 @@ export function lint(file, opts = {}) {
       }
       if (!wm) {
         const selectors = ['img']
-        for (const c of ((tag.match(/class="([^"]+)"/i) || [])[1] || '').split(/\s+/).filter(Boolean)) selectors.push(`\\.${c}`)
-        const id = (tag.match(/id="([^"]+)"/i) || [])[1]
-        if (id) selectors.push(`#${id}`)
+        for (const c of ((tag.match(/class\s*=\s*["']([^"']+)["']/i) || [])[1] || '').split(/\s+/).filter(Boolean)) {
+          // A class name goes into a RegExp: anything that is not a plain identifier is escaped.
+          selectors.push('\\.' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        }
+        const id = (tag.match(/id\s*=\s*["']([^"']+)["']/i) || [])[1]
+        if (id) selectors.push("#" + id.replace(/[.*+?^${}()|[]\]/g, "\$&"))
         for (const sel of selectors) {
-          wm = text.match(new RegExp(`(?:^|[\\s,}])${sel}\\s*(?:,[^{]*)?\\{[^}]*?\\bwidth\\s*:\\s*([\\d.]+)(in|mm|cm|pt)`, 'i'))
+          wm = text.match(new RegExp(`(?:^|[\\s,}])${sel}\\s*(?:,[^{]*)?\\{[^}]*?(?<![-\\w])width\\s*:\\s*([\\d.]+)(in|mm|cm|pt)`, 'i'))
           if (wm) break
         }
       }
@@ -297,14 +349,23 @@ exit:  0 clean · 1 a finding that would fail on press · 2 bad input`)
   else {
     for (const r of results) {
       console.log(`PRINT-LINT  ${r.file}  ·  ${r.method}`)
-      for (const f of r.findings) console.log(`  ${f.level === 'fail' ? 'FAIL' : 'warn'}  ${f.rule.padEnd(7)} ${f.msg}`)
+      for (const f of r.findings) console.log(`  ${f.level === 'fail' ? 'FAIL' : 'warn'}  ${f.rule.padEnd(7)} ${f.msg}${f.n > 1 ? ` — and ${f.n - 1} more like it` : ''}`)
       const fails = r.findings.filter((f) => f.level === 'fail').length
       const warns = r.findings.length - fails
       console.log(`  ${fails} would fail on press · ${warns} to check\n`)
     }
     const allOk = results.every((r) => r.ok)
+    // With no trim to compare against, the bleed check never ran — and a document at exactly
+    // trim size is indistinguishable from a correct one from here. Only paper has a trim:
+    // a screen-print film or an embroidery file is not cut out of a larger sheet.
+    const checkedAgainstTrim = Boolean(opts.size || opts.trim) || (opts.method || 'paper') !== 'paper' 
     console.log(results.length > 1 ? `  ${results.filter((r) => r.ok).length}/${results.length} files pass. ` : '  ',
-      allOk ? 'Passes the physical checks. The taste layer decides the rest.' : 'Not print-ready. Fix every FAIL before rendering.')
+      allOk
+        ? (checkedAgainstTrim
+          ? 'Passes the physical checks. The taste layer decides the rest.'
+          : 'Nothing here fails on its own terms — but with no --size or --trim the bleed was never checked, '
+            + 'and a document at exactly trim size looks identical to a correct one from here. Re-run with the size to be sure.')
+        : 'Not print-ready. Fix every FAIL before rendering.')
   }
   return results.every((r) => r.ok) ? 0 : 1
 }

@@ -223,3 +223,13 @@ test('the ways a page actually animates are all recognised', () => {
   }
   assert.ok(!MOVES.test('const transitions = rows.map((r) => r.id)'), 'a variable named transitions is not motion')
 })
+
+test('the motion tool\'s own contact sheet is not audited as if it were a design', (t) => {
+  const d = scratch(t)
+  writeFileSync(join(d, 'page.html'), TEMPLATE)
+  // What motion-render writes beside the design: frames and a sheet that photographs them.
+  mkdirSync(join(d, 'page-frames'))
+  writeFileSync(join(d, 'page-frames', 'sheet.html'), '<!doctype html><body style="background:#000"><img src="f1.png"><p style="font-size:6px;color:#111">frame 1</p>')
+  const r = spawnSync(process.execPath, [TOOL, d, '--json'], { encoding: 'utf8' })
+  assert.doesNotMatch(r.stdout, /page-frames/, 'a diagnostic photograph of a design is not a design')
+})

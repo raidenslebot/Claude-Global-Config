@@ -53,7 +53,7 @@ test('a hairline below 0.25pt fails; a 0.5pt rule passes', (t) => {
   const d = scratch(t)
   const bad = lint(file(d, 'hair.html', GOOD_CARD.replace('border-top: 0.5pt', 'border-top: 0.1pt')), { size: 'business-card-us' })
   assert.ok(rules(bad, 'fail').includes('line'))
-  assert.match(bad.findings.find((f) => f.rule === 'line').msg, /0\.10pt.*drop out/)
+  assert.match(bad.findings.find((f) => f.rule === 'line').msg, /0\.1pt.*drop out/)
 })
 
 test('no @page size, pixel page size, trim-only size, and wrong size each fail with the right rule', (t) => {
@@ -194,4 +194,56 @@ test('the lint and the renderer agree on every preset, and each matches the docu
     assert.ok(Math.abs(PRESETS[k].w - RENDER_PRESETS[k].w) < 1e-9 && Math.abs(PRESETS[k].h - RENDER_PRESETS[k].h) < 1e-9, k)
   }
   assert.equal(Object.keys(MINIMUMS).length, 5)
+})
+
+test('a raster placed as a background is checked, and a bare run says the bleed was not', (t) => {
+  const d = scratch(t)
+  // 900px across 4.25in is 212dpi. It only ever appeared in a background-image before.
+  const png = Buffer.alloc(33)
+  png.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); png.writeUInt32BE(13, 8); png.write('IHDR', 12, 'latin1')
+  png.writeUInt32BE(900, 16); png.writeUInt32BE(600, 20)
+  writeFileSync(join(d, 'photo.png'), png)
+  const bg = lint(file(d, 'bg.html', `<!doctype html><style>@page{size:8.5in 11in;margin:0}
+    body{font-family:Archivo;font-size:10pt}
+    .cover{width:4.25in;height:3in;background-image:url("photo.png")}</style><div class="cover"></div>`), {})
+  assert.ok(rules(bg, 'fail').includes('raster'), 'a background raster under 300dpi has to fail')
+  assert.match(bg.findings.find((f) => f.rule === 'raster').msg, /212dpi/)
+
+  // The same image placed wide enough is fine, and a missing one is a warning, not silence.
+  const wide = lint(file(d, 'wide.html', `<!doctype html><style>@page{size:8.5in 11in;margin:0}
+    body{font-family:Archivo;font-size:10pt}
+    .cover{width:2in;background-image:url('photo.png')}</style><div class="cover"></div>`), {})
+  assert.ok(!rules(wide, 'fail').includes('raster'))
+  const gone = lint(file(d, 'gone.html', `<!doctype html><style>@page{size:8.5in 11in;margin:0}
+    body{font-family:Archivo;font-size:10pt}
+    .cover{width:4in;background-image:url(missing.png)}</style><div class="cover"></div>`), {})
+  assert.match(gone.findings.find((f) => f.rule === 'raster').msg, /not found|cannot be verified/)
+})
+
+test('the same finding a thousand times is one line, and a failing size prints below its limit', (t) => {
+  const d = scratch(t)
+  const hair = '<line stroke-width="0.1"/>'.repeat(500)
+  const r = lint(file(d, 'hair.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="3.5in" height="2in" viewBox="0 0 252 144">${hair}</svg>`), {})
+  const lines = r.findings.filter((f) => f.rule === 'line')
+  assert.equal(lines.length, 1, 'five hundred identical hairlines are one problem')
+  assert.equal(lines[0].n, 500)
+  assert.match(lines[0].msg, /stroke-width="0\.1"/, 'the sample closes its quote')
+
+  // 2.1mm is 5.95pt: rounded to one place it printed as "6.0pt, below the 6pt minimum".
+  const small = lint(file(d, 'small.html', '<!doctype html><style>@page{size:8.5in 11in;margin:0}.f{font-size:2.1mm}</style><p class="f">x</p>'), {})
+  const msg = small.findings.find((f) => f.rule === 'type' && f.level === 'fail').msg
+  assert.match(msg, /5\.95pt/)
+  assert.ok(!/6\.0pt, below/.test(msg))
+})
+
+test('a bare run says what it could not check; with a size it says it passed', (t) => {
+  const d = scratch(t)
+  const p = file(d, 'trim.html', '<!doctype html><style>@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}</style><p>x</p>')
+  const cli = (args) => require_child().spawnSync(process.execPath, [join(REPO, 'tools', 'print-lint.mjs'), p, ...args], { encoding: 'utf8' })
+  const bare = cli([])
+  assert.equal(bare.status, 0)
+  assert.doesNotMatch(bare.stdout, /Passes the physical checks/, 'nothing checked the bleed')
+  assert.match(bare.stdout, /bleed was never checked/)
+  // The same file with the size given does fail — which is what the bare run could not say.
+  assert.match(cli(['--size', 'business-card-us']).stdout, /FAIL\s+bleed/)
 })
