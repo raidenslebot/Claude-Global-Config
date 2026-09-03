@@ -1,6 +1,7 @@
 // SessionStart hook: CGC's own start-of-session check — update, verify, repair, one line.
 //
-// Every session start and resume (clear and compact too, with the fetch throttled) this:
+// Every session start and resume — clear and compact too, every time, with no throttle,
+// because a stale version line looks exactly like a healthy one — this:
 //   1. fetches the origin's default branch and fast-forwards when behind, re-applying the
 //      config, hooks and skills — never rewriting history, never discarding local work: a
 //      dirty tree, another branch or unpushed commits are reported and left alone; offline
@@ -55,7 +56,7 @@ function runInstall() {
 }
 
 // ── 1. update ────────────────────────────────────────────────────────────────
-function update(always) {
+function update() {
   const gitDir = path.join(REPO, '.git')
   if (!fs.existsSync(gitDir)) return { status: 'no-git' }
   // git missing from PATH is the case the user most needs to hear, and the one every later
@@ -165,7 +166,6 @@ function compose(ver, u, v, t) {
     'no-git-cli': 'git is not on PATH — cannot update',
     detached: `detached HEAD at ${short(u.head)}, not followed`,
     'no-remote-branch': `no remote branch to follow from ${u.branch}`,
-    skipped: `at ${short(u.head)}`,
     branch: `on ${u.branch}, ${u.main} not followed`,
     offline: `offline, at ${short(u.head)}`,
     current: `up to date (${short(u.head)})`,
@@ -202,10 +202,12 @@ function details(u) {
 function main() {
   let source = 'startup'
   try { source = JSON.parse(fs.readFileSync(0, 'utf8') || '{}').source || 'startup' } catch { /* no payload: a start */ }
-  const always = source === 'startup' || source === 'resume'
+  // A start or a resume opens a reply, so the line is announced. A clear or a compact happens
+  // mid-conversation, where announcing it again would be noise.
+  const announce = source === 'startup' || source === 'resume'
 
   let u
-  try { u = update(always) } catch (e) { u = { status: 'failed', error: e.message } }
+  try { u = update() } catch (e) { u = { status: 'failed', error: e.message } }
   let v = null
   try { v = verify() } catch { v = null }
   let t = null
@@ -219,7 +221,7 @@ function main() {
     ? `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.`
       + (t.failed && t.failed.length ? ` The failing case${t.failed.length === 1 ? ' is' : 's are'}: ${t.failed.join(' · ')}.` : '')
     : ''
-  const say = always
+  const say = announce
     ? 'The user sees this line too. Open your first reply with it, verbatim, on its own line, then answer the user; say nothing more about it unless it is DEGRADED or blocked, in which case add the fix in one sentence.'
     : 'Do not mention it unless it is DEGRADED or blocked.'
   process.stdout.write(JSON.stringify({

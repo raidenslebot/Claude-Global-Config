@@ -125,3 +125,37 @@ test('--skip removes a gate rather than failing it', (t) => {
   const without = gates(file, ['--skip', 'audit,motion,lint']).map
   assert.ok(!('lint' in without), '--skip drops the gate entirely')
 })
+
+test('a gate that cannot run is reported, never silently dropped', (t) => {
+  // This is the defect that made the tool lie: with no browser, the audit and motion rows
+  // vanished and the summary said "every gate clean" about a page it had never rendered.
+  // An absent gate reads as a gate that passed.
+  const dir = scratch(t)
+  const empty = join(dir, 'no-browsers-here')
+  mkdirSync(empty, { recursive: true })
+  const file = join(dir, 'moves.html')
+  writeFileSync(file, [
+    '<!doctype html><style>',
+    'body{margin:0;background:#101318;color:#e8dcc8;font-family:Georgia,serif}',
+    '.b{width:12rem;height:12rem;background:#c4552a;animation:rise 600ms cubic-bezier(.2,.8,.2,1) both}',
+    '@keyframes rise{from{opacity:0;transform:translateY(2rem)}to{opacity:1;transform:none}}',
+    '@media (prefers-reduced-motion:reduce){.b{animation:none}}',
+    '</style><div class="b"></div>',
+    '<p>' + 'A page with an animation on it, long enough to be judged. '.repeat(20) + '</p>',
+  ].join('\n'), 'utf8')
+
+  const r = spawnSync(process.execPath, [TOOL, file, '--json'], {
+    encoding: 'utf8', timeout: 180000,
+    env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: empty },
+  })
+  const j = JSON.parse(r.out ?? r.stdout)
+  const gates = Object.fromEntries(j.results[0].gates.map((g) => [g.gate, g]))
+
+  for (const gate of ['audit', 'motion']) {
+    assert.ok(gates[gate], `the ${gate} gate must still appear when it cannot run`)
+    assert.equal(gates[gate].level, 'skip', `${gate} must be reported as unable to run, not as passing`)
+    assert.match(gates[gate].line, /could not run/)
+  }
+  assert.equal(j.skipped, 2, 'the summary counts what could not run')
+  assert.ok(gates.lint && gates.lint.level !== 'skip', 'the gates that need no browser still ran')
+})

@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.17.1 — 2026-09-02
+
+The last of the review findings, and tests against a real browser for the two fixes that
+mattered most — both subtle enough that until now I had only checked them by hand.
+
+- The session hook still described the fetch throttle that was removed, `update()` still took a
+  parameter it no longer used, and the status map still held a phrase for a status that can no
+  longer occur. A comment that contradicts the code is worse than no comment: it is the thing a
+  reader trusts instead of reading. Removing them exposed that the variable had a second job —
+  it decides whether the line is announced to the user or merely recorded for the session — so
+  it is back under the name of the job it actually does.
+
+- Four browser-backed tests now hold the reduced-motion contract: a fade instead of a move
+  passes; cutting the animation passes, because there is then no path to travel; no guard at
+  all fails and says how far the page still travels; and a page animated from a `setTimeout` is
+  not reported as dead. That logic was wrong twice, and both mistakes failed pages that had
+  done the right thing, which is the worst way for a gate to be wrong.
+
+- And one test holds the defect that made the tool lie: with no browser available, the audit
+  and motion rows must appear as unable to run and be counted as such — never vanish into
+  "every gate clean".
 ## 1.17.0 — 2026-09-02
 
 An adversarial review of the new tools and hooks, reproduced against a scratch repository.

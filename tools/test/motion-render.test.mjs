@@ -5,6 +5,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { readCurve, sheetHtml, CLOCK } from '../motion-render.mjs'
 
 // Build the shape the browser hands back: per-frame change, the cumulative fraction, the total.
@@ -90,4 +92,68 @@ test('the sheet carries every frame, its time, and the line to judge the curve a
   assert.match(html, /stroke-dasharray/, 'the straight line is drawn behind the measured curve')
   assert.match(html, /willReadFrequently/, 'the frames are decoded and diffed in the page')
   assert.doesNotMatch(html, /file:\/\//, 'a file:// image would taint the canvas it is measured in')
+})
+
+// ── The reduced-motion verdict, against a real browser ───────────────────────────────────────
+// This logic was wrong twice: first comparing a two-frame capture against a twelve-frame sum,
+// then comparing endpoints, which cannot tell a smooth move from a jump. Both mistakes failed
+// pages that had done the right thing, which is the worst kind of gate. These three cases are
+// the whole contract, so they are checked against the browser rather than against a model.
+import { findPlaywright } from '../print-render.mjs'
+import { mkdtempSync as mkdtemp2, writeFileSync as write2 } from 'node:fs'
+import { tmpdir as tmp2 } from 'node:os'
+import { spawnSync as spawn2 } from 'node:child_process'
+
+const BROWSER = Boolean(findPlaywright())
+const needsBrowser = BROWSER ? false : 'no browser available (install the Playwright MCP server)'
+const MOTION = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'motion-render.mjs')
+
+function capture(body, args = []) {
+  const dir = mkdtemp2(join(tmp2(), 'motion-reduced-'))
+  const file = join(dir, 'page.html')
+  write2(file, body, 'utf8')
+  const r = spawn2(process.execPath, [MOTION, file, '--json', ...args], { encoding: 'utf8', timeout: 180000 })
+  return { status: r.status, json: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr }
+}
+const SLIDE = `<style>body{margin:0;background:#101318;height:100vh;display:grid;place-items:center}
+.b{width:200px;height:200px;background:#e8dcc8;animation:slide 900ms cubic-bezier(.16,1,.3,1) both}
+@keyframes slide{from{transform:translateX(-360px)}to{transform:translateX(360px)}}`
+
+test('reduced motion: a fade instead of a move passes', { skip: needsBrowser }, () => {
+  const { json } = capture(`${SLIDE}
+@media (prefers-reduced-motion:reduce){.b{animation:fade 900ms cubic-bezier(.16,1,.3,1) both}
+@keyframes fade{from{opacity:0}to{opacity:1}}}</style><div class="b"></div>`, ['--duration', '900', '--frames', '10'])
+  assert.ok(json, 'the capture produced a result')
+  assert.ok(!json.findings.some((f) => f.id === 'reduced-motion'),
+    `an opacity fade is the remedy this finding recommends: ${JSON.stringify(json.findings)}`)
+})
+
+test('reduced motion: cutting the animation passes, because there is no path to travel', { skip: needsBrowser }, () => {
+  const { json } = capture(`${SLIDE}
+@media (prefers-reduced-motion:reduce){.b{animation:none;transform:translateX(360px)}}</style><div class="b"></div>`,
+  ['--duration', '900', '--frames', '10'])
+  assert.ok(!json.findings.some((f) => f.id === 'reduced-motion'),
+    `the element simply arrives, which is the point: ${JSON.stringify(json.findings)}`)
+})
+
+test('reduced motion: no guard at all fails, and says how much still moves', { skip: needsBrowser }, () => {
+  const { json } = capture(`${SLIDE}</style><div class="b"></div>`, ['--duration', '900', '--frames', '10'])
+  const found = json.findings.find((f) => f.id === 'reduced-motion')
+  assert.ok(found, 'an unguarded animation must fail')
+  assert.equal(found.level, 'fail')
+  assert.match(found.note, /still travels \d+% as far/)
+  assert.equal(json.reducedMotionChange > 0, true)
+})
+
+test('a page that animates from a timer is not reported as dead', { skip: needsBrowser }, () => {
+  // The virtual clock did not cover setTimeout, so this page advanced on real wall time and
+  // the verdict depended on how fast the screenshots happened to run.
+  const { json } = capture(`<style>body{margin:0;background:#101318;height:100vh;display:grid;place-items:center}
+.b{width:180px;height:180px;background:#c4552a;transform:translateX(-300px);transition:transform 600ms cubic-bezier(.16,1,.3,1)}
+.b.go{transform:translateX(300px)}
+@media (prefers-reduced-motion:reduce){.b{transition:none}}</style><div class="b" id="b"></div>
+<script>setTimeout(function(){document.getElementById('b').classList.add('go')},300)</script>`,
+  ['--duration', '1000', '--frames', '12'])
+  assert.ok(!json.findings.some((f) => f.id === 'dead'), 'the page animates; it must not be called dead')
+  assert.notEqual(json.easing, 'none')
 })
