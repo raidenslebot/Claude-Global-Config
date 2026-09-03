@@ -5,6 +5,34 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.44.0 — 2026-09-03
+
+**The hooks, fuzzed.** They run at every session start, every prompt and every write, and
+nothing had ever handed them anything but a well-formed payload. One that throws takes the
+session's start with it; one that prints a stack trace puts it in front of the user; one that
+writes something unparseable on stdout cannot be heard at all, and whatever it was going to say
+— the version line, the mandates, the model routing — simply does not happen, silently.
+
+Eighteen hooks × seventeen payloads: nothing at all, whitespace, truncated JSON, a bare string,
+an array, `null`, an empty object, every field the wrong type, every field null, a directory
+where a file path belongs, a path that does not exist, a prompt of eighty-eight thousand
+characters, control characters, Arabic and Japanese and an emoji, sixty levels of nesting, a
+transcript path that is missing, a transcript path that is a directory.
+
+**All 306 runs held**: exit 0, no stack trace, stdout empty or valid JSON, and nothing of the
+payload echoed back — that last one because a prompt is untrusted text, and a hook that repeats
+it into the session's context has handed its author the microphone.
+
+Nothing was broken, and the finding is the fuzzer itself: it began by walking `config/hooks/`,
+which is *not* the set of hooks that run. `user-prompt-visual.js` ships beside the skill it
+speaks for, is registered in settings exactly like the rest, and would have been fuzzed by
+nothing. A test that checks the hooks it happens to find is not a test of the hooks that run.
+
+*(React Doctor flags `no-unescaped-dynamic-string-in-regexp` in that same file. Read: the
+"dynamic" string is a `join('|')` over a literal array of authored patterns which deliberately
+contain regex syntax — `\bui\b`, alternations — none of it from input. False positive, evidenced,
+not suppressed.)*
+
 ## 1.43.0 — 2026-09-03
 
 The bare-command sweep, finished. Two more tools ended a run with a sentence that was not true
