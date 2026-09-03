@@ -5,6 +5,33 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.12.0 — 2026-09-02
+
+Using the new gates on real work, which is the only way to find out whether they are any good.
+
+- **A worked motion example, and what it caught.** `harbor-swim-club-tide` is the first piece
+  in the shipped family that moves: a harbour staff gauge with the sea covering its painted
+  marks and the height reading riding the waterline. Building it found three real defects that
+  no check reading the source could see, and two of them were in the capture tool:
+  a registered custom property whose keyframe contains `var()` does not interpolate, it jumps;
+  a custom property is substituted where it is DECLARED, so animating it on a child cannot move
+  a value composed on the parent; and `motion-render` decided "did anything move" from the MEAN
+  change over the frame, so a waterline inside one column of a wide page read as dead. It now
+  asks for the largest change anywhere and samples at 320px rather than 160px.
+
+- **Two new gates on the examples themselves.** An example that animates must have been watched
+  and must record the measured result, and must collapse under `prefers-reduced-motion`. The
+  first gate immediately caught `cgc-landing`, which had shipped with two animations nobody had
+  ever seen in motion: half a second of frozen page, then two beats queueing politely behind
+  one another. Retimed so they overlap, and recorded.
+
+- **The technique catalogue stopped being counted, and learned the other way to break a box.**
+  Three shipped files claimed "44 real capabilities" — true of one medium on the day it was
+  written, wrong the moment there were ten, and wrong by construction for anyone who extends
+  the registry from their own JSON. A test now refuses any counted claim in shipped prose and
+  requires every medium to be named by the docs that route to it. Separately, overlap was only
+  detected as two children sharing a grid cell; an absolutely positioned child with a negative
+  inset is the same move and now counts, while `left: -9999px` still does not.
 ## 1.11.0 — 2026-09-02
 
 The ambition half of the design gate, and the update that was not running every time.

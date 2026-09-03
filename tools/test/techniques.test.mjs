@@ -107,6 +107,15 @@ test('a page that reaches is ambitious, and the detections are the real ones', (
   assert.ok(m.untouched.length <= 1, `should have entered nearly every dimension, missed ${m.untouched.join(',')}`)
 })
 
+test('breaking the box counts however it is written, and hiding is not breaking', () => {
+  const shared = measure('.a { grid-row: 1 } .b { grid-row: 1; z-index: 1 }', { ext: '.css' })
+  assert.ok(shared.usedIds.has('grid-overlap'), 'two children sharing a grid row')
+  const bleed = measure('.datum { position: absolute; left: 0; right: -8%; bottom: 40% }', { ext: '.css' })
+  assert.ok(bleed.usedIds.has('grid-overlap'), 'an absolutely positioned child breaking its container')
+  const hidden = measure('.sr-only { position: absolute; left: -9999px; top: auto }', { ext: '.css' })
+  assert.ok(!hidden.usedIds.has('grid-overlap'), 'the screen-reader hiding trick is not a composition')
+})
+
 test('detection does not fire on words that merely look similar', () => {
   const decoys = `
     /* a comment about masking data and blending teams */

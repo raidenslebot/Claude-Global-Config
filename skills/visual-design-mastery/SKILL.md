@@ -128,7 +128,7 @@ writing code — it has the real APIs, real values, and real snippets.
 | You are working in… | Read |
 |---|---|
 | **Motion / animation / transitions** (any platform) | [`motion-and-animation.md`](references/motion-and-animation.md) — start here for anything that moves |
-| **A piece that is correct and unremarkable** — nothing templated in it, nothing reached for either | [`advanced-techniques.md`](references/advanced-techniques.md) — 44 real capabilities with what each unlocks, and `cgc techniques <file>` to report which a piece uses and which it never tried |
+| **A piece that is correct and unremarkable** — nothing templated in it, nothing reached for either | [`advanced-techniques.md`](references/advanced-techniques.md) — every capability with what it unlocks, and `cgc techniques <file>` to detect the medium, measure the piece against that medium’s own vocabulary, and name the expressive dimension it never entered |
 | **Motion you have written but not watched** | `cgc motion <file> --duration <ms>` — steps it under a virtual clock, photographs every frame, and measures the real curve from the pixels. Reading the CSS is not watching it. |
 | **Motion that "works" but feels dead** — diagnosing *why* | [`animation-principles.md`](references/animation-principles.md) — Disney's 12, with an honest transfer map for UI vs games |
 | **Web** — HTML/CSS/JS, layout, type, colour, the browser as canvas | [`web-and-css.md`](references/web-and-css.md) |

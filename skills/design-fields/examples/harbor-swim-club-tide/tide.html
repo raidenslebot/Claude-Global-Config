@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tide — Harbour Swim Club</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75,500;75,600;100,400;100,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* The level is the datum, and a datum has to be animatable. Two NUMBERS are typed rather than
+     one percentage: a registered custom property whose keyframe value contains var() does not
+     interpolate — it jumps to the end, which on a contact sheet reads as an animation that never
+     ran. Numbers always interpolate, and the level is composed from them in calc(). */
+  @property --t  { syntax: '<number>'; initial-value: 0; inherits: true; }
+  @property --sw { syntax: '<number>'; initial-value: 0; inherits: true; }
+
+  :root {
+    color-scheme: light dark;
+    /* The identity's navy and cream, restated in oklch so every tint below is DERIVED from them
+       rather than picked by eye. Tow-float orange belongs to the safety flags and is deliberately
+       absent from this board: a tide is not a warning. */
+    --navy: oklch(0.29 0.048 264);
+    --cream: oklch(0.93 0.019 88);
+    --paper: light-dark(var(--cream), oklch(0.17 0.03 264));
+    --ink: light-dark(var(--navy), var(--cream));
+    --staff-face: light-dark(oklch(from var(--cream) calc(l - 0.055) c h), oklch(from var(--navy) calc(l + 0.04) c h));
+    --sea: light-dark(var(--navy), oklch(from var(--navy) calc(l + 0.13) c h));
+    --rule: color-mix(in oklab, var(--ink) 28%, transparent);
+    --faint: color-mix(in oklab, var(--ink) 78%, transparent);
+    --gutter: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  * { box-sizing: border-box }
+  html { background: var(--paper) }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+    font-optical-sizing: auto; font-variation-settings: 'wdth' 100;
+    font-size: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--ink); color: var(--paper) }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 4px }
+
+  .board { max-width: 70rem; margin: 0 auto; padding: var(--gutter) var(--gutter) calc(var(--gutter) * 1.4) }
+
+  /* Condensed capitals, off the chalk board by the steps. */
+  .caps { font-variation-settings: 'wdth' 75; font-weight: 600; text-transform: uppercase;
+          letter-spacing: 0.13em; font-size: 0.75rem; line-height: 1 }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem 2rem;
+           flex-wrap: wrap; border-bottom: 1px solid var(--rule); padding-bottom: 0.8rem }
+  header .place { color: var(--faint) }
+
+  /* The staff is the subject and takes the left half of the page. The readout answers it from
+     the right, and the mean-high-water line crosses the staff's edge rather than stopping at it. */
+  .now { display: grid; grid-template-columns: repeat(12, 1fr); gap: 0 var(--gutter);
+         margin-top: clamp(1.25rem, 3.5vw, 2.25rem) }
+  .gaugewrap { grid-column: 1 / 6; grid-row: 1; position: relative;
+    /* --target is the level in percent, written by the script from the tide model. --lvl is
+       composed HERE, so the numbers that drive it must animate HERE: a custom property is
+       substituted where it is declared, and children inherit the resolved value. */
+    --lvl: calc((var(--target, 0) * var(--t) + var(--sw)) * 1%);
+    animation: rise 1100ms cubic-bezier(0.16, 1, 0.3, 1) both, swell 7s ease-in-out 1100ms infinite;
+  }
+  .read { grid-column: 6 / 13; grid-row: 1; align-self: end; padding-bottom: 0.25rem }
+  @media (max-width: 46rem) {
+    .gaugewrap { grid-column: 1 / 5 } .read { grid-column: 5 / 13 }
+  }
+
+  /* ── The staff ──────────────────────────────────────────────────────────
+     A painted rule: solid E-marks each half metre, numerals each metre, and the
+     sea simply covering them. It is not a track being filled. */
+  .staff { position: relative; height: clamp(21rem, 62vh, 34rem); background: var(--staff-face);
+           border: 1px solid var(--rule); overflow: hidden }
+  .m { position: absolute; left: 0; width: 62%; height: 2px; background: color-mix(in oklab, var(--ink) 78%, transparent) }
+  .m.metre { width: 100%; height: 3px }
+  .m span { position: absolute; right: -0.15rem; top: 0.42rem; transform: translateX(100%);
+            font: 500 clamp(0.7rem, 1.4vw, 0.85rem)/1 'JetBrains Mono', ui-monospace, monospace;
+            font-variant-numeric: tabular-nums; color: color-mix(in oklab, var(--ink) 80%, transparent) }
+
+  /* The sea. A hard gradient stop is a real waterline that can be animated, and multiply lets the
+     submerged marks go UNDER the water instead of being hidden by a panel drawn over them. */
+  .sea { position: absolute; inset: 0; mix-blend-mode: multiply;
+    background: linear-gradient(to top,
+      var(--sea) 0 calc(var(--lvl) - 0.4%),
+      color-mix(in oklab, var(--sea) 52%, transparent) calc(var(--lvl) - 0.4%) var(--lvl),
+      transparent var(--lvl)) }
+  /* The surface, and only the surface, is displaced by real noise: a straight waterline is the
+     one thing a harbour never has. */
+  .surf { position: absolute; left: -10%; right: -10%; height: 2.6rem; bottom: calc(var(--lvl) - 1.3rem);
+    background: var(--sea); opacity: 0.55; filter: url(#swell);
+    -webkit-mask-image: linear-gradient(to top, transparent 42%, #000 50%, transparent 58%);
+    mask-image: linear-gradient(to top, transparent 42%, #000 50%, transparent 58%) }
+
+  @keyframes rise  { from { --t: 0 } to { --t: 1 } }
+  @keyframes swell { 0%, 100% { --sw: 0 } 50% { --sw: 0.55 } }
+
+  /* The reading is attached to the water by a leader, so the number is where the level is
+     rather than in a box somewhere else on the page. */
+  .datum { position: absolute; left: 0; right: -8%; bottom: var(--lvl); display: flex; align-items: center;
+           gap: 0.6rem; pointer-events: none; translate: 0 50% }
+  .datum .lead { flex: 1; height: 1px; background: var(--ink) }
+  .datum b { font: 500 clamp(1.35rem, 3.4vw, 2.1rem)/1 'JetBrains Mono', ui-monospace, monospace;
+             font-variant-numeric: tabular-nums; white-space: nowrap }
+  .datum b i { font-style: normal; font-size: 0.5em; color: var(--faint); padding-left: 0.25em }
+
+  .mhw { position: absolute; left: 40%; right: -14%; bottom: 78%; border-top: 1px solid var(--ink);
+         padding-top: 0.35rem; pointer-events: none; color: var(--faint) }
+
+  /* ── The readout ──────────────────────────────────────────────────────── */
+  .state { font-variation-settings: 'wdth' 75; font-weight: 600; text-transform: uppercase;
+           font-size: clamp(2.25rem, 7.2vw, 4.25rem); line-height: 0.88; letter-spacing: -0.005em;
+           margin: 0; text-wrap: balance }
+  .sub { color: var(--faint); margin: 0.65rem 0 0; max-width: 34ch; text-wrap: pretty }
+  .rows { margin: clamp(1.25rem, 4vw, 2rem) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--rule) }
+  .rows li { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: 0.75rem; align-items: baseline;
+             padding: 0.62rem 0; border-bottom: 1px solid var(--rule) }
+  .rows .t, .rows .v { font: 400 0.9rem/1.2 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums }
+  .rows .k, .rows .v { color: var(--faint) }
+
+  /* ── The curve, small, underneath ─────────────────────────────────────── */
+  .curve { margin-top: clamp(1.5rem, 4vw, 2.5rem); border-top: 1px solid var(--rule); padding-top: 0.9rem }
+  .curve svg { display: block; width: 100%; height: auto }
+  .curve .line { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round;
+                 stroke-dasharray: 1400; stroke-dashoffset: 1400;
+                 animation: draw 1050ms cubic-bezier(0.4, 0, 0.2, 1) 140ms forwards }
+  @keyframes draw { to { stroke-dashoffset: 0 } }
+  .curve .mark { fill: var(--ink) }
+  .curve .axis { stroke: var(--rule); stroke-width: 1 }
+  .curve text { font: 500 0.62rem/1 'JetBrains Mono', ui-monospace, monospace; fill: var(--faint);
+                font-variant-numeric: tabular-nums }
+
+  footer { margin-top: clamp(1.5rem, 4vw, 2.25rem); border-top: 1px solid var(--rule); padding-top: 0.8rem;
+           color: var(--faint); font-size: 0.8125rem; max-width: 52ch; text-wrap: pretty }
+  footer a { color: inherit; text-underline-offset: 3px; display: inline-block; padding: 0.7rem 0 }
+
+  /* The board must lose nothing without motion: the water is simply AT its level. */
+  @media (prefers-reduced-motion: reduce) {
+    .gaugewrap { animation: none; --t: 1; --sw: 0 }
+    .curve .line { animation: none; stroke-dashoffset: 0 }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <filter id="swell" x="-20%" y="-70%" width="140%" height="240%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.011 0.085" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<div class="board">
+  <header>
+    <div class="caps">Harbour Swim Club</div>
+    <div class="caps place">Outer basin · staff gauge no. 2</div>
+  </header>
+
+  <div class="now">
+    <div class="gaugewrap">
+      <div class="staff" aria-hidden="true">
+        <div class="marks" id="marks"></div>
+        <div class="sea"></div>
+        <div class="surf"></div>
+      </div>
+      <div class="mhw caps">Mean high water</div>
+      <div class="datum" aria-hidden="true">
+        <span class="lead"></span>
+        <b><span id="height">—</span><i>m</i></b>
+      </div>
+    </div>
+
+    <div class="read">
+      <p class="state" id="state">Coming in</p>
+      <p class="sub" id="sub">The water is <span id="pct">—</span> of the way up the staff and still rising.</p>
+
+      <ul class="rows">
+        <li><span class="t" id="nextTime">—</span><span class="k" id="nextWhat">next turn</span><span class="v" id="nextIn">—</span></li>
+        <li><span class="t" id="thenTime">—</span><span class="k" id="thenWhat">then</span><span class="v" id="thenIn">—</span></li>
+        <li><span class="t" id="temp">—</span><span class="k">water, at the steps</span><span class="v" id="tempNote">—</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="curve">
+    <div class="caps" style="color:var(--faint)">Twelve hours either side of now</div>
+    <svg viewBox="0 0 600 84" preserveAspectRatio="none" role="img" aria-labelledby="curveTitle">
+      <title id="curveTitle">The tide curve for today, with the present moment marked.</title>
+      <line class="axis" x1="0" y1="42" x2="600" y2="42"></line>
+      <path class="line" id="curveLine" d=""></path>
+      <circle class="mark" id="curveNow" cx="300" cy="42" r="3.5"></circle>
+      <text id="curveLeft" x="0" y="80">—</text>
+      <text id="curveRight" x="600" y="80" text-anchor="end">—</text>
+    </svg>
+  </div>
+
+  <footer>
+    Heights are modelled from a semidiurnal curve for this example, not read from the harbour
+    gauge — a board on the wall takes its level from the gauge itself and its turns from the
+    published table. <a href="#" id="tableLink">The printed table for this month</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const PERIOD = 12.4206 * 3600e3          // one semidiurnal cycle, in ms
+  const LOW = 0.4, HIGH = 5.6              // metres at this staff
+  const now = new Date()
+
+  // Phase from the epoch: the board is different every time it is opened, and reproducible for
+  // any given moment. A real board reads the gauge; this derives the same shape.
+  const phase = ((now.getTime() % PERIOD) / PERIOD) * Math.PI * 2
+  const at = (t) => 0.5 - 0.5 * Math.cos(phase + (t / PERIOD) * Math.PI * 2)
+  const frac = at(0)
+  const metres = LOW + frac * (HIGH - LOW)
+  const rising = Math.sin(phase) > 0
+
+  // Paint the staff: a numeral each metre, an E-mark each half.
+  const marks = $('marks')
+  for (let h = 0; h <= 6; h += 0.5) {
+    const el = document.createElement('div')
+    el.className = 'm' + (h % 1 ? '' : ' metre')
+    el.style.bottom = (h / 6 * 96 + 2) + '%'
+    if (!(h % 1)) el.innerHTML = '<span>' + h + '</span>'
+    marks.appendChild(el)
+  }
+
+  // A plain number, in percent. The stylesheet composes the level from it in calc().
+  document.documentElement.style.setProperty('--target', (frac * 92 + 4).toFixed(2))
+
+  $('state').textContent = rising ? 'Coming in' : 'Going out'
+  $('height').textContent = metres.toFixed(2)
+  $('pct').textContent = Math.round(frac * 100) + '%'
+  $('sub').lastChild.textContent = rising ? ' of the way up the staff and still rising.' : ' of the way up the staff and falling.'
+
+  const clock = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+  const inWords = (ms) => {
+    const m = Math.round(ms / 60000)
+    return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0')
+  }
+  const quarter = PERIOD / 2
+  const sincePeak = ((phase / (Math.PI * 2)) * PERIOD) % quarter
+  const toNext = quarter - sincePeak
+  const t1 = new Date(now.getTime() + toNext)
+  const t2 = new Date(now.getTime() + toNext + quarter)
+  $('nextTime').textContent = clock(t1)
+  $('nextWhat').textContent = rising ? 'high water' : 'low water'
+  $('nextIn').textContent = 'in ' + inWords(toNext)
+  $('thenTime').textContent = clock(t2)
+  $('thenWhat').textContent = rising ? 'low water' : 'high water'
+  $('thenIn').textContent = 'in ' + inWords(toNext + quarter)
+
+  // A seasonal water temperature, so the board reads plausibly through the year.
+  const day = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 864e5)
+  const temp = 11.5 - 5.2 * Math.cos((day - 240) / 365 * Math.PI * 2)
+  $('temp').textContent = temp.toFixed(1) + ' °C'
+  $('tempNote').textContent = temp < 10 ? 'gloves weather' : temp < 15 ? 'brisk' : 'swimmable'
+
+  // The curve: twelve hours either side, from the same function.
+  const pts = []
+  for (let i = 0; i <= 120; i++) {
+    const t = (i / 120 - 0.5) * 24 * 3600e3
+    pts.push([(i / 120) * 600, 76 - at(t) * 66])
+  }
+  $('curveLine').setAttribute('d', pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' '))
+  $('curveNow').setAttribute('cy', (76 - frac * 66).toFixed(1))
+  $('curveLeft').textContent = clock(new Date(now.getTime() - 12 * 3600e3))
+  $('curveRight').textContent = clock(new Date(now.getTime() + 12 * 3600e3))
+  $('tableLink').addEventListener('click', (e) => e.preventDefault())
+})()
+</script>
+</body>
+</html>

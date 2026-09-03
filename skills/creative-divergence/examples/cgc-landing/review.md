@@ -64,3 +64,28 @@ reads as one ground, one ink, one signal at 0.1% of the page.
 
 The lesson belongs in the log: the eye judges what it can see, and a rendered page has defects
 the render hides. The loop's gate is the audit *and* the look; neither alone is the exit.
+
+---
+
+## Pass 4 — watching the motion, not reading it
+
+Added when `cgc motion` was built. This page had two animations and had never been seen in
+motion, only in stills; the gate that now holds every animating example caught it here first.
+
+`cgc motion index.html --duration 1400` reported the sequence **settling at 1400 ms** with the
+**first 27% of the timeline frozen**. Reading the source, the cause was a queue rather than a
+sequence: the strike-through began at 500 ms and ran for 700 ms, and the replacement label
+waited until 1150 ms to start — nothing at all happened for the first half-second, and each beat
+politely waited for the last one to finish.
+
+Retimed so the beats overlap:
+
+| | before | after |
+|---|---|---|
+| strike-through | 700 ms at 500 ms delay | 640 ms at 240 ms delay |
+| label appears | 260 ms at 1150 ms delay | 240 ms at 700 ms delay |
+
+The label now begins while the line is still being drawn, which is what makes two beats read as
+one gesture instead of two events. `cgc motion index.html --duration 1000` → **ease-in-out,
+deviation 0.221, settles at 909 ms, nothing measured wrong.** Reduced motion was already handled
+and is unchanged: both animations are switched off and both elements are at their end state.

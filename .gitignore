@@ -34,3 +34,6 @@ dist/
 coverage/
 .DS_Store
 Thumbs.db
+
+# Motion captures: the contact sheet is the deliverable, the loose frames are working files.
+*-frames/

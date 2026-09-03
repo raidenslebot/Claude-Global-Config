@@ -64,6 +64,14 @@ constraint, **[D]** strong default, **[N]** confirm with the platform or the ven
   link, 8.9 KB. Its `review.md` is the other half of the argument: the audit caught a contrast
   failure and a 20 px tap target the eye had passed, and following the first one properly took an
   accent out of the design rather than darkening it.
+- [`examples/harbor-swim-club-tide/`](examples/harbor-swim-club-tide/) — the first piece in the
+  family that **moves**, and the one that shows what watching an animation is worth. A staff
+  gauge with the sea covering its marks, the height reading riding the waterline on a leader
+  rule, the level derived from a tide model so the board differs every time it is opened. Its
+  `review.md` is five passes in which the lint said clean and the technique gate said ambitious
+  while the animation **did not run at all** — three separate causes, each invisible in the
+  source and obvious in the frames, two of them defects in the capture tool itself. Read it
+  before trusting any check that only reads a stylesheet.
 
 Read them for the shape; do not copy their designs.
 

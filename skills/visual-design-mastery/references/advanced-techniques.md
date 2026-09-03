@@ -12,7 +12,8 @@ Everything below is shipping in every current browser. Each entry says what it *
 thing that is impossible without it — because a technique adopted for its own sake is
 decoration, and decoration is the failure mode this file could otherwise cause.
 
-`cgc techniques <file>` reports which of these a piece reaches for and which it never tried.
+`cgc techniques <file>` reports which of these a piece reaches for and which it never tried, and
+knows nine further media besides this one.
 Four used with intent beat twelve sprinkled on. Zero means it was assembled.
 
 ---

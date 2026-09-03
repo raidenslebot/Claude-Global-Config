@@ -147,3 +147,50 @@ test('the hook count stated in prose matches config/hooks.json', () => {
       `${d} says ${claim[1]} hooks merged; config/hooks.json registers ${registered}`)
   }
 })
+
+test('no shipped prose states a technique or media count', () => {
+  // "44 real capabilities" was written when the registry knew one medium and 44 entries. It
+  // knows ten media now, and anyone may add an eleventh from their own JSON without touching
+  // this repo — so ANY number here is wrong, not merely out of date. The rule is that the
+  // catalogue is described, never counted.
+  const files = []
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'test') continue
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (/\.(md|js|mjs|json)$/.test(e.name)) files.push(p)
+    }
+  }
+  for (const d of ['config', 'skills']) walk(join(REPO, d))
+  files.push(join(REPO, 'README.md'))
+
+  const COUNTED = /\b\d+\s+(?:real\s+)?(?:capabilities|techniques)\b|\bwhich of \d+\b|\b\d+\s+media\b/i
+  // "assembled (0–1 techniques)" states a VERDICT THRESHOLD — a fact about the scale, not a
+  // claim about how large the catalogue is. Only the second kind rots.
+  const THRESHOLD = /assembled|conventional \(|Verdicts?\b/
+  const offenders = []
+  for (const f of files) {
+    const text = readFileSync(f, 'utf8')
+    for (const [i, line] of text.split(/\r?\n/).entries()) {
+      if (COUNTED.test(line) && !THRESHOLD.test(line)) offenders.push(`${f.replace(REPO, '').replace(/^[\/]/, '')}:${i + 1} — ${line.trim().slice(0, 90)}`)
+    }
+  }
+  assert.deepEqual(offenders, [], 'describe the catalogue, never count it:\n  ' + offenders.join('\n  '))
+})
+
+test('every medium the tool knows is reachable from the prose that routes to it', async () => {
+  const { MEDIA } = await import('../techniques.mjs')
+  const claude = readFileSync(join(REPO, 'config', 'CLAUDE.md'), 'utf8')
+  const readme = readFileSync(join(REPO, 'README.md'), 'utf8')
+  // The mandate and the README both list the media by name; a new medium that nobody is told
+  // about is a medium nobody reaches for.
+  const named = { web: /\bweb\b/i, svg: /\bSVG\b/, canvas: /\bcanvas\b/i, shader: /\bshader\b/i,
+    three: /\b3D\b/, native: /\bnative\b/i, game: /\bgame\b/i, tui: /\bterminal\b/i,
+    dataviz: /data-?viz|data[- ]?visuali[sz]ation/i, print: /\bprint\b/i }
+  for (const m of MEDIA) {
+    assert.ok(named[m.id], `${m.id} has no prose pattern — add one when adding a medium`)
+    assert.match(claude, named[m.id], `CLAUDE.md never names the ${m.id} medium`)
+    assert.match(readme, named[m.id], `README never names the ${m.id} medium`)
+  }
+})

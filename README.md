@@ -165,6 +165,7 @@ without touching the tool by dropping JSON at `<project>/.cgc/techniques.json` o
 same-id entries merge over the shipped ones. The craft behind the web set, with working recipes
 and real parameters, is `visual-design-mastery/references/advanced-techniques.md`; each other
 medium has its own reference in the same folder.
+
 ### Motion — the animation watched, not read
 
 Every other check in this package reads the source: the easing keyword, the duration, the

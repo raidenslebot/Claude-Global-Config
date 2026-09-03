@@ -192,7 +192,8 @@ function main() {
     'A page with no fingerprint at all can still be built entirely from flexbox, border-radius, a hex ' +
     'colour and a 300ms transition — correct, and unremarkable, which is the ceiling almost all ' +
     'generated work sits at because the model reaches for what it has seen most and that is 2015 CSS. ' +
-    '`cgc techniques <file>` reports which of 44 real capabilities a piece uses and which it never ' +
+    '`cgc techniques <file>` detects the medium (web, SVG, canvas, shader, 3D, native, game, terminal, ' +
+    'data-viz, print), measures the piece against that medium\'s own vocabulary, and reports what it never ' +
     'tried: oklch and relative colour so a palette derives instead of being pasted, @property (the ONLY ' +
     'way to animate a gradient), variable font axes past weight, optical sizing, text-box trim, container ' +
     'queries, subgrid, deliberate grid overlap, gradient masks instead of another card, blend modes, ' +

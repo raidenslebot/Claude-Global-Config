@@ -113,7 +113,8 @@ fingerprint at all — no purple gradient, no glass card, no centred hero — an
 entirely from flexbox, `border-radius`, a hex colour and a 300 ms transition. That page is not
 bad; it is **conventional**, which is the ceiling almost all generated work sits at, because the
 model reaches for the capability it has seen most and what it has seen most is 2015 CSS.
-`cgc techniques <file>` reports which of 44 real capabilities a piece reaches for and which it
+`cgc techniques <file>` detects the MEDIUM — web, SVG, canvas, shader, 3D, native, game, terminal,
+data-viz, print — measures the piece against that medium’s own vocabulary, and reports which it
 never tried — perceptually even colour in oklch and relative colour syntax so a palette derives
 instead of being pasted, typed custom properties (`@property`) which are the only way to animate a
 gradient at all, variable font axes past weight and optical sizing, `text-box` trim, container

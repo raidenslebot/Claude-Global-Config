@@ -72,3 +72,32 @@ test('the outlined artwork carries no live text, so it depends on no font', () =
     assert.match(text, /<path\b[^>]*\bd="M/, `${rel} has no outlined path`)
   }
 })
+
+test('an example that animates has been watched, and says so in its record', () => {
+  // Reading a duration is not watching an animation. The tide board passed the slop lint and the
+  // technique gate while its animation did not run at all; only the frames showed it. So any
+  // example that moves must carry the evidence that someone looked.
+  const MOVES = /@keyframes|animation\s*:|animation-timeline\s*:|transition\s*:\s*[a-z-]+\s+\d/i
+  for (const ex of examples) {
+    const files = readdirSync(ex).filter((f) => /\.(html|css)$/.test(f))
+    const animates = files.some((f) => MOVES.test(readFileSync(join(ex, f), 'utf8')))
+    if (!animates) continue
+    const recordFile = join(ex, 'review.md')
+    assert.ok(existsSync(recordFile), `${ex} animates but has no review.md to record the capture`)
+    const record = readFileSync(recordFile, 'utf8')
+    assert.match(record, /cgc motion/, `${ex} animates and its record never runs cgc motion`)
+    assert.match(record, /ease-out|ease-in|ease-in-out|linear|settles at/i,
+      `${ex}/review.md records no MEASURED result from the capture — the easing the frames actually showed`)
+  }
+})
+
+test('an example that animates collapses under reduced motion', () => {
+  for (const ex of examples) {
+    for (const f of readdirSync(ex).filter((f) => /\.(html|css)$/.test(f))) {
+      const text = readFileSync(join(ex, f), 'utf8')
+      if (!/@keyframes|animation\s*:/i.test(text)) continue
+      assert.match(text, /prefers-reduced-motion/,
+        `${join(ex, f)} animates without a reduced-motion branch — for a viewer with a vestibular disorder that is symptoms, not a preference`)
+    }
+  }
+})

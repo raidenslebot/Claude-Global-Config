@@ -112,7 +112,7 @@ export function sheetHtml(frames, { title, trigger, viewport }) {
 window.__cgcMeasured = (async () => {
   const imgs = [...document.images]
   await Promise.all(imgs.map((i) => i.decode().catch(() => {})))
-  const W = 160
+  const W = 320
   const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true })
   const lumas = []
   for (const img of imgs) {
@@ -126,12 +126,17 @@ window.__cgcMeasured = (async () => {
     lumas.push(l)
   }
   const change = [0]
+  let maxDelta = 0
   for (let i = 1; i < lumas.length; i++) {
     const a = lumas[i - 1], b = lumas[i]
     const n = Math.min(a.length, b.length)
     if (!n || a.length !== b.length) { change.push(0); continue }
     let s = 0
-    for (let p = 0; p < n; p++) s += Math.abs(a[p] - b[p])
+    for (let p = 0; p < n; p++) {
+      const d = Math.abs(a[p] - b[p])
+      s += d
+      if (d > maxDelta) maxDelta = d
+    }
     change.push(s / n / 255)
   }
   const total = change.reduce((x, y) => x + y, 0)
@@ -149,22 +154,24 @@ window.__cgcMeasured = (async () => {
     '<path d="M0 165 L1000 5" stroke="#c9c5bb" stroke-width="1.5" fill="none" stroke-dasharray="5 5"/>'
     + '<path d="' + path + '" stroke="#b4541f" stroke-width="2.5" fill="none"/>'
     + pts.map((p) => '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="#b4541f"/>').join('')
-  document.getElementById('verdict').textContent = total < 0.0008 ? 'NOTHING MOVED' : 'change ' + total.toFixed(3)
-  return { change, cum, total, peak }
+  document.getElementById('verdict').textContent = (total < 0.0008 && maxDelta < 10) ? 'NOTHING MOVED' : 'change ' + total.toFixed(3) + ' · peak Δ ' + maxDelta.toFixed(0)
+  return { change, cum, total, peak, maxDelta }
 })()
 </script>`
 }
 
 // Everything below reads the curve, never the source. A straight cumulative line is linear
 // motion; a single tall bar is a jump cut; a flat tail is padding at the end of the duration.
-export function readCurve({ change, cum, total }, { duration, frames }) {
+export function readCurve({ change, cum, total, maxDelta = 0 }, { duration, frames }) {
   const findings = []
   const n = cum.length
   const at = (frac) => {
     const i = cum.findIndex((c) => c >= frac)
     return i < 0 ? duration : Math.round(duration * i / Math.max(1, n - 1))
   }
-  const moved = total >= 0.0008
+  // Moved at all is the largest change ANYWHERE, not the average change everywhere: a waterline
+  // rising inside one column of a wide page barely shifts the mean and is plainly not dead.
+  const moved = total >= 0.0008 || maxDelta >= 10
   if (!moved) {
     findings.push({ id: 'dead', level: 'fail', note: 'nothing moved across the whole capture — the animation never ran. The trigger did not fire, the class was never applied, the library did not load, or the element is not in view. This is the failure that reads as "the animation is subtle" and ships broken.' })
     return { findings, moved, easing: 'none', settle: 0, deadHead: 0, deadTail: 0 }

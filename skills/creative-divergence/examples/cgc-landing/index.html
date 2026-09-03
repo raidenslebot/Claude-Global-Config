@@ -51,10 +51,10 @@
   .struck { position: relative; display: inline-block; }
   .struck > svg { position: absolute; left: -1.5%; top: 54%; width: 103%; height: 0.1em; overflow: visible; }
   .struck > svg path { stroke: var(--signal); stroke-width: 2.5px; vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round;
-                       stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw 700ms cubic-bezier(0.2, 0.7, 0.1, 1) 500ms forwards; }
+                       stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw 640ms cubic-bezier(0.2, 0.7, 0.1, 1) 240ms forwards; }
   .gate { position: absolute; left: 41%; top: -0.5em; display: inline-flex; align-items: flex-end; gap: 0.12em;
           font: 500 0.2em/1 var(--mono); font-style: normal; letter-spacing: 0.02em; color: var(--signal); rotate: -4deg;
-          opacity: 0; animation: appear 260ms ease-out 1150ms forwards; white-space: nowrap; }
+          opacity: 0; animation: appear 240ms ease-out 700ms forwards; white-space: nowrap; }
   .gate svg { width: 0.9em; height: 0.6em; overflow: visible; }
   .gate svg path { stroke: currentColor; stroke-width: 2px; vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; stroke-linejoin: round; }
   @keyframes draw { to { stroke-dashoffset: 0; } }
