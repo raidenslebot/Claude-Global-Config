@@ -30,6 +30,7 @@ const REPO = resolve(HERE, '..')
 export const COMMANDS = {
   lint: ['slop-lint.mjs', 'the fingerprint of AI-made screen design'],
   audit: ['page-audit.mjs', 'the rendered page, measured'],
+  techniques: ['techniques.mjs', 'what a piece reaches for, and the capabilities it never tried'],
   motion: ['motion-render.mjs', 'step an animation under a virtual clock and photograph every frame'],
   render: ['screen-render.mjs', 'screenshots at real widths, or an exact canvas'],
   print: ['print-render.mjs', 'paper and fabric: PDF, PNG proof, garment mockup'],

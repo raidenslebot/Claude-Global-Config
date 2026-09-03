@@ -33,7 +33,6 @@ const REPO = process.env.CGC_REPO || (REPO_TOKEN.includes('{{') ? path.resolve(_
 const NODE = NODE_TOKEN.includes('{{') ? process.execPath : NODE_TOKEN
 const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || (CONFIG_TOKEN.includes('{{') ? path.join(os.homedir(), '.claude') : CONFIG_TOKEN)
 const STATE = path.join(CONFIG_ROOT, '.cgc')
-const FETCH_THROTTLE_MS = 5 * 60 * 1000
 const TEST_TTL_MS = 24 * 60 * 60 * 1000
 
 function git(args, timeout = 15000) {
@@ -64,8 +63,8 @@ function update(always) {
   const probe = git(['--version'])
   if (probe.error || probe.status !== 0) return { status: 'no-git-cli' }
   const stamp = path.join(STATE, 'update.json')
-  const last = readJson(stamp)
-  if (!always && last && Date.now() - (last.at || 0) < FETCH_THROTTLE_MS) return { status: 'skipped', head: out(git(['rev-parse', 'HEAD'])) }
+  // Deliberately unthrottled: every session start and every resume checks. A stale version
+  // line is the one failure nobody notices, because it looks exactly like a healthy one.
   const finish = (res) => { writeJson(stamp, { at: Date.now(), ...res }); return res }
 
   // Follow the origin's default branch, whatever it is called; another branch checked out
@@ -89,11 +88,15 @@ function update(always) {
     if (git(['merge-base', '--is-ancestor', remote, head]).status === 0) return finish({ status: 'ahead', head })
     return finish({ status: 'diverged', head, remote, main })
   }
-  if (out(git(['status', '--porcelain', '--untracked-files=no']))) return finish({ status: 'dirty', head, remote, main })
-
   const before = version()
   const pull = git(['pull', '--ff-only', '--quiet', 'origin', main], 60000)
-  if (pull.status !== 0) return finish({ status: 'failed', head, remote, error: String(pull.stderr || '').trim().split('\n')[0] || 'unknown error' })
+  if (pull.status !== 0) {
+    const err = String(pull.stderr || '').trim().split('\n').filter(Boolean).pop() || 'unknown error'
+    // Name the version it is stuck below, because the version alone reads as healthy.
+    const target = (() => { try { return JSON.parse(out(git(['show', `origin/${main}:package.json`])) || '{}').version } catch { return '' } })()
+    const dirty = Boolean(out(git(['status', '--porcelain', '--untracked-files=no'])))
+    return finish({ status: dirty ? 'dirty' : 'failed', head, remote, main, target, error: err })
+  }
   const subjects = out(git(['log', '--format=%s', `${head}..${remote}`])).split('\n').filter(Boolean)
   const hookDirs = ['config/hooks', 'config/hooks.json', 'argo/plugin/hooks', 'skills/visual-design-mastery/hooks']
   const hooksChanged = out(git(['diff', '--name-only', head, remote, '--', ...hookDirs])) !== ''
@@ -161,7 +164,7 @@ function compose(ver, u, v, t) {
     current: `up to date (${short(u.head)})`,
     ahead: `ahead of origin (${short(u.head)})`,
     diverged: 'update blocked: diverged from origin',
-    dirty: 'update blocked: local changes',
+    dirty: 'UPDATE BLOCKED by local changes',
     failed: 'update failed',
     updated: `updated ${u.before} → ${u.after}${u.applied ? '' : ', install step failed'}`,
   }[u.status] || u.status
@@ -176,7 +179,7 @@ function details(u) {
     case 'no-git-cli': return 'git was not found on PATH. The session hook updates and verifies through git; install it or add it to PATH.'
     case 'no-remote-branch': return `The origin has no branch named ${u.branch}, main or master to follow. Fetch once (git fetch origin) or set origin/HEAD (git remote set-head origin -a).`
     case 'diverged': return `This clone has local commits that are not on ${u.main}. Rebase them: git -C ${q(REPO)} rebase origin/${u.main}`
-    case 'dirty': return `Update ${short(u.head)} → ${short(u.remote)} is waiting on local changes in ${REPO}. Commit or discard them, then: git -C ${q(REPO)} pull --ff-only origin ${u.main}`
+    case 'dirty': return `Update ${short(u.head)} → ${short(u.remote)}${u.target ? ` (v${u.target})` : ''} cannot fast-forward because files it changes were edited locally in ${REPO}: ${u.error}. Commit or discard them, then: git -C ${q(REPO)} pull --ff-only origin ${u.main}`
     case 'failed': return `The fast-forward failed: ${u.error}`
     case 'updated': {
       const shown = u.subjects.slice(0, 8).map((s) => `  - ${s}`)

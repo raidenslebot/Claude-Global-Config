@@ -129,6 +129,42 @@ The renderer drives the headless Chromium already installed for the Playwright M
 new to install, no account. It writes RGB and says so; the skill says what to hand an offset shop.
 
 
+
+### Ambition — what a piece never tried
+
+The lint above names what a piece should not have. That is half the problem. A page can carry
+no fingerprint at all — no purple gradient, no glass card, no centred hero — and still be built
+entirely from flexbox, a hex colour and a 300 ms transition. It is not bad. It is *conventional*,
+which is the ceiling almost all generated work sits at, because the model reaches for the
+capability it has seen most and what it has seen most is a decade old.
+
+```bash
+cgc techniques page.html            # medium, verdict, and the dimensions it never entered
+cgc techniques ./src --min 6        # exit 1 below the floor
+cgc techniques --media              # every medium and every technique known
+```
+
+It works on two axes rather than one checklist. **Medium** is detected from the file — web,
+SVG, canvas, shader/GPU, 3D scene, native/mobile, game engine, terminal, data-visualisation,
+print — and the piece is measured against that medium’s own vocabulary, so a fragment shader is
+not judged for having no CSS. **Dimension** is the part a feature list cannot reach: eight
+questions that are the same in every medium — material, structure, type, time, depth, response,
+generative, variation. A piece using five techniques from one dimension is narrower than one
+using three across three, and the dimension it never entered is reported as a question about the
+piece rather than a feature to bolt on.
+
+Verdicts are assembled (0–1 techniques), conventional (2–4), considered (5–8) and ambitious (9+),
+and a hook reports them on every substantial screen file written. Quantity is not quality — a
+technique that could be removed without the piece reading differently was decoration — but a
+piece that reaches for none of them was assembled rather than designed.
+
+**Nothing about it is fixed.** The registry is data; a medium is one object. Add or extend one
+without touching the tool by dropping JSON at `<project>/.cgc/techniques.json` or
+`~/.claude/techniques.json`, of the form
+`{ "media": [ { "id", "label", "detect", "techniques": [ { "id", "dim", "lift", "re", "what" } ] } ] }` —
+same-id entries merge over the shipped ones. The craft behind the web set, with working recipes
+and real parameters, is `visual-design-mastery/references/advanced-techniques.md`; each other
+medium has its own reference in the same folder.
 ### Motion — the animation watched, not read
 
 Every other check in this package reads the source: the easing keyword, the duration, the

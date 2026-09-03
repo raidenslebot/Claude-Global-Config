@@ -5,6 +5,41 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.11.0 — 2026-09-02
+
+The ambition half of the design gate, and the update that was not running every time.
+
+- **Every session start and every resume now checks for an update, without exception.** There
+  was a five-minute fetch throttle, so sessions started in quick succession reported whatever
+  version happened to be checked out — and a stale version line looks exactly like a healthy
+  one. Worse, the hook refused to update whenever the clone had ANY local edit, which is
+  stricter than git itself: a fast-forward only fails when the incoming commits touch a file
+  that was modified locally, and git refuses that safely on its own. One unrelated edit in the
+  clone therefore pinned it to an old version session after session. Both are gone: it asks git
+  instead of pre-judging, and when a fast-forward genuinely cannot apply it says so loudly and
+  names the version it is stuck below. A test now drives startup, resume, clear and compact with
+  a release landing between each, and requires every one of them to arrive.
+
+- **New gate `cgc techniques` — what a piece never tried.** The slop lint names what a design
+  should not have; nothing named what it does not have. A page can be free of every fingerprint
+  and still be built entirely from flexbox, a hex colour and a 300 ms transition. It measures on
+  two axes: the MEDIUM, detected from the file (web, SVG, canvas, shader, 3D, native, game, TUI,
+  data-viz, print), each with its own vocabulary so a shader is not judged for having no CSS;
+  and the DIMENSION — material, structure, type, time, depth, response, generative, variation —
+  reported as a question about the piece rather than a feature to add. The registry is data and
+  extends from `<project>/.cgc/techniques.json` or `~/.claude/techniques.json` without
+  touching the tool. New reference `advanced-techniques.md` carries the web recipes with real
+  parameters; `post-tool-slop.js` now reports both halves on every substantial screen file.
+
+- **The visual routing hook was silent on the field the work is worst at.** "make this
+  transition feel better", "the buttons feel sluggish", "the loading spinner needs work" and
+  "the modal should fade in" all fired nothing, so the taste layer never loaded for motion work
+  at all. Motion vocabulary and the words people actually use to complain about motion now
+  trigger it, and a motion prompt is routed to `cgc motion` and the craft reference. "feel free
+  to refactor" and "the database transition state machine" stay silent, and are tests.
+
+- Fixed: a single `rgba()` shadow was read as a four-layer stack because the commas inside the
+  colour function were counted as layers.
 ## 1.10.0 — 2026-09-02
 
 Two defects, both of the same kind: a standard that could not be checked where it mattered.

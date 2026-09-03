@@ -28,6 +28,10 @@ test('ordinary sentences about code do not fire, whatever words they share with 
     'Fix the npm packaging so the invitation email endpoint returns 200.',
     'Generate the chart of accounts from the ledger export.',
     'Button up the API contract before the release.',
+    'Feel free to refactor the auth module however you like.',
+    'Fix the database transition in the state machine before the migration runs.',
+    'Spin up a new worker process and ease the load on the queue.',
+    'The build feels slow because the spring boot context reloads on every test.',
     'Map the user ids to their roles and render the JSON response.',
     'Use a regex pattern to match the transition state names.',
     'Write a unit test for the story service.',
@@ -66,4 +70,33 @@ test('never crashes on an empty, null or malformed payload', () => {
     assert.equal(r.status, 0, `input ${JSON.stringify(input)}: ${r.stderr}`)
     assert.equal(r.stdout.trim(), '')
   }
+})
+
+test('a prompt about how something MOVES fires, and is routed to the motion tool', () => {
+  // Each of these is a real animation request that names no design noun at all. Before the
+  // motion terms were added, every one of them was silent — so the taste layer never loaded
+  // for the one field the user said was worst.
+  for (const p of [
+    'make this transition feel better',
+    'the buttons feel sluggish',
+    'the loading spinner needs work',
+    'make the page transition smoother',
+    'why does this animation look janky',
+    'add a hover effect to the cards',
+    'the modal should fade in',
+    'build a scroll-driven hero',
+  ]) {
+    const ctx = fire(p)
+    assert.ok(ctx, `should fire: ${p}`)
+    assert.match(ctx, /MOTION DETECTED/, `should route to motion: ${p}`)
+    assert.match(ctx, /cgc motion/, `should name the tool that watches it: ${p}`)
+  }
+})
+
+test('the motion route insists on watching, not on reading', () => {
+  const ctx = fire('animate the menu opening')
+  assert.match(ctx, /LOOK AT THE SHEET/)
+  assert.match(ctx, /--trigger/)
+  assert.match(ctx, /prefers-reduced-motion/)
+  assert.match(ctx, /motion-and-animation\.md/, 'the craft, with its numbers, is named')
 })

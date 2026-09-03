@@ -85,14 +85,26 @@ test('behind main: fast-forwards, re-applies config/hooks/skills, reports the ve
   assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps')
 })
 
-test('local changes block the update; it is reported with the fix and nothing is pulled', (t) => {
+test('a local edit to a file the update does not touch no longer blocks it', (t) => {
   const w = world(t)
   w.release('1.1.0', 'Add the thing')
+  writeFileSync(join(w.friend, 'scratch.txt'), 'a note to self')
+  git(w.friend, 'add', 'scratch.txt')
+  const { line } = fire(w, w.friend)
+  assert.match(line, /updated 1\.0\.0 → 1\.1\.0/, 'an unrelated edit must not pin the clone to an old version')
+  assert.equal(head(w.friend), head(w.author))
+  assert.equal(readFileSync(join(w.friend, 'scratch.txt'), 'utf8'), 'a note to self', 'the edit survives')
+})
+
+test('a local edit to a file the update DOES touch is reported, and nothing is clobbered', (t) => {
+  const w = world(t)
+  w.release('1.1.0', 'Add the thing')          // this release rewrites package.json
   const before = head(w.friend)
   writeFileSync(join(w.friend, 'package.json'), '{"version":"edited-by-hand"}')
   const { line, ctx } = fire(w, w.friend)
-  assert.match(line, /update blocked: local changes/)
+  assert.match(line, /UPDATE BLOCKED by local changes/)
   assert.match(ctx, /pull --ff-only origin main/)
+  assert.match(ctx, /v1\.1\.0/, 'the line must name the version it is stuck below')
   assert.equal(head(w.friend), before)
   assert.equal(readFileSync(join(w.friend, 'package.json'), 'utf8'), '{"version":"edited-by-hand"}', 'the edit survives')
 })
@@ -158,17 +170,20 @@ test('a downloaded archive (no .git) is told how to become updatable', (t) => {
   assert.match(ctx, /Clone the repository with git/)
 })
 
-test('clear and compact do not fetch again within five minutes; resume does', (t) => {
+test('every source checks every time — no throttle, however fast the sessions come', (t) => {
   const w = world(t)
-  fire(w, w.friend)  // writes the update stamp
-  w.release('1.1.0', 'Later')
-  const before = head(w.friend)
-  const { line, ctx } = fire(w, w.friend, 'compact')
-  assert.match(line, /· at [0-9a-f]{7}$/)
-  assert.match(ctx, /Do not mention it/)
-  assert.equal(head(w.friend), before, 'a throttled compact must not pull')
-  assert.match(fire(w, w.friend, 'resume').line, /updated 1\.0\.0 → 1\.1\.0/)
-  assert.equal(head(w.friend), head(w.author))
+  fire(w, w.friend)
+  assert.match(fire(w, w.friend).line, /up to date/)
+  // Each source in turn, with a release landing between each one. Every one must arrive.
+  for (const [i, source] of ['compact', 'resume', 'clear', 'startup'].entries()) {
+    const from = `1.${i}.0`
+    const to = `1.${i + 1}.0`
+    w.release(to, 'Later ' + source)
+    const { line } = fire(w, w.friend, source)
+    assert.match(line, new RegExp(`updated ${from.replace(/\./g, '\\.')} → ${to.replace(/\./g, '\\.')}`),
+      `a ${source} must fetch and fast-forward, however recently the last check ran`)
+    assert.equal(head(w.friend), head(w.author), `${source} must land the update`)
+  }
 })
 
 test('a failing check is repaired by re-applying the install, and the line says so', (t) => {

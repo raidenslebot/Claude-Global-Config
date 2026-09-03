@@ -108,6 +108,25 @@ watched, and names the tells it can already see in the source. The loop above do
 for motion: watch it, name the weakest frame, fix it, watch it again — until it moves the way a
 passionate professional would have made it move.
 
+**Correct is not the target, and the lint cannot tell you that.** A page can carry no
+fingerprint at all — no purple gradient, no glass card, no centred hero — and still be built
+entirely from flexbox, `border-radius`, a hex colour and a 300 ms transition. That page is not
+bad; it is **conventional**, which is the ceiling almost all generated work sits at, because the
+model reaches for the capability it has seen most and what it has seen most is 2015 CSS.
+`cgc techniques <file>` reports which of 44 real capabilities a piece reaches for and which it
+never tried — perceptually even colour in oklch and relative colour syntax so a palette derives
+instead of being pasted, typed custom properties (`@property`) which are the only way to animate a
+gradient at all, variable font axes past weight and optical sizing, `text-box` trim, container
+queries and subgrid, deliberate grid overlap, gradient masks instead of another card, blend modes,
+generated grain from `feTurbulence`, scroll-driven animation with no library, View Transitions,
+`@starting-style`. Verdicts: assembled (0–1 techniques), conventional (2–4), considered (5–8),
+ambitious (9+); a hook reports it on every substantial screen file written. Quantity is not
+quality and a technique adopted for its own sake is decoration — pick the one or two the IDEA
+requires, and let them change the STRUCTURE rather than the surface: if it could be removed and
+the piece would read the same, it was decoration. But a piece that reaches for none of them was
+assembled, not designed. The craft, with working recipes and real parameters, is
+`visual-design-mastery/references/advanced-techniques.md`.
+
 **Technique layer (installed skills, per-library craft):** `gsap-web` (timelines, ScrollTrigger,
 pin/scrub), `svg-animation` (draw-on, morph, motion-along-path), `lottie-animation`,
 `60fps-animation` (jank/compositor), `accessible-animation` (reduced-motion, vestibular),
