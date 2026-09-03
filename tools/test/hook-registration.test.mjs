@@ -18,7 +18,9 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { join, basename } from 'node:path'
 import { REPO } from '../paths.mjs'
 
@@ -102,4 +104,43 @@ test('the pre-commit gate is wired by install, not only on the author machine', 
   assert.ok(existsSync(hook), '.githooks/pre-commit must exist for the wiring to mean anything')
   assert.match(readFileSync(hook, 'utf8'), /scan-secrets/,
     'the pre-commit gate must still invoke the secret scanner')
+})
+
+test('the doctor notices a hook that was REMOVED from settings.json, not only one whose file is gone', (t) => {
+  // The doctor walked what settings.json contains, so a hook deleted from it produced no row at
+  // all: the check deleted itself along with the registration, 42/42 quietly became 41/41, and
+  // the line still read perfect. That is the silent removal the mandates say is impossible.
+  const home = mkdtempSync(join(tmpdir(), 'cgc-hookreg-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const config = join(home, '.claude')
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: config }
+  const doctor = () => {
+    const r = spawnSync(process.execPath, [join(REPO, 'tools', 'doctor.mjs'), '--json'],
+      { cwd: REPO, encoding: 'utf8', timeout: 300000, env })
+    try { return JSON.parse(r.stdout) } catch { return null }
+  }
+  const install = spawnSync(process.execPath, [join(REPO, 'tools', 'install.mjs'), '--only=config,hooks'],
+    { cwd: REPO, encoding: 'utf8', timeout: 300000, env })
+  assert.equal(install.status, 0, install.stdout.slice(-600))
+
+  const settings = join(config, 'settings.json')
+  const before = doctor()
+  assert.ok(before, 'the doctor answered with JSON')
+  const failsOf = (j) => j.results.filter((x) => x.level === 'fail').map((x) => x.message)
+  const baseline = failsOf(before)
+  assert.ok(before.results.some((r) => /hooks this package requires are registered/.test(r.message)),
+    'the doctor states how many hooks it requires')
+
+  const original = readFileSync(settings, 'utf8')
+  const j = JSON.parse(original)
+  for (const arr of Object.values(j.hooks || {})) for (const g of arr) g.hooks = (g.hooks || []).filter((h) => !/post-tool-slop/.test(String(h.command)))
+  writeFileSync(settings, JSON.stringify(j, null, 2))
+
+  const after = failsOf(doctor())
+  const fresh = after.filter((m) => !baseline.includes(m))
+  assert.ok(fresh.some((m) => /post-tool-slop\.js is NOT registered/.test(m)),
+    `the doctor did not notice the hook was unregistered. New failures: ${JSON.stringify(fresh)}`)
+
+  writeFileSync(settings, original)
+  assert.deepEqual(failsOf(doctor()), baseline, 'and it goes quiet again when the registration is back')
 })

@@ -98,6 +98,49 @@ phase('Hooks')
         : fail(`${event}: script missing, hook is a silent no-op — ${script}`)
     }
   }
+
+  // Every hook this repo REQUIRES, whether or not it is registered.
+  //
+  // The loop above walks what settings.json CONTAINS, so a hook removed from it produced no row
+  // at all: the check deleted itself along with the registration, 42/42 quietly became 41/41,
+  // and the line still read perfect. That is exactly the silent removal the mandate says is
+  // impossible — "none is advisory; none can be silently removed" — and it was the one shape of
+  // breakage this file could not see. Anything that rewrites settings.json can cause it: an
+  // editor, another package's installer, a person tidying a file they do not own.
+  const manifestPath = join(REPO, 'config', 'hooks.json')
+  if (!existsSync(manifestPath)) {
+    fail('config/hooks.json missing — there is no list of the hooks this package requires, so nothing can check they are registered')
+  } else {
+    let wanted = null
+    try { wanted = readJson(manifestPath).hooks } catch (e) { fail(`config/hooks.json is not valid JSON: ${e.message}`) }
+    if (wanted) {
+      const scriptOf = (cmd) => {
+        const t = (String(cmd || '').match(/"[^"]*"|\S+/g) || []).map((x) => x.replace(/^"|"$/g, ''))
+        const s = t.slice(1).find((x) => /\.[cm]?js$/i.test(x))
+        return s ? basename(s).toLowerCase() : ''
+      }
+      const registered = new Set()
+      for (const [event, groups] of events) {
+        for (const g of groups || []) for (const h of g.hooks || []) {
+          const s = scriptOf(h.command)
+          if (s) registered.add(`${event}|${s}`)
+        }
+      }
+      const missing = []
+      let required = 0
+      for (const [event, groups] of Object.entries(wanted)) {
+        for (const g of groups || []) for (const h of g.hooks || []) {
+          const s = scriptOf(h.command)
+          if (!s) continue
+          required++
+          if (!registered.has(`${event}|${s}`)) missing.push(`${event} · ${s}`)
+        }
+      }
+      if (missing.length) {
+        for (const m of missing) fail(`${m} is NOT registered — the mandate it enforces is not running, and nothing else would have said so`)
+      } else ok(`all ${required} hooks this package requires are registered`)
+    }
+  }
 }
 
 // ── 4. MCP servers ──────────────────────────────────────────────────────────

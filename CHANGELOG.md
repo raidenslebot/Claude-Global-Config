@@ -5,6 +5,28 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.32.0 — 2026-09-02
+
+**The doctor could not see a hook that had been unregistered.** Everything this package claims
+about itself rests on that file, so it was worth asking the only question that matters about an
+alarm: does it ring? Six things it checks were broken one at a time in a sandbox install — a
+mandate file deleted, `settings.json` corrupted, a hook script removed, a design tool deleted, an
+authored skill unlinked, and one hook deleted from the registrations. Five rang. One did not.
+
+The check walked what `settings.json` *contains*, so a hook removed from it produced no row at
+all: the check deleted itself along with the registration. `42/42 checks` quietly became
+`41/41 checks`, which reads exactly as healthy — and that is precisely the silent removal the
+mandates say is impossible. *"None is advisory; none can be silently removed."* It was, and the
+package's own verifier said everything was fine. Anything that rewrites `settings.json` causes
+it: an editor, another package's installer, a person tidying a file they do not own.
+
+The doctor now reads `config/hooks.json` — the manifest the installer writes from — and checks
+every hook the package REQUIRES is registered, naming any that is not. Where the manifest is
+missing or unreadable, that itself is a failure: without the list, nothing can check the list.
+
+Verified by re-running the same six mutations: every one rings now, and the doctor goes quiet
+again when the registration is restored. The unregistered-hook case is a test.
+
 ## 1.31.0 — 2026-09-02
 
 Every tool, fed the four inputs a real user produces by accident: a path that does not exist, an
