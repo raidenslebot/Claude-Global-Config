@@ -5,6 +5,31 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.28.0 — 2026-09-02
+
+The lock from 1.27.0 covered the session hook. It now covers every writer, because the hook was
+never the only one.
+
+- **`cgc install` typed by hand while a session starts** writes the same config files the
+  session is writing. That is the same bug as two processes pulling the same clone; it just
+  fails more quietly, with a half-written file instead of a message. The installer takes the
+  lock now, and releases it when the run ends.
+- **`cgc sync` writes into the repo**, and doing that while a session start is pulling leaves a
+  dirty tree — which is precisely what stops every later update. It takes the lock too.
+  `--check` writes nothing and takes nothing.
+- **The hook spawns the installer while holding the lock**, so it passes a flag that says so.
+  Without it the installer would have waited the full thirty seconds for a lock its own parent
+  held, on the one path that runs at every session start. Measured: 3.4s with the flag, 33.8s
+  without.
+- **`cgc uninstall` deliberately does not take it.** The lock lives under the config root the
+  uninstall is removing, so taking it would recreate the directory it just deleted — a door
+  cannot be locked while it is coming off its hinges. That is now written down where the next
+  reader will look for it.
+
+Both writers name the same lock file, and a test asserts they still agree — the hook carries its
+own copy of the logic because it has to run when the repo is missing entirely, and a path that
+drifts between two copies is a lock that locks nothing.
+
 ## 1.27.0 — 2026-09-02
 
 **Sessions that start together now all update.** This is the root cause of the complaint that

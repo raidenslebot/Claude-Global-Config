@@ -9,12 +9,16 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
-import { REPO, CONFIG_ROOT, buildVars, templatize, unresolved, askedForHelp } from './paths.mjs'
+import { REPO, CONFIG_ROOT, buildVars, templatize, unresolved, askedForHelp, acquireUpdateLock } from './paths.mjs'
 
 // A request for help is never a request to do the thing.
 if (askedForHelp(import.meta.url)) process.exit(0)
 
 const CHECK = process.argv.includes('--check')
+
+// Writing into the repo while a session start is pulling it leaves a dirty tree, and a dirty
+// tree is what stops every later update. --check writes nothing and takes nothing.
+if (!CHECK) process.on('exit', acquireUpdateLock())
 const vars = buildVars()
 
 // What the repo owns. Anything not listed is deliberately NOT tracked — notably

@@ -35,6 +35,11 @@ if (askedForHelp(import.meta.url)) process.exit(0)
 
 const args = process.argv.slice(2)
 const DRY = !args.includes('--yes')
+
+// No update lock here, deliberately: it lives under the config root this is removing, so
+// taking it would recreate the directory the uninstall just deleted — a door cannot be locked
+// while it is being taken off its hinges. The install and the sync hold it; this asks the user
+// for --yes instead, which is the only signal that matters for a removal.
 const PURGE = args.includes('--purge-library')
 const vars = buildVars()
 

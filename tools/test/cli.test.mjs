@@ -426,3 +426,37 @@ test('every command answers --help with its usage, and never by doing the thing'
     assert.match((r.stdout || '') + (r.stderr || ''), /usage|—/i, `cgc ${cmd} --help said nothing`)
   }
 })
+
+test('the installer takes the same lock the session hook takes, and releases it', (t) => {
+  // Two processes writing the same config files is the same bug as two pulling the same clone,
+  // and fails more quietly: a half-written file instead of a message. `cgc install` typed by
+  // hand while a session starts is exactly that.
+  const home = scratch(t, 'cgc-install-lock-')
+  const lock = join(home, '.claude', '.cgc', 'update.lock')
+
+  const clean = runTool('install.mjs', ['--only=config'], home)
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.equal(existsSync(lock), false, 'the lock is released when the run ends')
+
+  // A lock somebody else holds is waited for, and then the work happens anyway: a session that
+  // cannot take the lock must never hang on somebody else's git.
+  mkdirSync(join(home, '.claude', '.cgc'), { recursive: true })
+  writeFileSync(lock, JSON.stringify({ pid: 999999, at: Date.now() }))
+  const started = Date.now()
+  const held = spawnSync(process.execPath, [join(TOOLS, 'install.mjs'), '--only=config'], {
+    cwd: REPO, encoding: 'utf8', timeout: 180000, env: scratchEnv(home, { CGC_UPDATE_LOCK_HELD: '1' }),
+  })
+  assert.equal(held.status, 0, held.stderr)
+  assert.ok(Date.now() - started < 25000, 'the hook spawns the installer while holding the lock: it must not queue behind its own parent')
+  assert.equal(existsSync(lock), true, 'and it does not release a lock it never took')
+})
+
+test('the hook and the installer agree on where the lock lives', async () => {
+  // The hook carries its own copy of this logic — it has to run when the repo is missing
+  // entirely — so the one thing that must not drift between them is the path.
+  const { UPDATE_LOCK, CONFIG_ROOT } = await import('../paths.mjs')
+  const hook = readFileSync(join(REPO, 'config', 'hooks', 'session-start-cgc.js'), 'utf8')
+  assert.match(hook, /const LOCK = path\.join\(STATE, 'update\.lock'\)/, 'the hook still names update.lock under STATE')
+  assert.match(hook, /const STATE = path\.join\(CONFIG_ROOT, '\.cgc'\)/)
+  assert.equal(UPDATE_LOCK, join(CONFIG_ROOT, '.cgc', 'update.lock'))
+})

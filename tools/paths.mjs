@@ -5,7 +5,7 @@
 // target machine. This is what makes the repo work on a setup that is not this one.
 
 import { homedir, platform } from 'node:os'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, mkdirSync, openSync, writeSync, closeSync, statSync, unlinkSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
@@ -142,4 +142,52 @@ export function askedForHelp(metaUrl, argv = process.argv.slice(2)) {
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
   console.log(lines.length ? lines.join('\n') : `usage: node ${fileURLToPath(metaUrl)}`)
   return true
+}
+
+/** The path both writers agree on. The session hook carries its own copy of this logic — it has
+ *  to run when the repo is missing entirely — so the one thing that must not drift is where the
+ *  lock lives. A test asserts the two agree. */
+export const UPDATE_LOCK = join(CONFIG_ROOT, '.cgc', 'update.lock')
+const LOCK_STALE_MS = 5 * 60 * 1000
+const LOCK_WAIT_MS = 30 * 1000
+
+function napSync(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch { /* no sleep available */ }
+}
+
+/** Run `fn` with the update lock held. Waiting is bounded and never fatal: a caller that cannot
+ *  take the lock does the work anyway rather than hanging on somebody else's git.
+ *
+ *  Two processes writing the same config files is the same class of bug as two processes
+ *  pulling the same clone — it just fails more quietly, with a half-written file instead of a
+ *  message. `cgc install` typed by hand while a session starts is exactly that. */
+export function acquireUpdateLock() {
+  // The session hook spawns the installer while already holding the lock. Without this the
+  // installer would wait the full thirty seconds on every repair, for a lock its own parent
+  // holds — a stall on the one path that runs at every session start.
+  if (process.env.CGC_UPDATE_LOCK_HELD === '1') return () => {}
+  let held = false
+  const deadline = Date.now() + LOCK_WAIT_MS
+  while (Date.now() < deadline) {
+    try {
+      mkdirSync(dirname(UPDATE_LOCK), { recursive: true })
+      const fd = openSync(UPDATE_LOCK, 'wx')
+      writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }))
+      closeSync(fd)
+      held = true
+      break
+    } catch (e) {
+      if (e.code !== 'EEXIST') break
+      try {
+        if (Date.now() - statSync(UPDATE_LOCK).mtimeMs > LOCK_STALE_MS) { unlinkSync(UPDATE_LOCK); continue }
+      } catch { continue }
+      napSync(250)
+    }
+  }
+  return () => { if (held) { held = false; try { unlinkSync(UPDATE_LOCK) } catch { /* already gone */ } } }
+}
+
+export function withUpdateLock(fn) {
+  const release = acquireUpdateLock()
+  try { return fn() } finally { release() }
 }

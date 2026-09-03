@@ -51,7 +51,9 @@ const tool = (name) => path.join(REPO, 'tools', name)
 const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
 function runInstall() {
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'], { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true })
+  // This runs inside withLock, so the installer must not queue behind its own parent.
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps'],
+    { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, CGC_UPDATE_LOCK_HELD: '1' } })
   return r.status === 0
 }
 

@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock } from './paths.mjs'
 
 // This file has no exports: it performs an install the moment it is loaded. Importing it —
 // from a test, a tool, or by accident — would silently run one. Say so instead.
@@ -36,6 +36,11 @@ const args = process.argv.slice(2)
 const DRY = args.includes('--dry-run')
 const ONLY = new Set(((args.find((a) => a.startsWith('--only=')) || '').split('=')[1] || '').split(',').filter(Boolean))
 const SKIP = new Set(args.filter((a) => a.startsWith('--skip-')).map((a) => a.replace('--skip-', '')))
+// Two processes writing the same config files is the same bug as two pulling the same clone —
+// it just fails more quietly, with a half-written file instead of a message. `cgc install`
+// typed by hand while a session starts is exactly that.
+if (!DRY) process.on('exit', acquireUpdateLock())
+
 const vars = buildVars()
 
 const results = []
