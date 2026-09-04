@@ -408,7 +408,16 @@ export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {
   //
   // The floor stays a count, because it is not a matter of taste: nothing reached for at all is
   // a piece that does nothing a default could not.
-  const entered = DIMS.filter((d) => byDim[d] > 0).length
+  // A dimension is ENTERED when something of weight was done in it, not when a one-liner was
+  // dropped in. `lift` is already in the table and says how much a technique changes a piece:
+  // five hygiene one-liners across five dimensions used to score `ambitious`, which is the same
+  // "collect the cheap ones" incentive the count-based verdict had, wearing a different hat.
+  const liftIn = {}
+  for (const d of DIMS) liftIn[d] = 0
+  for (const t of used) liftIn[t.dim] = (liftIn[t.dim] || 0) + (t.lift || 1)
+  // Three is one substantial technique, or a real one plus a small one, or three small ones
+  // that together amount to a decision about that dimension.
+  const entered = DIMS.filter((d) => liftIn[d] >= 3).length
   const verdict = n <= 1 ? 'assembled'
     : entered <= 2 ? 'conventional'
       : entered <= 4 ? 'considered'
@@ -519,6 +528,10 @@ export function main(argv = process.argv.slice(2)) {
 
   if (args.json) {
     console.log(JSON.stringify({
+      // The verdict is about spread; without these two a consumer prints "conventional · 7 of
+      // 42" and it reads as a contradiction rather than as the point being made.
+      entered: m.entered,
+      concentrated: m.concentrated,
       files: files.length, media: m.media, detected: m.detected, count: m.count, pool: m.pool, verdict: m.verdict,
       byDimension: m.byDim, untouched: m.untouched.map((d) => ({ dim: d, ask: DIMENSIONS[d].ask })),
       used: m.used.map((t) => ({ id: t.id, dim: t.dim })),

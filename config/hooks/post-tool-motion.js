@@ -73,6 +73,14 @@ function main() {
   if (!file || !EXTS.has(path.extname(file).toLowerCase())) return
   let text
   try { text = fs.readFileSync(file, 'utf8') } catch { return }
+  // A page whose animation lives in a linked stylesheet moves just as much. Reading the markup
+  // alone meant the commonest arrangement in real work was never reported as animating at all.
+  if (/\.html?$/i.test(file)) {
+    for (const m of text.matchAll(/<link[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+      if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+      try { text += '\n' + fs.readFileSync(path.resolve(path.dirname(file), decodeURIComponent(m[1].split('?')[0].split('#')[0])), 'utf8') } catch { /* not ours to read */ }
+    }
+  }
   if (!ANIMATES.test(text)) return
 
   const found = findings(text)

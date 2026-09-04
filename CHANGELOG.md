@@ -5,6 +5,73 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.53.0 — 2026-09-03
+
+**`cgc distinct` did not work.** An adversarial review of 1.50.0–1.51.0 opened with the finding
+that matters most: run it on this package's own six examples — the corpus its header names as
+the motivating failure, six designs in one cream — and every one came back **distinct**. The
+tool built to catch that sameness could not see it.
+
+Two causes, both in the colour measure:
+
+- **HSL saturation is unstable near white.** `#efe9dc` and `#f2e9d6` are the same cream to any
+  eye and measure 0.373 and 0.519 — either side of a 0.5 cut. `#fffdf7`, essentially white,
+  measures 1.0. Every bucket boundary drawn on `s` splits pale colours at random, and a wall of
+  near-white paper is exactly what this had to compare. It buckets on **chroma** now — `(max −
+  min)` of the sRGB triple — where those three read 0.075, 0.110 and 0.031. `hsl()` returns `c`
+  for this; the fingerprint families keep using `s`, whose bands were tuned on it.
+- **The accent was chosen by mention count** — the same mistake the ground comment two lines
+  above says it fixed. A blue named in nine rules took the slot from the orange carrying the
+  piece. It is now the most saturated colour that is not the ground: mention count is a fact
+  about the stylesheet, chroma is a fact about the design.
+
+With both fixed, the tool says what it was built to say: harbor-swim-club and night-market-social
+are **familiar**, sharing `ground` and `accent` — the cream and the burnt orange.
+
+**And it was wrong in the other direction too.** A dense financial table and a photo-led landing
+page — nothing visually in common — scored 4 of 5, because a white ground, one shared face,
+flexbox with something centred, and a transition with a stock curve are what almost every page
+on the web has. An axis that cannot distinguish anything can only manufacture repeats. Those are
+excluded now. Related: `\blinear\b` matched inside `linear-gradient`, so a still page with a
+gradient was credited with an easing curve.
+
+The rest of the review, all confirmed and all fixed:
+
+- **The ground was decided by a closed list of selector names.** Renaming a wrapper from `body`
+  to `.canvas` moved both colour axes at once, because the fallback was the most-mentioned
+  colour of any kind — normally the accent. A ground is a background, so it is read from the
+  background declarations whatever the wrapper is called.
+- **A normal multi-page site failed the gate for looking like itself.** The corpus defaulted to
+  the target's own tree and the verdict then excluded only the target's own *folder*, so
+  `index.html` was compared against `about/index.html`. Anything beneath a piece's own folder is
+  the same project.
+- **`projectKey` merged unrelated folders.** Dropping the last hyphenated word made
+  `my-cool-thing` and `my-cool-other` one project, and collapsed every dated `2026-01-*` scheme.
+  A family now needs a non-numeric prefix and **three or more** members — which is what an
+  identity system delivered across fields actually has, and what two folders sharing a prefix by
+  coincidence do not.
+- **`--dedupe`'s sibling in techniques:** `entered` ignored `lift`, so five hygiene one-liners
+  across five dimensions scored **ambitious** — the same "collect the cheap ones" incentive the
+  count-based verdict had, wearing a different hat. A dimension is entered when the work in it
+  carries weight. The JSON also omitted `entered` and `concentrated`, so every consumer printed
+  `conventional · 7 of 42` and it read as a contradiction rather than as the point.
+- **Two regressions in print-lint, introduced yesterday when it learned to read stylesheets.** A
+  `url()` in a stylesheet is relative to *that stylesheet*, and resolving every one against the
+  HTML made a raster in the ordinary `css/` + `css/photo.png` layout unfindable — reported as a
+  warning, which is a pass, which is precisely the false pass the change was written to close.
+  And `@import` was not followed, so a `@page` two files away still read as "no physical size".
+- **The motion gate could not see an animation in a linked stylesheet.** *Anything that moves is
+  judged in frames* only holds if the thing deciding what moves can see the whole page; a page
+  whose `@keyframes` live one file away — the ordinary arrangement — was never watched at all.
+- `alone` could never be the summary verdict: it ranked equal to `distinct` under a strict
+  comparison, so a solo file printed "nothing to compare it with" and then "this does not look
+  like the other work here", which are two sentences that contradict each other.
+
+Two of the shipped tests could not fail: the "two hand-picked creams are one cream" fixture was
+picked inside a single bucket, and `assert.notEqual(ground, accent)` compared two encodings that
+can never be equal — including when ground detection had failed and the ground *was* the accent.
+Both now assert the behaviour.
+
 ## 1.52.0 — 2026-09-03
 
 **The fingerprint gate was reading a fragment.** The identical page scored **13** with its CSS

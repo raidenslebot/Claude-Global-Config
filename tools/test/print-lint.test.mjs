@@ -5,7 +5,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -335,4 +335,36 @@ test('a page is linted with the stylesheets it links, because that is what goes 
   const s = file(d, 'q.html', '<!doctype html><html><head>'
     + '<link rel="stylesheet" href="sheet.css?v=3#top"></head><body><p class="fine">x</p></body></html>')
   assert.ok(lint(s, {}).findings.some((f) => f.rule === 'type'), 'a cache-busted href is the same file')
+})
+
+test('a url() in a stylesheet resolves against that stylesheet, and @import is followed', (t) => {
+  // Two regressions introduced by teaching this to read linked stylesheets. A raster in the
+  // ordinary css/ + css/photo.png layout became unfindable — reported as a warning, which is a
+  // pass — and a @page two files away through an @import still read as "no physical size".
+  const d = scratch(t)
+  mkdirSync(join(d, 'css'), { recursive: true })
+  const png = Buffer.alloc(33)
+  png.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); png.writeUInt32BE(13, 8); png.write('IHDR', 12, 'latin1')
+  png.writeUInt32BE(1200, 16); png.writeUInt32BE(800, 20)
+  writeFileSync(join(d, 'css', 'photo.png'), png)
+  writeFileSync(join(d, 'css', 'sheet.css'), '@page{size:8.5in 11in;margin:0}body{font-family:Archivo;font-size:10pt}'
+    + '.cover{width:4.25in;height:3in;background-image:url("photo.png")}', 'utf8')
+  const page = file(d, 'page.html', '<!doctype html><html><head><link rel="stylesheet" href="css/sheet.css"></head><body><div class="cover"></div></body></html>')
+  const r = lint(page, {})
+  const raster = r.findings.find((f) => f.rule === 'raster')
+  assert.ok(raster, 'the raster beside its stylesheet is found')
+  assert.equal(raster.level, 'fail', `1200px at 4.25in is 282dpi: ${raster.msg}`)
+  assert.match(raster.msg, /282dpi/)
+
+  // @import: the page size lives two files away, which is how a shared spec is normally kept.
+  writeFileSync(join(d, 'base.css'), '@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}', 'utf8')
+  writeFileSync(join(d, 'imp.css'), '@import "base.css";\n.x{color:#222}', 'utf8')
+  const card = file(d, 'card.html', '<!doctype html><html><head><link rel="stylesheet" href="imp.css"></head><body><p>x</p></body></html>')
+  assert.ok(!lint(card, {}).findings.some((f) => f.rule === 'size'), 'the @page arrives through the @import')
+
+  // A cycle terminates rather than hanging.
+  writeFileSync(join(d, 'a.css'), '@import "b.css";', 'utf8')
+  writeFileSync(join(d, 'b.css'), '@import "a.css";\n@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}', 'utf8')
+  const cyc = file(d, 'cyc.html', '<!doctype html><html><head><link rel="stylesheet" href="a.css"></head><body><p>x</p></body></html>')
+  assert.ok(!lint(cyc, {}).findings.some((f) => f.rule === 'size'))
 })

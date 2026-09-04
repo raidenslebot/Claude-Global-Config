@@ -19,6 +19,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { resolve, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pageWithStyles } from './paths.mjs'
 
 const PT = { pt: 1, px: 0.75, in: 72, mm: 72 / 25.4, cm: 72 / 2.54, pc: 12 }
 const IN = { in: 1, mm: 1 / 25.4, cm: 1 / 2.54, pt: 1 / 72, px: 1 / 96 }
@@ -129,16 +130,16 @@ export function declaredSize(text, { svg = false } = {}) {
  *  after measuring none of its type, none of its rules and none of its rasters. Almost all real
  *  print work keeps its CSS in a separate file. */
 export function withLinkedStyles(file, text) {
-  let all = text
-  for (const m of text.matchAll(/<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
-    if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
-    try { all += '\n' + readFileSync(resolve(dirname(file), decodeURIComponent(m[1].split('?')[0].split('#')[0])), 'utf8') } catch { /* not ours to read */ }
-  }
-  return all
+  return pageWithStyles(file, text).map((p) => p.text).join(String.fromCharCode(10))
 }
 
 export function lint(file, opts = {}) {
-  const text = withLinkedStyles(file, readFileSync(file, 'utf8'))
+  // The pieces, not just the joined text: a url() inside a stylesheet is relative to THAT
+  // stylesheet, and resolving every one against the HTML directory made a raster in the
+  // ordinary css/ + css/photo.png layout unfindable — reported as a warning and passed, which
+  // is precisely the false pass this function was written to close.
+  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'))
+  const text = pieces.map((p) => p.text).join(String.fromCharCode(10))
   const isSvg = extname(file).toLowerCase() === '.svg'
   const method = MINIMUMS[opts.method || 'paper']
   if (!method) throw new Error(`unknown --method "${opts.method}" — one of ${Object.keys(MINIMUMS).join(', ')}`)
@@ -228,14 +229,18 @@ export function lint(file, opts = {}) {
   // 6. Rasters placed below the required dpi.
   if (method.raster) {
     // A raster placed as a background: the rule that names the image usually names its width too.
-    for (const rule of blankQuoted(text).matchAll(/\{([^{}]*background(?:-image)?\s*:[^;{}]*url\(\s*["']?([^"')]+)["']?\s*\)[^{}]*)\}/gi)) {
+    // Per PIECE, because a url() in a stylesheet is relative to that stylesheet. Resolving
+    // every one against the HTML's directory made the ordinary css/ + css/photo.png layout
+    // unfindable, and an unfindable raster is a warning — which is a pass.
+    for (const { file: owner, text: ownerText } of pieces)
+    for (const rule of blankQuoted(ownerText).matchAll(/\{([^{}]*background(?:-image)?\s*:[^;{}]*url\(\s*["']?([^"')]+)["']?\s*\)[^{}]*)\}/gi)) {
       const body = rule[1]
       const srcRaw = rule[2]
       if (/^(https?:|data:)/i.test(srcRaw)) { warn('raster', `${srcRaw.slice(0, 40)}… — remote or inline background image; cannot verify resolution`); continue }
       const wm = body.match(/(?<![-\w])width\s*:\s*([\d.]+)\s*(in|mm|cm|pt)/i)
       if (!wm) continue
       let p
-      try { p = /^file:/i.test(srcRaw) ? fileURLToPath(srcRaw) : resolve(dirname(file), decodeURIComponent(srcRaw)) } catch { p = resolve(dirname(file), srcRaw) }
+      try { p = /^file:/i.test(srcRaw) ? fileURLToPath(srcRaw) : resolve(dirname(owner), decodeURIComponent(srcRaw)) } catch { p = resolve(dirname(owner), srcRaw) }
       const px = rasterWidth(p)
       if (!px) { warn('raster', `${srcRaw} — background image not found or not a readable PNG/JPEG at ${p}; its resolution cannot be verified`); continue }
       const inches = toIn(wm[1], wm[2])

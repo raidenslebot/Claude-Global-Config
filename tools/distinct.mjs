@@ -27,7 +27,7 @@
 // pretending to a verdict, because one piece is no evidence of originality.
 
 import { readFileSync, existsSync, statSync, readdirSync, realpathSync } from 'node:fs'
-import { join, extname, resolve, dirname, basename, relative } from 'node:path'
+import { join, extname, resolve, dirname, basename, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { REPO, askedForHelp } from './paths.mjs'
 import { hsl, resolveVars } from './slop-lint.mjs'
@@ -53,13 +53,28 @@ const HELP = `
 /** Perceptual buckets, coarse enough that two hand-picked creams count as one cream. */
 function bucketColour(c) {
   if (!c) return null
-  // Near-black and near-white are grounds everywhere and say nothing about a point of view.
-  if (c.l <= 0.08) return 'ink:black'
-  if (c.l >= 0.94 && c.s <= 0.06) return 'ground:white'
-  if (c.s <= 0.08) return `neutral:${Math.round(c.l * 4)}`
-  // 30° of hue is about as fine as a person distinguishes when naming a colour.
-  return `${Math.round(c.h / 30) * 30}:${c.s >= 0.5 ? 'sat' : 'muted'}:${Math.round(c.l * 3)}`
+  // Chroma, not HSL saturation: see the note above. c.c is (max-min)/255 of the sRGB triple.
+  const chroma = Number.isFinite(c.c) ? c.c : 0
+  // Near-black and true grey are grounds everywhere and say nothing about a point of view.
+  // 0.03, not 0.04: #f4f1ea is a pale cream at chroma 0.039, and calling it "white" put it in
+  // the same bucket as #ffffff while its warmer sibling #efe9dc stayed a cream. A true grey is
+  // 0.000 and #fafaf7 is 0.012, so nothing that is actually neutral is caught by the tighter cut.
+  if (chroma < 0.03) {
+    if (c.l <= 0.10) return 'ink:black'
+    if (c.l >= 0.93) return 'ground:white'
+    return `neutral:${band(c.l)}`
+  }
+  // 30° of hue is about as fine as a person distinguishes when naming a colour, and three
+  // lightness bands taken with floor rather than round, which halves the boundary cases.
+  const hue = Math.round(c.h / 30) * 30 % 360
+  // A tinted neutral — cream, paper, navy, a warm grey — is identified WITH its lightness,
+  // because a cream ground and a navy ground are not the same decision. A saturated colour is
+  // identified by hue alone: two hand-picked oranges are one orange.
+  return chroma < 0.30 ? `${hue}:tinted:${band(c.l)}` : `${hue}:sat`
 }
+
+/** Three lightness bands. Floor, not round: half as many values sit next to a boundary. */
+const band = (l) => Math.min(2, Math.max(0, Math.floor(l * 3)))
 
 const COLOUR_RE = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\)/gi
 
@@ -121,7 +136,9 @@ function motion(text) {
   if (/transition\s*:/i.test(text)) m.add('transition')
   if (/animation-timeline|view\(\)|scroll\(\)/i.test(text)) m.add('scroll-driven')
   if (/cubic-bezier\(([^)]*)\)/i.test(text)) m.add('custom-ease')
-  else if (/\b(ease-in-out|ease-out|ease-in|linear)\b/i.test(text) && m.size) m.add('stock-ease')
+  // `linear` on its own, never the one inside linear-gradient: a still page with a gradient
+  // was being credited with an easing curve it does not have.
+  else if (/(?:transition|animation)[^;}]*\b(?:ease-in-out|ease-out|ease-in|linear)\b|\b(?:ease-in-out|ease-out|ease-in)\b|(?<!-)\blinear\b(?!-)/i.test(text) && m.size) m.add('stock-ease')
   return [...m]
 }
 
@@ -135,18 +152,38 @@ export function signature(raw, name = '') {
     if (b) counts.set(b, (counts.get(b) || 0) + 1)
   }
   const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k)
+  // Every colour, with its chroma, so the accent can be chosen for BEING the accent.
+  const chromas = new Map()
+  for (const raw of text.match(COLOUR_RE) || []) {
+    const k = hsl(raw)
+    const b = bucketColour(k)
+    if (b && k) chromas.set(b, Math.max(chromas.get(b) ?? 0, Number.isFinite(k.c) ? k.c : 0))
+  }
   // The GROUND is what the page is painted on, which is a property of one rule rather than of
   // how often a colour is mentioned: a ground declared once covers everything, and an accent
   // repeated in nine rules covers almost nothing. Counting occurrences got this backwards.
+  // A ground is a BACKGROUND. Deciding it from a closed list of selector names meant renaming a
+  // wrapper from `body` to `.canvas` silently moved both colour axes at once — the fallback was
+  // the most-mentioned colour of any kind, which is normally the accent.
+  //
+  // So: prefer a background on the root elements, and otherwise take the commonest colour used
+  // as a background anywhere. Whatever the wrapper is called, the ground is what is painted.
   let ground = null
-  for (const m of text.matchAll(/(?:^|[\s,{}>])(?:html|body|:root|\.slide|\.post|\.page|\.sheet)\b[^{}]*\{([^{}]*)\}/gi)) {
+  const bgCounts = new Map()
+  for (const m of text.matchAll(/(?:^|[;\s{])background(?:-color|-image)?\s*:\s*([^;}]+)/gi)) {
+    for (const raw of m[1].match(COLOUR_RE) || []) {
+      const b = bucketColour(hsl(raw))
+      if (b) bgCounts.set(b, (bgCounts.get(b) || 0) + 1)
+    }
+  }
+  for (const m of text.matchAll(/(?:^|[\s,{}>])(?:html|body|:root)\b[^{}]*\{([^{}]*)\}/gi)) {
     const bg = /(?:^|[;\s])background(?:-color)?\s*:\s*([^;}]+)/i.exec(m[1])
     if (!bg) continue
     const first = (bg[1].match(COLOUR_RE) || [])[0]
     const b = first && bucketColour(hsl(first))
     if (b) { ground = b; break }
   }
-  if (!ground) ground = ranked[0] || null
+  if (!ground) ground = [...bgCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || ranked[0] || null
   // The accent is the saturated colour that is NOT the ground — the one choice that carries a
   // piece's identity, and the one that repeats without anyone noticing.
   //
@@ -154,10 +191,11 @@ export function signature(raw, name = '') {
   // cream and charcoal are not the same decision — but two hand-picked oranges a few percent
   // apart are one orange to any eye, and splitting them on a bucket boundary would let the
   // habit this exists to catch walk straight through it.
-  const coarse = (k) => (k ? k.replace(/:(\d+)$/, '') : k)
-  const pick = ranked.find((k) => k !== ground && /:sat:/.test(k))
-    || ranked.find((k) => k !== ground && /:muted:/.test(k)) || null
-  const accent = coarse(pick)
+  // The accent is the most SATURATED colour that is not the ground, not the most mentioned one.
+  // Mention count is a fact about the stylesheet; chroma is a fact about the design.
+  const accent = [...chromas.entries()]
+    .filter(([k]) => k !== ground && !/^(ink:black|ground:white|neutral:)/.test(k))
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || null
   return {
     name,
     palette: ranked.slice(0, 5),
@@ -178,29 +216,57 @@ const overlap = (a, b) => {
   return { shared, ratio: union ? shared.length / union : 0 }
 }
 
+// What everyone has. Sharing one of these is not evidence of a habit, it is evidence of the
+// web — and an axis that cannot distinguish anything can only produce false repeats.
+const UNIVERSAL_GROUND = /^(ground:white|ink:black)$/
+const UNIVERSAL_GRAMMAR = new Set(['flex-stack', 'centred', 'placed', 'pill'])
+const UNIVERSAL_MOTION = new Set(['transition', 'stock-ease'])
+
 /** The axes two pieces share. Five axes, each worth naming on its own. */
 export function compare(a, b) {
   const axes = []
-  if (a.ground && a.ground === b.ground) axes.push({ axis: 'ground', what: a.ground })
+  // A white ground is not a shared decision. Any other ground — a cream, a navy, a green-black —
+  // is one, and is the axis that repeats most invisibly.
+  if (a.ground && a.ground === b.ground && !UNIVERSAL_GROUND.test(a.ground)) {
+    axes.push({ axis: 'ground', what: a.ground })
+  }
   if (a.accent && a.accent === b.accent) axes.push({ axis: 'accent', what: a.accent })
   const f = overlap(a.faces, b.faces)
-  if (f.shared.length) axes.push({ axis: 'type', what: f.shared.join(' + ') })
+  // A face shared out of two small sets is a pairing; one face out of five or six each is a
+  // coincidence, or a system font both happened to list.
+  if (f.shared.length && f.ratio >= 0.34) axes.push({ axis: 'type', what: f.shared.join(' + ') })
   const g = overlap(a.grammar, b.grammar)
-  if (g.ratio >= 0.6 && g.shared.length >= 2) axes.push({ axis: 'layout', what: g.shared.join(', ') })
+  const gDistinct = g.shared.filter((x) => !UNIVERSAL_GRAMMAR.has(x))
+  if (g.ratio >= 0.6 && gDistinct.length >= 2) axes.push({ axis: 'layout', what: g.shared.join(', ') })
   const m = overlap(a.motion, b.motion)
-  if (m.ratio >= 0.6 && m.shared.length >= 1) axes.push({ axis: 'motion', what: m.shared.join(', ') })
+  const mDistinct = m.shared.filter((x) => !UNIVERSAL_MOTION.has(x))
+  if (m.ratio >= 0.6 && mDistinct.length >= 1) axes.push({ axis: 'motion', what: m.shared.join(', ') })
   return { axes, score: axes.length }
 }
 
 /** The body of work a folder belongs to. Two folders whose names share a run of two or more
  *  leading words are one project: `harbor-swim-club-deck` and `harbor-swim-club-icons` are an
  *  identity system delivered across fields, not two designs that happen to agree. */
-export function projectKey(dir) {
+export function projectKey(dir, siblings) {
   const name = basename(dir)
   const parts = name.split(/[-_]/).filter(Boolean)
-  // Two words is enough to be a name and not a category: `deck` and `icons` share nothing,
-  // `harbor-swim-club-deck` and `harbor-swim-club-icons` share three.
-  return parts.length >= 3 ? join(dirname(dir), parts.slice(0, parts.length - 1).join('-')) : dir
+  if (parts.length < 3 || !siblings || !siblings.length) return dir
+  // A shared prefix is only a project when the LAST word is what varies and the prefix is a
+  // name rather than a convention. Dropping the last segment unconditionally merged
+  // `my-cool-thing` with `my-cool-other`, and every folder in a dated `2026-01-*` scheme.
+  // So: the prefix must be at least two words, and none of them may be purely numeric.
+  const prefix = parts.slice(0, -1)
+  if (prefix.length < 2 || prefix.some((w) => /^\d+$/.test(w))) return dir
+  // And the prefix has to be shared by SEVERAL folders. An identity system arrives as a deck,
+  // an email, an icon set and a brand sheet — three or more. Two folders that happen to agree
+  // on their first words are a coincidence, and merging them hides exactly the repetition
+  // between two projects that this is for.
+  const key = join(dirname(dir), prefix.join('-'))
+  const family = siblings.filter((d) => {
+    const p = basename(d).split(/[-_]/).filter(Boolean)
+    return p.length >= 3 && join(dirname(d), p.slice(0, -1).join('-')) === key
+  })
+  return family.length >= 3 ? key : dir
 }
 
 // ── files ────────────────────────────────────────────────────────────────────────────────────
@@ -279,14 +345,21 @@ export function judge(targets, corpusFiles) {
     // system is delivered as brand-deck, brand-email, brand-icons, and treating those as three
     // separate works would report the very consistency they exist to demonstrate.
     const here = dirname(resolve(file))
-    const same = (a, b) => a === b || projectKey(a) === projectKey(b)
+    const folders = [...new Set(corpusFiles.map((f) => dirname(resolve(f))))]
+    // A piece is in the same project when it is in the same folder, somewhere BENEATH the
+    // piece's own folder, or in a folder whose name shares this one's prefix. Without the
+    // second of those, an ordinary multi-page site — index.html with about/ and blog/ under
+    // it — failed the gate at exit 1 for looking like itself, which is the crying-wolf this
+    // exists to avoid.
+    const under = (x, root) => x === root || x.startsWith(root + sep)
+    const same = (a, b) => a === b || under(a, b) || under(b, a) || projectKey(a, folders) === projectKey(b, folders)
     const elsewhere = matches.filter((m) => !same(dirname(resolve(m.file)), here))
     const nearest = elsewhere[0] || null
     const sibling = matches.find((m) => same(dirname(resolve(m.file)), here) && resolve(m.file) !== resolve(file)) || null
     // How many other PROJECTS, not how many other files: ten pages of one site is one look, and
     // "distinct against one other project" is barely evidence of anything. A thin corpus is
     // reported as thin rather than dressed up as a clean bill.
-    const projectsSeen = new Set(elsewhere.map((m) => projectKey(dirname(resolve(m.file)))))
+    const projectsSeen = new Set(elsewhere.map((m) => projectKey(dirname(resolve(m.file)), folders)))
     const verdict = !elsewhere.length ? 'alone'
       : !nearest || nearest.score <= 1 ? 'distinct'
         : nearest.score === 2 ? 'familiar'
@@ -301,11 +374,14 @@ export function judge(targets, corpusFiles) {
 }
 
 function report(results, { quiet = false } = {}) {
-  let worst = 'distinct'
-  const rank = { alone: 0, distinct: 0, familiar: 1, repeat: 2 }
+  // 'alone' is not a better 'distinct', it is the absence of an answer — and it has to be able
+  // to win, or a solo file prints "nothing to compare it with" and then "this does not look like
+  // the other work here", which are two sentences that contradict each other.
+  let worst = null
+  const rank = { alone: 0, distinct: 1, familiar: 2, repeat: 3 }
   for (const r of results) {
     if (r.unreadable) { console.log(`  ${C.yellow}?${C.off}  ${r.file} could not be read`); continue }
-    if (rank[r.verdict] > rank[worst]) worst = r.verdict
+    if (worst === null || rank[r.verdict] > rank[worst]) worst = r.verdict
     if (quiet) continue
     const colour = { alone: C.dim, distinct: C.green, familiar: C.yellow, repeat: C.red }[r.verdict]
     const s = r.signature
@@ -331,7 +407,7 @@ function report(results, { quiet = false } = {}) {
     distinct: 'This does not look like the other work here. That is the floor, not proof it is good — and if the corpus is two projects wide, it is barely even the floor.',
     familiar: 'This shares two axes with something you have already made. Deliberate, or a reflex?',
     repeat: 'You have made this before. Three or more of five axes are the same piece wearing a different subject — if the repetition is the identity, say so; if it is not, change the one that carries the most meaning.',
-  }[worst]
+  }[worst || 'alone']
   console.log(`\n  ${{ alone: C.dim, distinct: C.green, familiar: C.yellow, repeat: C.red }[worst]}${line}${C.off}\n`)
   return worst
 }

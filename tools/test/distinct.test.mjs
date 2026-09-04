@@ -8,10 +8,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
-import { signature, compare, judge } from '../distinct.mjs'
+import { signature, compare, judge, projectKey } from '../distinct.mjs'
 
 const TOOL = join(REPO, 'tools', 'distinct.mjs')
 
@@ -38,7 +38,11 @@ test('the ground is read where it is painted, not where it is mentioned most', (
     .d { outline-color: #ff5a1f } .e { background: #ff5a1f }
   </style>`)
   assert.ok(s.ground, 'a ground was identified')
-  assert.notEqual(s.ground, s.accent, 'the ground is not the accent')
+  // Not `notEqual(ground, accent)`: the two use different encodings and can never be equal,
+  // so that held even when ground detection had failed and the ground WAS the accent colour.
+  // Assert what is meant — the ground is the cream, the accent is the orange.
+  assert.match(s.ground, /^30:tinted/, `the cream is the ground, got ${s.ground}`)
+  assert.equal(s.accent, '30:sat', `the orange is the accent, got ${s.accent}`)
   assert.match(s.accent, /:sat$/, 'the saturated colour is the accent even when the ground is rarer, identified by hue')
 })
 
@@ -126,4 +130,82 @@ test('the CLI exits 1 on a repeat and 0 otherwise, and --json carries the axes',
 
   // A path that does not exist is an error, not a silent pass.
   assert.equal(run([join(d, 'nope.html')]).status, 2)
+})
+
+test('the creams this tool exists to catch land in one bucket', () => {
+  // The headline defect: HSL saturation is violently unstable near white, so #efe9dc (0.373)
+  // and #f2e9d6 (0.519) fell either side of a 0.5 cut and the package's own corpus — six
+  // designs in one cream — came back "distinct" from the tool built to find exactly that.
+  const ground = (hex) => signature(`<style>body{background:${hex}}</style>`).ground
+  const creams = ['#efe9dc', '#f2e9d6', '#f4f1ea', '#fdfaf2']
+  const buckets = new Set(creams.map(ground))
+  assert.equal(buckets.size, 1, `four creams, ${buckets.size} buckets: ${[...buckets].join(', ')}`)
+
+  // And a true neutral is still a neutral, not a tinted colour.
+  assert.match(ground('#fafaf7'), /^(neutral|ground:white)/)
+  assert.equal(ground('#ffffff'), 'ground:white')
+  assert.equal(ground('#808080'), signature('<style>body{background:#7f7f7f}</style>').ground)
+})
+
+test('the accent is the most saturated colour, not the most mentioned one', () => {
+  // Mention count is a fact about the stylesheet; chroma is a fact about the design. A blue
+  // named in nine rules used to take the accent slot from the orange that carries the piece.
+  const s = signature(`<style>body{background:#efe9dc}
+    .a{color:#3b82f6}.b{border-color:#3b82f6}.c{fill:#3b82f6}.d{outline-color:#3b82f6}
+    .e{stroke:#3b82f6}.f{background:#3b82f6}.g{color:#3b82f6}.h{color:#3b82f6}
+    .accent{color:#ff5a1f}</style>`)
+  assert.equal(s.accent, '30:sat', `the orange is the accent, got ${s.accent}`)
+})
+
+test('the ground survives a wrapper this tool has never heard of', () => {
+  // Ground detection keyed on a closed list of selector names, so renaming body to .canvas
+  // silently moved BOTH colour axes — the fallback was the most-mentioned colour of any kind.
+  const named = signature('<style>body{background:#efe9dc}.x{color:#ff5a1f}.y{color:#ff5a1f}</style>')
+  const wrapper = signature('<style>.canvas{background:#efe9dc}.x{color:#ff5a1f}.y{color:#ff5a1f}</style>')
+  assert.equal(wrapper.ground, named.ground, 'the ground is what is painted, whatever it is called')
+  assert.equal(wrapper.accent, named.accent)
+})
+
+test('a white ground and a stock transition are not a shared decision', () => {
+  // Four near-universal axes made two pieces with nothing visually in common score 4 of 5.
+  const plain = (face) => signature(`<style>body{background:#fff;font-family:"${face}",serif}
+    .r{display:flex}.c{text-align:center}.t{transition:opacity .2s ease-out}</style>`)
+  const { axes } = compare(plain('Inter'), plain('Inter'))
+  assert.ok(axes.every((a) => a.axis !== 'ground'), 'white is not a decision')
+  assert.ok(axes.every((a) => a.axis !== 'layout'), 'flex and centred are not a grammar')
+  assert.ok(axes.every((a) => a.axis !== 'motion'), 'a transition with a stock curve is not a motion law')
+
+  // And `linear` inside linear-gradient is not an easing curve on a page that does not move.
+  const still = signature('<style>.a{background:linear-gradient(#fff,#000)}</style>')
+  assert.deepEqual(still.motion, [], 'a gradient is not motion')
+})
+
+test('a folder that shares a prefix by convention is not one project', () => {
+  // Dropping the last word merged `my-cool-thing` with `my-cool-other`, and collapsed every
+  // dated `2026-01-*` scheme into a single project, hiding repetition wholesale.
+  // An identity system arrives as several pieces; two folders agreeing on their first words
+  // are a coincidence. So the family needs three, which is what a real one has.
+  const sib = ['/w/my-cool-thing', '/w/my-cool-other', '/w/2026-01-poster', '/w/2026-01-menu',
+    '/w/harbor-swim-club-deck', '/w/harbor-swim-club-icons', '/w/harbor-swim-club-email']
+  assert.notEqual(projectKey('/w/my-cool-thing', sib), projectKey('/w/my-cool-other', sib))
+  assert.notEqual(projectKey('/w/2026-01-poster', sib), projectKey('/w/2026-01-menu', sib))
+  assert.equal(projectKey('/w/harbor-swim-club-deck', sib), projectKey('/w/harbor-swim-club-icons', sib),
+    'a brand delivered across fields is still one project')
+  // Two of them is not a family.
+  const pair = ['/w/harbor-swim-club-deck', '/w/harbor-swim-club-icons']
+  assert.notEqual(projectKey(pair[0], pair), projectKey(pair[1], pair))
+})
+
+test('a multi-page site is one project and does not fail for looking like itself', (t) => {
+  const d = scratch(t)
+  const page = '<!doctype html><html><head><style>body{background:#efe9dc;font-family:"Archivo",serif}'
+    + '.a{color:#ff5a1f}</style></head><body><h1 class="a">x</h1></body></html>'
+  for (const rel of [['index.html'], ['about', 'index.html'], ['blog', 'index.html']]) {
+    const p = join(d, ...rel)
+    mkdirSync(dirname(p), { recursive: true })
+    writeFileSync(p, page, 'utf8')
+  }
+  const files = [join(d, 'index.html'), join(d, 'about', 'index.html'), join(d, 'blog', 'index.html')]
+  const [r] = judge([files[0]], files)
+  assert.equal(r.verdict, 'alone', 'the pages of one site are one project')
 })

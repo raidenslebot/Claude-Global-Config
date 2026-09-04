@@ -26,7 +26,14 @@ const NAMED = {
   purple: 280, violet: 270, indigo: 250, fuchsia: 300, pink: 330, rose: 350, blue: 230,
   green: 140, emerald: 160, lime: 90, cyan: 190, teal: 175,
 }
-/** Hue, saturation and lightness of a CSS colour literal, or null. Enough for a fingerprint. */
+/** Hue, saturation, lightness and CHROMA of a CSS colour literal, or null.
+ *
+ *  `c` is (max - min) of the sRGB triple, and it is the field to reach for when comparing two
+ *  colours. HSL saturation is violently unstable near white — #efe9dc and #f2e9d6 are the same
+ *  cream to any eye and measure 0.373 and 0.519, while #fffdf7 measures a fully saturated 1.0 —
+ *  so any threshold on `s` splits pale colours at random. Their chromas are 0.075, 0.110 and
+ *  0.031. The fingerprint families use `s` because their bands were tuned on it; anything
+ *  comparing one colour to another should use `c`. */
 export function hsl(str) {
   let r, g, b
   let m
@@ -37,19 +44,21 @@ export function hsl(str) {
   } else if ((m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(str))) {
     r = +m[1]; g = +m[2]; b = +m[3]
   } else if ((m = /^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%/i.exec(str))) {
-    return { h: +m[1], s: +m[2] / 100, l: +m[3] / 100 }
+    // hsl() states its own saturation; chroma follows from it and the lightness.
+    { const S = +m[2] / 100, L = +m[3] / 100; return { h: +m[1], s: S, l: L, c: S * (1 - Math.abs(2 * L - 1)) } }
   } else if ((m = /^oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/i.exec(str))) {
     // oklch hue is not hsl hue, but the purple band and the acid band land in the same place.
     const L = +m[1] > 1 ? +m[1] / 100 : +m[1]
-    return { h: +m[3], s: Math.min(1, +m[2] / 0.3), l: L }
+    // oklch states chroma directly; 0.37 is about the sRGB maximum, so it normalises there.
+    return { h: +m[3], s: Math.min(1, +m[2] / 0.3), l: L, c: Math.min(1, +m[2] / 0.37) }
   } else return null
   r /= 255; g /= 255; b /= 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2
-  if (max === min) return { h: 0, s: 0, l }
+  if (max === min) return { h: 0, s: 0, l, c: 0 }
   const d = max - min
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
   let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
-  return { h: h * 60, s, l }
+  return { h: h * 60, s, l, c: d }
 }
 const COLOUR = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\)/gi
 // indigo-500 (#6366f1) sits at 239° and the canonical #667eea at 229°; the band starts in

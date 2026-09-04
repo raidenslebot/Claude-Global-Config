@@ -353,7 +353,30 @@ export function pageWithStyles(file, text) {
     try { p = resolve(dirname(file), decodeURIComponent(href.split('?')[0].split('#')[0])) } catch { continue }
     if (seen.has(p)) continue
     seen.add(p)
-    try { pieces.push({ file: p, text: readFileSync(p, 'utf8') }) } catch { /* not ours to read */ }
+    let css
+    try { css = readFileSync(p, 'utf8') } catch { continue }
+    pieces.push({ file: p, text: css })
+    // A stylesheet may pull in another with @import, and that is how a shared page size or type
+    // scale is usually kept in one place. Not following it meant reporting "no @page rule" for a
+    // document that declares one, two files away — the exact case this function exists for.
+    follow(p, css, pieces, seen, 0)
   }
   return pieces
+}
+
+/** @import chains, depth-limited. A cycle is stopped by `seen`; the depth cap is for a chain
+ *  long enough to be a mistake rather than a system. */
+function follow(from, css, pieces, seen, depth) {
+  if (depth > 4) return
+  for (const m of css.matchAll(/@import\s+(?:url\(\s*)?["']([^"')]+)["']/gi)) {
+    if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+    let p
+    try { p = resolve(dirname(from), decodeURIComponent(m[1].split('?')[0].split('#')[0])) } catch { continue }
+    if (seen.has(p)) continue
+    seen.add(p)
+    let css2
+    try { css2 = readFileSync(p, 'utf8') } catch { continue }
+    pieces.push({ file: p, text: css2 })
+    follow(p, css2, pieces, seen, depth + 1)
+  }
 }

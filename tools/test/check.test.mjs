@@ -260,3 +260,31 @@ test('a fixed canvas is audited at its own size, and a linked part is judged thr
   const css = j.results.find((f) => f.file.endsWith('deck.css'))
   assert.equal(css.gates.some((g) => g.gate === 'techniques'), false)
 })
+
+test('the motion gate sees an animation that lives in a linked stylesheet', (t) => {
+  // "Anything that moves is judged in frames" only holds if the thing deciding what moves can
+  // see the whole page. The gate was selected from the file's own text, so a page whose
+  // @keyframes live one file away — the ordinary arrangement — was never watched at all.
+  const d = scratch(t)
+  writeFileSync(join(d, 'anim.css'), [
+    '.rise{animation:rise 600ms cubic-bezier(.2,.8,.2,1) both}',
+    '@keyframes rise{from{opacity:0;transform:translateY(2rem)}to{opacity:1;transform:none}}',
+    'body{font-family:Georgia,serif;background:#faf7f2;color:#1a1a1a}',
+  ].join('\n'), 'utf8')
+  const file = join(d, 'moves.html')
+  writeFileSync(file, '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>M</title>'
+    + '<link rel="stylesheet" href="anim.css"></head><body><div class="rise">'
+    + 'Content that animates in. '.repeat(60) + '</div></body></html>', 'utf8')
+
+  const j = JSON.parse(run([file, '--json', '--skip', 'audit']).out)
+  const gates = j.results[0].gates.map((g) => g.gate)
+  assert.ok(gates.includes('motion'), `the page animates and must be watched: ${gates.join(', ')}`)
+
+  // A page with no animation anywhere is still left alone.
+  writeFileSync(join(d, 'still.css'), 'body{font-family:Georgia,serif;background:#faf7f2}', 'utf8')
+  const still = join(d, 'still.html')
+  writeFileSync(still, '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>S</title>'
+    + '<link rel="stylesheet" href="still.css"></head><body><p>' + 'Nothing moves. '.repeat(90) + '</p></body></html>', 'utf8')
+  const j2 = JSON.parse(run([still, '--json', '--skip', 'audit']).out)
+  assert.ok(!j2.results[0].gates.some((g) => g.gate === 'motion'), 'a still page is not sent to the motion gate')
+})

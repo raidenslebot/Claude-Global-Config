@@ -27,6 +27,7 @@ import { existsSync, statSync, readdirSync, readFileSync, realpathSync } from 'n
 import { join, extname, resolve, basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { pageWithStyles } from './paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = new Set(['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', '.svelte', '.astro'])
@@ -217,7 +218,9 @@ export async function main(argv = process.argv.slice(2)) {
     }
     const physical = PAGE_SIZE.test(withoutQuotedCode(text))
     const sprite = ext === '.svg' && /<symbol\b/i.test(text)
-    const moves = MOVES.test(withoutQuotedCode(text))
+    // The whole page, stylesheets included: a page whose @keyframes live one file away moves
+    // exactly as much as one with them inline, and was never sent to the motion gate at all.
+    const moves = pageWithStyles(file, text).some((piece) => MOVES.test(withoutQuotedCode(piece.text)))
 
     const inSet = ext === '.svg' && (drawn.get(dirname(file)) || 0) >= 3
     if (!skip.has('techniques') && text.length >= SUBSTANTIAL && !sprite && !parts.has(file) && !inSet) {
@@ -227,7 +230,7 @@ export async function main(argv = process.argv.slice(2)) {
         gates.push(fromJson('techniques', r, (t) => ({
           gate: 'techniques',
           level: t.verdict === 'assembled' ? 'fail' : t.verdict === 'conventional' ? 'warn' : 'ok',
-          line: `${t.verdict} · ${t.count} of ${t.pool} · ${(t.media || []).map((m) => m.label).join(' + ') || 'unknown medium'}`,
+          line: `${t.verdict} · ${t.count} of ${t.pool} across ${t.entered ?? '?'} of 8 dimensions · ${(t.media || []).map((m) => m.label).join(' + ') || 'unknown medium'}`,
           next: (t.untouched || []).length
             ? `never entered: ${t.untouched.map((u) => u.dim || u).join(', ')} — decide whether that was a choice (cgc techniques "${file}" --all)`
             : '',
