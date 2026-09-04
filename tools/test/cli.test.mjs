@@ -568,3 +568,28 @@ test('the test runner is capped, so one suite cannot take the whole machine', ()
     assert.match(src, /CGC_TEST_CONCURRENCY/, `${name}'s runner (${named[1]}) must honour the parent's cap`)
   }
 })
+
+test('every flag a tool accepts is documented in its own --help', () => {
+  // The doctor told people to run `install.mjs --only=mcp --dedupe`, and `--help` had never
+  // heard of it. A flag a tool recommends, or silently accepts, and does not document is a
+  // feature that exists only for whoever wrote it.
+  const skip = new Set(['--help', '--json', '--version'])
+  const undocumented = []
+  for (const f of readdirSync(TOOLS).filter((f) => f.endsWith('.mjs'))) {
+    const src = readFileSync(join(TOOLS, f), 'utf8')
+    // Flags the tool actually reads, however it reads them.
+    const flags = new Set()
+    for (const re of [/args\.includes\(['"](--[\w-]+)['"]\)/g, /argv\.includes\(['"](--[\w-]+)['"]\)/g,
+      /a === ['"](--[\w-]+)['"]/g, /startsWith\(['"](--[\w-]+)=?['"]\)/g]) {
+      for (const m of src.matchAll(re)) flags.add(m[1])
+    }
+    if (!flags.size) continue
+    // The tool's own documentation: its usage header, its HELP string, or both.
+    const help = src.slice(0, 3000) + (/const HELP = `([\s\S]*?)`/.exec(src)?.[1] || '')
+    for (const flag of flags) {
+      if (skip.has(flag)) continue
+      if (!help.includes(flag)) undocumented.push(`${f} accepts ${flag} and never mentions it`)
+    }
+  }
+  assert.deepEqual(undocumented, [], undocumented.join('\n'))
+})

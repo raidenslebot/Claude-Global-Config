@@ -298,3 +298,41 @@ test('every rule passes the legitimate version, and the piece that sits exactly 
   assert.deepEqual(fired, [], 'press-ready files the gate rejected')
   assert.ok(cases.length >= 10)
 })
+
+test('a page is linted with the stylesheets it links, because that is what goes to press', (t) => {
+  // This read the markup only. For any piece whose CSS lives in a separate file — nearly all
+  // real print work — it measured no type, no line weights and no rasters, and reported "no
+  // @page rule, the document has no physical size" for a document that declares one. Worse, it
+  // could report a pass having checked almost nothing.
+  const d = scratch(t)
+  writeFileSync(join(d, 'sheet.css'), [
+    '@page { size: 3.5in 2in; margin: 0 }',
+    'body { font-family: Archivo; font-size: 9pt }',
+    '.fine { font-size: 3pt }',                       // below every minimum
+    '.hair { border-top: 0.05pt solid }',             // a hairline that would drop out
+  ].join('\n'), 'utf8')
+  const p = file(d, 'card.html', '<!doctype html><html><head><link rel="stylesheet" href="sheet.css">'
+    + '</head><body><p class="fine">tiny</p><div class="hair"></div></body></html>')
+
+  const r = lint(p, {})
+  const rules = r.findings.map((f) => f.rule)
+  assert.ok(!rules.includes('size'), 'the @page rule is in the stylesheet, and it counts')
+  assert.ok(rules.includes('type'), 'type set in the stylesheet is measured')
+  assert.ok(rules.includes('line'), 'a hairline in the stylesheet is measured')
+  assert.match(r.findings.find((f) => f.rule === 'type').msg, /3pt/)
+
+  // A stylesheet that is missing, remote, or unreadable is skipped rather than fatal — the
+  // markup is still linted, and the page is not failed for something it does not control.
+  const q = file(d, 'remote.html', '<!doctype html><html><head>'
+    + '<link rel="stylesheet" href="https://example.invalid/x.css">'
+    + '<link rel="stylesheet" href="gone.css">'
+    + '<style>@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}</style>'
+    + '</head><body><p>x</p></body></html>')
+  const r2 = lint(q, {})
+  assert.ok(!r2.findings.some((f) => f.rule === 'size'), 'an unreachable stylesheet is not a size failure')
+
+  // An href carrying a query or a fragment still names a real file.
+  const s = file(d, 'q.html', '<!doctype html><html><head>'
+    + '<link rel="stylesheet" href="sheet.css?v=3#top"></head><body><p class="fine">x</p></body></html>')
+  assert.ok(lint(s, {}).findings.some((f) => f.rule === 'type'), 'a cache-busted href is the same file')
+})
