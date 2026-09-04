@@ -78,10 +78,29 @@ const band = (l) => Math.min(2, Math.max(0, Math.floor(l * 3)))
 
 const COLOUR_RE = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|oklch\([^)]*\)/gi
 
+/** Fully transparent, however it is written. Not a colour anyone sees: rgba(0,0,0,0) is the
+ *  commonest way to write the far end of a fade, and counting it as black made every
+ *  gradient read as a dark ground. */
+function transparent(raw) {
+  const s = String(raw)
+  if (/^#[0-9a-f]{8}$/i.test(s)) return parseInt(s.slice(7, 9), 16) === 0
+  if (/^#[0-9a-f]{4}$/i.test(s)) return parseInt(s[4], 16) === 0
+  const m = /^(?:rgba|hsla)\(([^)]*)\)/i.exec(s)
+  if (!m) return false
+  const parts = m[1].split(/[,/]/).map((x) => x.trim()).filter(Boolean)
+  if (parts.length < 4) return false
+  const alpha = parts[3].endsWith("%") ? Number(parts[3].slice(0, -1)) / 100 : Number(parts[3])
+  return alpha === 0
+}
+
 /** Faces actually asked for, in the order they are declared: the first is usually the display. */
 function faces(text) {
   const out = []
-  for (const m of text.matchAll(/font-family\s*:\s*([^;}]+)/gi)) {
+  const decls = [...text.matchAll(/font-family\s*:\s*([^;}]+)/gi)]
+  // The `font:` shorthand names a face too, and this read only the longhand — a page setting
+  // its type in one declaration reported no face at all, and so no type axis.
+  for (const m of text.matchAll(/(?:^|[;{\s])font\s*:\s*(?:[\w-]+\s+){0,4}[\d.]+(?:px|pt|rem|em|%)?(?:\/[\d.]+\w*)?\s+([^;}]+)/gi)) decls.push(m)
+  for (const m of decls) {
     for (const part of m[1].split(',')) {
       const name = part.trim().replace(/^["']|["']$/g, '').toLowerCase()
       if (!name || /^(var\(|inherit|initial|unset)/.test(name)) continue
@@ -148,6 +167,9 @@ export function signature(raw, name = '') {
   const text = resolveVars(raw)
   const counts = new Map()
   for (const raw of text.match(COLOUR_RE) || []) {
+    // A transparent literal is not a colour on the page. rgba(0,0,0,0) is the commonest way to
+    // write the far end of a fade, and counting it as black made every gradient a dark ground.
+    if (transparent(raw)) continue
     const b = bucketColour(hsl(raw))
     if (b) counts.set(b, (counts.get(b) || 0) + 1)
   }
@@ -155,6 +177,7 @@ export function signature(raw, name = '') {
   // Every colour, with its chroma, so the accent can be chosen for BEING the accent.
   const chromas = new Map()
   for (const raw of text.match(COLOUR_RE) || []) {
+    if (transparent(raw)) continue
     const k = hsl(raw)
     const b = bucketColour(k)
     if (b && k) chromas.set(b, Math.max(chromas.get(b) ?? 0, Number.isFinite(k.c) ? k.c : 0))
@@ -172,6 +195,8 @@ export function signature(raw, name = '') {
   const bgCounts = new Map()
   for (const m of text.matchAll(/(?:^|[;\s{])background(?:-color|-image)?\s*:\s*([^;}]+)/gi)) {
     for (const raw of m[1].match(COLOUR_RE) || []) {
+      // A transparent background paints nothing, so it is not a ground.
+      if (transparent(raw)) continue
       const b = bucketColour(hsl(raw))
       if (b) bgCounts.set(b, (bgCounts.get(b) || 0) + 1)
     }
@@ -179,7 +204,7 @@ export function signature(raw, name = '') {
   for (const m of text.matchAll(/(?:^|[\s,{}>])(?:html|body|:root)\b[^{}]*\{([^{}]*)\}/gi)) {
     const bg = /(?:^|[;\s])background(?:-color)?\s*:\s*([^;}]+)/i.exec(m[1])
     if (!bg) continue
-    const first = (bg[1].match(COLOUR_RE) || [])[0]
+    const first = (bg[1].match(COLOUR_RE) || []).find((c) => !transparent(c))
     const b = first && bucketColour(hsl(first))
     if (b) { ground = b; break }
   }
@@ -305,13 +330,22 @@ export function corpusFor(target, extra = []) {
   const files = new Set()
   const t = resolve(target)
   const base = statSync(t).isDirectory() ? t : dirname(t)
-  for (const f of walk(base)) files.add(resolve(f))
-  for (const dir of extra) for (const f of walk(resolve(dir))) files.add(resolve(f))
+  // --corpus REPLACES the default rather than adding to it, which is what the help says and
+  // what the flag is for: comparing against a named body of work, not against that plus
+  // whatever happens to sit beside the file.
+  if (!extra.length) for (const f of walk(base)) files.add(resolve(f))
+  for (const dir of extra) {
+    const d = resolve(dir)
+    if (!existsSync(d)) { console.error(`distinct: --corpus ${dir} does not exist`); continue }
+    for (const f of walk(d)) files.add(resolve(f))
+  }
+  // The target itself is always in the corpus, so it can be found and compared from.
+  files.add(t)
   // The corpus is YOUR body of work. Folding this package's own examples in by default would
   // tell a stranger their page resembles a swimming club they have never heard of — a
   // comparison against someone else's taste, which is the opposite of the point. They are
   // included only when the piece being judged is one of them.
-  if (!extra.length && t.startsWith(resolve(SHIPPED))) {
+  if (!extra.length && (t === resolve(SHIPPED) || t.startsWith(resolve(SHIPPED) + sep))) {
     for (const f of walk(SHIPPED)) files.add(resolve(f))
   }
   return [...files]
@@ -418,7 +452,11 @@ export function main(argv = process.argv.slice(2)) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--json' || a === '--quiet') args[a.slice(2)] = true
-    else if (a === '--corpus') args.corpus.push(argv[++i])
+    else if (a === '--corpus') {
+      const dir = argv[++i]
+      if (!dir || dir.startsWith('--')) { console.error('distinct: --corpus wants a directory'); return 2 }
+      args.corpus.push(dir)
+    }
     else if (a.startsWith('--')) { console.error(`distinct: unknown flag ${a}`); return 2 }
     else args._.push(a)
   }

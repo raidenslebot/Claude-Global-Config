@@ -34,6 +34,26 @@ const NAMED = {
  *  so any threshold on `s` splits pale colours at random. Their chromas are 0.075, 0.110 and
  *  0.031. The fingerprint families use `s` because their bands were tuned on it; anything
  *  comparing one colour to another should use `c`. */
+/** OKLCH -> sRGB (0-255), so an oklch literal takes exactly the same path as its hex twin.
+ *  Björn Ottosson's matrices; out-of-gamut values are clamped, which is what a browser shows. */
+function oklchToSrgb(L, C, Hdeg) {
+  const h = (Hdeg * Math.PI) / 180
+  const a = C * Math.cos(h), bb = C * Math.sin(h)
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * bb
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * bb
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * bb
+  const l3 = l_ ** 3, m3 = m_ ** 3, s3 = s_ ** 3
+  const lin = [
+    +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+    -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+    -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3,
+  ]
+  return lin.map((v) => {
+    const c = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.abs(v) ** (1 / 2.4) - 0.055
+    return Math.max(0, Math.min(255, Math.round(c * 255)))
+  })
+}
+
 export function hsl(str) {
   let r, g, b
   let m
@@ -47,10 +67,13 @@ export function hsl(str) {
     // hsl() states its own saturation; chroma follows from it and the lightness.
     { const S = +m[2] / 100, L = +m[3] / 100; return { h: +m[1], s: S, l: L, c: S * (1 - Math.abs(2 * L - 1)) } }
   } else if ((m = /^oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/i.exec(str))) {
-    // oklch hue is not hsl hue, but the purple band and the acid band land in the same place.
+    // Converted, not approximated. OKLCH hue is NOT HSL hue: oklch(0.48 0.21 5) and its exact
+    // hex #c3123f read 5° and 345°, which are different buckets at any useful resolution, and
+    // the same colour written both ways diverged in five of six samples. This package pushes
+    // authors toward oklch, so a corpus mixing the two notations systematically under-reported
+    // repetition — in the tool whose entire job is to find it.
     const L = +m[1] > 1 ? +m[1] / 100 : +m[1]
-    // oklch states chroma directly; 0.37 is about the sRGB maximum, so it normalises there.
-    return { h: +m[3], s: Math.min(1, +m[2] / 0.3), l: L, c: Math.min(1, +m[2] / 0.37) }
+    ;[r, g, b] = oklchToSrgb(L, +m[2], +m[3])
   } else return null
   r /= 255; g /= 255; b /= 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2

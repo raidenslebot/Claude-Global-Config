@@ -209,3 +209,53 @@ test('a multi-page site is one project and does not fail for looking like itself
   const [r] = judge([files[0]], files)
   assert.equal(r.verdict, 'alone', 'the pages of one site are one project')
 })
+
+test('oklch and its hex twin are the same colour', () => {
+  // OKLCH hue is not HSL hue: oklch(0.48 0.21 5) read 5° while the same colour in hex read
+  // 345°, different buckets at any useful resolution. This package pushes authors toward oklch,
+  // so a corpus mixing the two notations under-reported repetition — in the tool for finding it.
+  const ground = (v) => signature(`<style>body{background:${v}}</style>`).ground
+  for (const [ok, hex] of [
+    ['oklch(0.75 0.13 200)', '#00c6ce'],
+    ['oklch(0.6 0.2 30)', '#de3e2d'],
+    ['oklch(0.24 0.02 160)', '#17221c'],
+  ]) {
+    assert.equal(ground(ok), ground(hex), `${ok} and ${hex} are one colour`)
+  }
+})
+
+test('a transparent literal is not a colour on the page', () => {
+  // rgba(0,0,0,0) is how the far end of a fade is written, and counting it as black made every
+  // gradient read as a dark ground. An 8%-alpha tint is not the accent either.
+  const faded = signature('<style>body{background:#efe9dc}'
+    + '.f{background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0.9))}.a{color:#ff5a1f}</style>')
+  assert.match(faded.ground, /^30:tinted/, `the cream is still the ground, got ${faded.ground}`)
+  assert.equal(faded.accent, '30:sat')
+  assert.equal(signature('<style>body{background:#0000}.a{color:#ff5a1f}</style>').ground !== 'ink:black', true)
+})
+
+test('a face named in the font shorthand is still a face', () => {
+  // print-lint parses this shorthand, so the form was known here. A page setting its type in one
+  // declaration reported no face at all, and therefore no type axis.
+  assert.deepEqual(signature('<style>h1{font:600 34px/1.1 "Archivo Narrow", sans-serif}</style>').faces,
+    ['archivo narrow'])
+})
+
+test('--corpus replaces the default and never dies on a missing value', (t) => {
+  const d = scratch(t)
+  const a = join(d, 'one'); const b = join(d, 'two')
+  mkdirSync(a, { recursive: true }); mkdirSync(b, { recursive: true })
+  const look = '<!doctype html><html><head><style>body{background:#efe9dc;font-family:"Archivo",serif}'
+    + '.a{color:#ff5a1f}</style></head><body><h1 class="a">x</h1></body></html>'
+  writeFileSync(join(a, 'x.html'), look, 'utf8')
+  writeFileSync(join(b, 'y.html'), look, 'utf8')
+  const run = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', timeout: 120000 })
+
+  // A trailing --corpus used to read undefined and die with an uncaught stack trace.
+  const bad = run([join(a, 'x.html'), '--corpus'])
+  assert.equal(bad.status, 2)
+  assert.match(bad.stderr, /--corpus wants a directory/)
+
+  // Naming a corpus compares against THAT, which is what the help says.
+  assert.equal(run([join(a, 'x.html'), '--corpus', d]).status, 1, 'the twin in the other folder is found')
+})

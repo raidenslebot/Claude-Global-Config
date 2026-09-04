@@ -5,6 +5,30 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.54.0 — 2026-09-03
+
+The tail of the same review, including one finding that undermined the release before it.
+
+**OKLCH hue is not HSL hue.** `oklch(0.48 0.21 5)` and the same colour written as hex read 5° and
+345° — different buckets at any useful resolution — and the same colour in the two notations
+diverged in five of six samples. This package pushes authors toward oklch, so a corpus mixing the
+two systematically under-reported repetition, in the tool whose entire job is to find it. It is a
+real conversion now — OKLCH through OKLab to sRGB — so an oklch literal takes exactly the same
+path as its hex twin and buckets identically. Verified by round-trip: every sample re-encoded to
+hex lands in the bucket it started in.
+
+The rest, all from the same review:
+
+- **A trailing `--corpus` died with an uncaught stack trace**, reading `undefined` as a path.
+- **`--corpus` was additive**, so the flag documented as naming a body of work could never
+  compare against that body alone — it always added whatever happened to sit beside the file.
+- **A transparent literal counted as a colour.** `rgba(0,0,0,0)` is how the far end of a fade is
+  written, and reading it as black made a page with one gradient report a dark ground. It is not
+  a ground either: a transparent background paints nothing.
+- **The `font:` shorthand was not read**, so a page setting its type in one declaration reported
+  no face at all, and therefore no type axis — a form `print-lint` already parses.
+- **`examples-of-mine` matched `examples`**, because the prefix test carried no separator.
+
 ## 1.53.0 — 2026-09-03
 
 **`cgc distinct` did not work.** An adversarial review of 1.50.0–1.51.0 opened with the finding
