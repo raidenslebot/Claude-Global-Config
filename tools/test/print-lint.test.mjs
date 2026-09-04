@@ -507,3 +507,36 @@ test('a misread selector costs severity, never the measurement', (t) => {
   assert.ok(fails.some((f) => /2pt/.test(f.msg)), 'an attribute selector does not soften it')
   assert.ok(fails.some((f) => /0\.08pt/.test(f.msg)), 'a rule inside @media does not soften it')
 })
+
+test('an id or class carrying a regex metacharacter never crashes or silences the gate', (t) => {
+  // The id escape had a malformed character class — `[]` closed it early — and a replacement of
+  // `$&`, which puts the match back unchanged. So an id was never escaped: `#logo(1)` became a
+  // capture group matching `#logo1`, and `nav[` or `a)b` threw and took the whole gate down.
+  // Found by auditing every RegExp in the repo built from something that is not a literal.
+  const d = scratch(t)
+  const png = Buffer.alloc(33)
+  png.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); png.writeUInt32BE(13, 8); png.write('IHDR', 12, 'latin1')
+  png.writeUInt32BE(600, 16); png.writeUInt32BE(400, 20)
+  writeFileSync(join(d, 'p.png'), png)
+
+  // 600px placed at 4in is 150dpi — a real failure that must survive whatever the id is called.
+  for (const id of ['logo(1)', 'nav[', 'a)b', 'x*', 'a+b', 'q?', '^t', 'back\slash', 'plain']) {
+    const p = file(d, 'x.html', '<!doctype html><html><head><style>@page{size:8.5in 11in;margin:0}'
+      + 'body{font-family:Archivo;font-size:10pt}img{width:4in}</style></head><body>'
+      + `<img id="${id}" src="p.png"></body></html>`)
+    let findings
+    assert.doesNotThrow(() => { findings = lint(p, {}).findings }, `id="${id}" must not crash the gate`)
+    const raster = findings.find((f) => f.rule === 'raster')
+    assert.ok(raster && raster.level === 'fail', `id="${id}": the 150dpi raster must still fail`)
+  }
+
+  // The same for a class, which was already escaped — so this holds the pair together.
+  for (const cls of ['a(b', 'c[d', 'e*f']) {
+    const p = file(d, 'c.html', '<!doctype html><html><head><style>@page{size:8.5in 11in;margin:0}'
+      + 'body{font-family:Archivo;font-size:10pt}img{width:4in}</style></head><body>'
+      + `<img class="${cls}" src="p.png"></body></html>`)
+    let findings
+    assert.doesNotThrow(() => { findings = lint(p, {}).findings }, `class="${cls}" must not crash`)
+    assert.ok(findings.some((f) => f.rule === 'raster' && f.level === 'fail'))
+  }
+})

@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.59.0 — 2026-09-03
+
+**The invariant from 1.58.0, property-tested rather than asserted.** Twenty thousand assembled
+stylesheets — comments containing braces, a brace inside a string, unbalanced braces, nested
+at-rules, CRLF, escaped selectors — and the text comes back byte-identical every time, with every
+range inside the file and covering only a rule body. Then the same claim from the outside: seven
+rules built to defeat the selector scanner in every way found so far, each of which does render,
+and each of which must produce a **failure** rather than a warning or nothing.
+
+That test found nothing, which is the useful answer. The audit it prompted found something else.
+
+**Every `RegExp` in the package built from something that is not a literal, checked.** One was
+broken: the id escape in the raster check had a malformed character class — the empty `[]` closed
+it early — and a replacement of `$&`, which puts the match back unchanged. So an id was never
+escaped at all. `#logo(1)` became a capture group matching `#logo1`, and an id of `nav[` or `a)b`
+**threw and took the entire press gate down**: exit 2, no report, on an ordinary HTML id. Two
+lines above it the class name was being escaped correctly, which is exactly how it went unseen.
+
+Both are now held by a test that runs nine metacharacter ids and three metacharacter classes
+through a real 150dpi raster failure and requires it to survive every one.
+
 ## 1.58.0 — 2026-09-03
 
 Four review rounds have found around forty-three defects, and rounds three and four each found

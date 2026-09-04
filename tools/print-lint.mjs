@@ -317,7 +317,11 @@ export function lint(file, opts = {}) {
           selectors.push('\\.' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         }
         const id = (tag.match(/id\s*=\s*["']([^"']+)["']/i) || [])[1]
-        if (id) selectors.push("#" + id.replace(/[.*+?^${}()|[]\]/g, "\$&"))
+        // The same escape the class line above uses. This one had a malformed character class —
+        // `[]` closed it early — and a replacement of `$&`, which puts the match back unchanged.
+        // So an id was never escaped: `#logo(1)` became a capture group matching `#logo1`, and
+        // an id like `nav[` threw and took the whole press gate down with it.
+        if (id) selectors.push('#' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         for (const sel of selectors) {
           wm = text.match(new RegExp(`(?:^|[\\s,}])${sel}\\s*(?:,[^{]*)?\\{[^}]*?(?<![-\\w])width\\s*:\\s*([\\d.]+)(in|mm|cm|pt)`, 'i'))
           if (wm) break
