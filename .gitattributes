@@ -2,7 +2,11 @@
 # called "bash\r" on Linux, and .githooks/pre-commit is a shell script. Pin them regardless of
 # the cloning machine's core.autocrlf, so a Windows checkout cannot commit a CRLF hook and a
 # POSIX checkout cannot receive one.
-* text=auto
+# Every tool in this package writes LF unconditionally, and several tests compare generated
+# output against the checked-out file byte for byte. With `text=auto` alone a Windows clone
+# gets CRLF, the generator writes LF, and the guard that says "a hand-edit cannot be silently
+# lost" fails on a fresh clone of a repo that passes in place.
+* text=auto eol=lf
 *.sh        text eol=lf
 .githooks/* text eol=lf
 *.js        text eol=lf

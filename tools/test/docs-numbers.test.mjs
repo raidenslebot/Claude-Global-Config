@@ -69,16 +69,27 @@ test('the repo count stated in prose matches sources.json', () => {
   }
 })
 
-test('every tier-2 path resolves, so the resident cost is measurable at all', (t) => {
-  if (!existsSync(LIBRARY_ROOT)) return t.skip('library not cloned on this machine')
+// The library is "installed" when its skills are on disk, not when its directory exists. A
+// fresh clone has an empty library/repos — which passed an existsSync guard and then failed
+// every assertion under it, so a supported `--skip-library` install left the suite red. NONE
+// present means not installed here; SOME present is a partial install and a real failure.
+function libraryState() {
+  if (!existsSync(LIBRARY_ROOT)) return { installed: false, missing: sources.tier2.map((s) => s.name) }
   const missing = sources.tier2
     .filter((s) => !existsSync(join(LIBRARY_ROOT, ...s.path.split('/'), 'SKILL.md')))
     .map((s) => s.name)
+  return { installed: missing.length < sources.tier2.length, missing }
+}
+
+test('every tier-2 path resolves, so the resident cost is measurable at all', (t) => {
+  const { installed, missing } = libraryState()
+  if (!installed) return t.skip(`the tier-2 library is not installed here — nothing to measure. Install it with: node tools/install.mjs --only=library`)
   assert.deepEqual(missing, [], `tier-2 skills declared but not on disk: ${missing.join(', ')}`)
 })
 
 test('the quoted resident token cost is within 15% of measured', (t) => {
-  if (!existsSync(LIBRARY_ROOT)) return t.skip('library not cloned on this machine')
+  // Measured against a partial library the number would be wrong, not merely unmeasured.
+  if (!libraryState().installed) return t.skip('the tier-2 library is not installed here — the cost cannot be measured')
   let chars = 0
   for (const s of sources.tier2) {
     const f = join(LIBRARY_ROOT, ...s.path.split('/'), 'SKILL.md')
