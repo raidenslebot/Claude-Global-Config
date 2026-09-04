@@ -17,9 +17,9 @@
 // cannot follow is a warning, not a pass.
 
 import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
-import { resolve, dirname, extname, join } from 'node:path'
+import { resolve, dirname, extname, join, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pageWithStyles } from './paths.mjs'
+import { pageWithStyles, applicableCss } from './paths.mjs'
 
 const PT = { pt: 1, px: 0.75, in: 72, mm: 72 / 25.4, cm: 72 / 2.54, pc: 12 }
 const IN = { in: 1, mm: 1 / 25.4, cm: 1 / 2.54, pt: 1 / 72, px: 1 / 96 }
@@ -140,55 +140,8 @@ export function declaredSize(text, { svg = false } = {}) {
  *  from the markup. Anything the scanner cannot resolve — an attribute selector, a
  *  pseudo-element, a tag, a bare `*` — is kept, because the cost of missing a real hairline is
  *  a box of cards, and the cost of keeping an inapplicable one is a line of noise. */
-export function applicableCss(css, markup) {
-  const classes = new Set()
-  for (const m of markup.matchAll(/\bclass\s*=\s*["']([^"']+)["']/gi)) {
-    for (const c of m[1].split(/\s+/)) if (c) classes.add(c.toLowerCase())
-  }
-  const ids = new Set()
-  for (const m of markup.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) ids.add(m[1].toLowerCase())
-
-  const applies = (selector) => selector.split(',').some((part) => {
-    const needClass = [...part.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
-    const needId = [...part.matchAll(/#([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
-    // A tag, :root, *, an attribute selector, anything unresolved: keep it. The cost of missing
-    // a real hairline is a box of cards; the cost of keeping an extra rule is a line of noise.
-    if (!needClass.length && !needId.length) return true
-    return needClass.every((c) => classes.has(c)) && needId.every((i) => ids.has(i))
-  })
-
-  // One pass, tracking brace depth. Only a rule that opens at depth 0 is a candidate, so a rule
-  // inside @media or @supports is never dropped.
-  let out = ''
-  let depth = 0
-  let selStart = 0
-  let blockStart = -1
-  for (let i = 0; i < css.length; i++) {
-    const ch = css[i]
-    if (ch === '{') {
-      if (depth === 0) { blockStart = i; }
-      depth++
-      continue
-    }
-    if (ch === '}') {
-      depth--
-      if (depth === 0 && blockStart >= 0) {
-        const selector = css.slice(selStart, blockStart)
-        const inner = css.slice(blockStart + 1, i)
-        // An at-rule is a container, never a rule of its own.
-        const keep = /@/.test(selector) || applies(selector)
-        out += selector + '{' + (keep ? inner : ' '.repeat(inner.length)) + '}'
-        selStart = i + 1
-        blockStart = -1
-      }
-      continue
-    }
-  }
-  return out + css.slice(selStart)
-}
-
 export function withLinkedStyles(file, text) {
-  return pageWithStyles(file, text).map((p) => p.text).join(String.fromCharCode(10))
+  return pageWithStyles(file, text, { media: 'print' }).map((p) => p.text).join(String.fromCharCode(10))
 }
 
 export function lint(file, opts = {}) {
@@ -196,10 +149,15 @@ export function lint(file, opts = {}) {
   // stylesheet, and resolving every one against the HTML directory made a raster in the
   // ordinary css/ + css/photo.png layout unfindable — reported as a warning and passed, which
   // is precisely the false pass this function was written to close.
-  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'))
+  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'), { media: 'print' })
   // A rule in a shared stylesheet that cannot match this page is not this page's problem.
   const markup = pieces[0].text
-  for (let i = 1; i < pieces.length; i++) pieces[i] = { ...pieces[i], text: applicableCss(pieces[i].text, markup) }
+  const setAside = []
+  for (let i = 1; i < pieces.length; i++) {
+    const r = applicableCss(pieces[i].text, markup)
+    pieces[i] = { ...pieces[i], text: r.css }
+    for (const sel of r.setAside) setAside.push(`${basename(pieces[i].file)}: ${sel}`)
+  }
   const text = pieces.map((p) => p.text).join(String.fromCharCode(10))
   const isSvg = extname(file).toLowerCase() === '.svg'
   const method = MINIMUMS[opts.method || 'paper']
@@ -215,6 +173,14 @@ export function lint(file, opts = {}) {
   }
   const fail = (rule, msg) => say('fail', rule, msg)
   const warn = (rule, msg) => say('warn', rule, msg)
+
+  // Nothing is set aside in silence. A rule dropped because it cannot match this page is the
+  // right call, and it is also the exact shape of a false pass — so it is named. A selector this
+  // scanner reads wrongly then costs a line of noise instead of a box of unreadable cards.
+  if (setAside.length) {
+    warn('scope', `${setAside.length} rule(s) in a linked stylesheet name nothing on this page and were not measured `
+      + `(${setAside.slice(0, 3).join(' · ')}${setAside.length > 3 ? ' …' : ''}). If one of them does render here, this page has not been checked for it.`)
+  }
 
   // 0. An SVG has to be well-formed XML before anything else matters, and the one malformation
   //    that reaches this pipeline in practice is a double hyphen inside a comment (a command

@@ -85,12 +85,18 @@ function transparent(raw) {
   const s = String(raw)
   if (/^#[0-9a-f]{8}$/i.test(s)) return parseInt(s.slice(7, 9), 16) === 0
   if (/^#[0-9a-f]{4}$/i.test(s)) return parseInt(s[4], 16) === 0
-  const m = /^(?:rgba|hsla)\(([^)]*)\)/i.exec(s)
+  // Any colour function with an alpha, in either syntax: rgb(0 0 0 / 0), rgba(0,0,0,0),
+  // hsl(0 0% 0% / 0%), oklch(0.7 0.15 60 / 0). The slash form was not recognised at all, so
+  // writing the same fade in current CSS put ink:black back into the palette.
+  const m = /^(?:rgba?|hsla?|oklch|oklab|color)\(([^)]*)\)/i.exec(s)
   if (!m) return false
-  const parts = m[1].split(/[,/]/).map((x) => x.trim()).filter(Boolean)
-  if (parts.length < 4) return false
-  const alpha = parts[3].endsWith("%") ? Number(parts[3].slice(0, -1)) / 100 : Number(parts[3])
-  return alpha === 0
+  const slash = m[1].split('/')
+  const alphaText = slash.length > 1 ? slash[1] : (m[1].includes(',') ? m[1].split(',')[3] : undefined)
+  if (alphaText === undefined) return false
+  const a = alphaText.trim()
+  if (!a) return false
+  const alpha = a.endsWith('%') ? Number(a.slice(0, -1)) / 100 : Number(a)
+  return Number.isFinite(alpha) && alpha === 0
 }
 
 /** Faces actually asked for, in the order they are declared: the first is usually the display. */
@@ -201,7 +207,10 @@ export function signature(raw, name = '') {
       if (b) bgCounts.set(b, (bgCounts.get(b) || 0) + 1)
     }
   }
-  for (const m of text.matchAll(/(?:^|[\s,{}>])(?:html|body|:root)\b[^{}]*\{([^{}]*)\}/gi)) {
+  // The page-level wrappers this package's own examples use are back in the list: .sheet and
+  // .slide are the convention here (coldwater sheet.css, harbor deck .slide), and dropping
+  // them made the ground the first background declared in the file.
+  for (const m of text.matchAll(/(?:^|[\s,{}>])(?:html|body|:root|\.sheet|\.slide|\.post|\.page|\.canvas|\.artboard|\.stage)\b[^{}]*\{([^{}]*)\}/gi)) {
     const bg = /(?:^|[;\s])background(?:-color)?\s*:\s*([^;}]+)/i.exec(m[1])
     if (!bg) continue
     const first = (bg[1].match(COLOUR_RE) || []).find((c) => !transparent(c))
@@ -294,6 +303,19 @@ export function projectKey(dir, siblings) {
   return family.length >= 3 ? key : dir
 }
 
+/** The deepest folder every corpus file sits under. A container, never a project. */
+export function commonRoot(dirs) {
+  if (!dirs.length) return null
+  let parts = dirs[0].split(sep)
+  for (const d of dirs.slice(1)) {
+    const p = d.split(sep)
+    let i = 0
+    while (i < parts.length && i < p.length && parts[i] === p[i]) i++
+    parts = parts.slice(0, i)
+  }
+  return parts.length ? parts.join(sep) : null
+}
+
 // ── files ────────────────────────────────────────────────────────────────────────────────────
 
 function walk(p, out = [], seen = new Set()) {
@@ -336,7 +358,7 @@ export function corpusFor(target, extra = []) {
   if (!extra.length) for (const f of walk(base)) files.add(resolve(f))
   for (const dir of extra) {
     const d = resolve(dir)
-    if (!existsSync(d)) { console.error(`distinct: --corpus ${dir} does not exist`); continue }
+    if (!existsSync(d)) { const e = new Error(`--corpus ${dir} does not exist`); e.corpus = true; throw e }
     for (const f of walk(d)) files.add(resolve(f))
   }
   // The target itself is always in the corpus, so it can be found and compared from.
@@ -385,7 +407,13 @@ export function judge(targets, corpusFiles) {
     // second of those, an ordinary multi-page site — index.html with about/ and blog/ under
     // it — failed the gate at exit 1 for looking like itself, which is the crying-wolf this
     // exists to avoid.
-    const under = (x, root) => x === root || x.startsWith(root + sep)
+    // A folder and its subfolders are one project: a site with about/ and blog/ under it is one
+    // site. A portfolio root with a/ b/ c/ under it has the identical shape on disk and the
+    // opposite meaning, and nothing in the filesystem tells them apart. So this takes the
+    // reading whose failure is safer: calling a site many projects produces a false `repeat`
+    // that tells an author to break their own consistency, while calling a portfolio one
+    // project produces `alone` — no evidence, said plainly, with the flag that fixes it.
+    const under = (x, container) => x === container || x.startsWith(container + sep)
     const same = (a, b) => a === b || under(a, b) || under(b, a) || projectKey(a, folders) === projectKey(b, folders)
     const elsewhere = matches.filter((m) => !same(dirname(resolve(m.file)), here))
     const nearest = elsewhere[0] || null
@@ -437,7 +465,8 @@ function report(results, { quiet = false } = {}) {
     }
   }
   const line = {
-    alone: 'Nothing to compare against. Judge it on its own terms.',
+    alone: 'Nothing outside the tree this piece lives in, so this says nothing about'
+      + ' whether it is a habit. Point it at your body of work: cgc distinct <file> --corpus <dir>.',
     distinct: 'This does not look like the other work here. That is the floor, not proof it is good — and if the corpus is two projects wide, it is barely even the floor.',
     familiar: 'This shares two axes with something you have already made. Deliberate, or a reflex?',
     repeat: 'You have made this before. Three or more of five axes are the same piece wearing a different subject — if the repetition is the identity, say so; if it is not, change the one that carries the most meaning.',
@@ -465,7 +494,11 @@ export function main(argv = process.argv.slice(2)) {
 
   const targets = args._.flatMap((p) => walk(resolve(p)))
   if (!targets.length) { console.error('distinct: nothing to judge — no design files at those paths'); return 2 }
-  const corpus = corpusFor(args._[0], args.corpus)
+  let corpus
+  try { corpus = corpusFor(args._[0], args.corpus) } catch (e) {
+    if (e.corpus) { console.error('distinct: ' + e.message); return 2 }
+    throw e
+  }
   const results = judge(targets, corpus)
   if (args.json) { console.log(JSON.stringify(results, null, 2)); return 0 }
   const worst = report(results, { quiet: args.quiet })

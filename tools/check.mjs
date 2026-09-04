@@ -220,7 +220,7 @@ export async function main(argv = process.argv.slice(2)) {
     const sprite = ext === '.svg' && /<symbol\b/i.test(text)
     // The whole page, stylesheets included: a page whose @keyframes live one file away moves
     // exactly as much as one with them inline, and was never sent to the motion gate at all.
-    const moves = pageWithStyles(file, text).some((piece) => MOVES.test(withoutQuotedCode(piece.text)))
+    const moves = pageWithStyles(file, text, { media: 'screen' }).some((piece) => MOVES.test(withoutQuotedCode(piece.text)))
 
     const inSet = ext === '.svg' && (drawn.get(dirname(file)) || 0) >= 3
     if (!skip.has('techniques') && text.length >= SUBSTANTIAL && !sprite && !parts.has(file) && !inSet) {
@@ -230,7 +230,7 @@ export async function main(argv = process.argv.slice(2)) {
         gates.push(fromJson('techniques', r, (t) => ({
           gate: 'techniques',
           level: t.verdict === 'assembled' ? 'fail' : t.verdict === 'conventional' ? 'warn' : 'ok',
-          line: `${t.verdict} · ${t.count} of ${t.pool} across ${t.entered ?? '?'} of 8 dimensions · ${(t.media || []).map((m) => m.label).join(' + ') || 'unknown medium'}`,
+          line: `${t.verdict} · ${t.count} of ${t.pool} ${t.entered ?? '?'} dimensions with real weight · ${(t.media || []).map((m) => m.label).join(' + ') || 'unknown medium'}`,
           next: (t.untouched || []).length
             ? `never entered: ${t.untouched.map((u) => u.dim || u).join(', ')} — decide whether that was a choice (cgc techniques "${file}" --all)`
             : '',

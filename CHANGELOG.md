@@ -5,6 +5,67 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.57.0 — 2026-09-03
+
+A fourth adversarial review, and the two worst findings were both mine from the hour before —
+both **silent false passes**, which is the one failure mode a gate must never have.
+
+**A card with a real 0.15pt hairline and 3pt type reported `0 would fail on press`.** The
+selector test in `applicableCss` took the slice from the previous `}` to the next `{`, so a
+comment sitting above a rule became part of its selector — and a comment naming another page's
+class deleted a real hairline from the report. It also read the argument of `:not()` as a
+requirement of the subject, so `.rule:not(.thick)` demanded a `.thick` that is never present. A
+`className=` page (JSX, Astro, Vue) emptied the class set entirely and blanked the whole sheet,
+and a Tailwind `.text-\[3pt\]` yielded the stub `text-`, present nowhere.
+
+Comments are blanked before the scan, functional pseudo-class arguments are removed from the
+subject, `className` counts as a class, and any selector carrying a backslash or a bracket is
+kept — unreadable is not absent. **And the design changed, not just the parse:** what is set
+aside is now *reported*. A rule dropped because it cannot match this page is the right call and
+also the exact shape of a false pass, so it is named, and a selector this scanner reads wrongly
+costs a line of noise instead of a box of unreadable cards.
+
+**A stylesheet linked as `<link href="…" rel="stylesheet">` was ignored entirely.** The regex
+demanded `rel` before `href`, so the commonest other attribute order silently reverted every
+gate to judging the markup alone — with no warning, because a link nobody found looks exactly
+like a page with no CSS. `rel` and `href` are read independently now, unquoted attributes and
+`rel="preload stylesheet"` work, a `<link>` inside an HTML comment is not a link, and `media` is
+honoured: a screen-only sheet is not part of a press file, and a print-only sheet is not linted
+as a screen.
+
+The rest of the review, all confirmed:
+
+- **The fingerprint gate charged a card with the letterhead's fingerprints** out of a shared
+  stylesheet. `print-lint` filtered; `slop-lint` — the one wired into the write hook — did not.
+- **A piece at the root of a corpus could never be compared with anything.** A portfolio root and
+  a site root are identical on disk and opposite in meaning, and nothing in the filesystem tells
+  them apart, so this takes the reading whose failure is safer: calling a site many projects
+  produces a false `repeat` that tells an author to break their own consistency, while calling a
+  portfolio one project produces `alone` — no evidence, said plainly, with the flag that fixes it.
+- **Ground and accent inverted when the ground sat on `.sheet` or `.slide`** — this package's own
+  convention, in its own examples. Distinct backgrounds tie at one vote each, so "commonest
+  background" fell back to insertion order and the ground became the first background declared: a
+  badge. The page wrappers are named again, and a tie is broken toward the rule that also sizes a
+  page.
+- **CRLF drifted the file-and-line mapping**, because the split dropped the `\r` while the
+  reducer added one byte per line. On a 400-line page a finding was reported at a line number
+  that file does not have, in the wrong file. This is a Windows-first repo.
+- **`transparent()` missed the modern space-and-slash syntax** — `rgb(0 0 0 / 0)`,
+  `oklch(0.7 0.15 60 / 0)` — so writing the same fade in current CSS put `ink:black` straight
+  back into the palette.
+- **The motion gate fired on the word `transition` in a comment**, and on a site-wide
+  `a { transition: color .2s }`. A transition needs an interaction: capturing a page that has one
+  and never firing it finds nothing moving and grades it *dead*, so one global rule hard-failed
+  every static page in the site. CSS comments are stripped, and only what runs by itself sends a
+  page to the gate — watch a transition deliberately with `--trigger hover:<selector>`.
+- **A typo'd `--corpus` printed an error and then exited 0**, which reads as a clean bill for a
+  run that compared nothing.
+- **`@import url(base.css)` unquoted was not followed**, and the same-sheet guard was
+  case-sensitive on a case-insensitive filesystem.
+- `entered` and `untouched` were presented as if they partitioned the eight dimensions. They
+  answer different questions — *where was there weight* and *what was never tried* — and a piece
+  with a layered shadow HAS tried depth. The report no longer implies otherwise.
+
 ## 1.56.0 — 2026-09-03
 
 **The fingerprint lint under-detected the notation this package tells authors to use.** The

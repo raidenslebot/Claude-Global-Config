@@ -343,40 +343,136 @@ export function concurrency() {
  *
  *  Returns the pieces rather than one string, so a finding can be reported against the file it
  *  is actually in: a line number counted through a concatenation points at nothing. */
-export function pageWithStyles(file, text) {
+export function pageWithStyles(file, text, opts = {}) {
   const pieces = [{ file, text }]
   const seen = new Set()
-  for (const m of text.matchAll(/<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
-    const href = m[1]
-    if (/^(?:https?:)?\/\//i.test(href) || /^data:/i.test(href)) continue
+  // A link inside an HTML comment is not a link. Blanked rather than removed so nothing shifts.
+  const live = text.replace(/<!--[\s\S]*?-->/g, (m) => ' '.repeat(m.length))
+  for (const tag of live.matchAll(/<link\b[^>]*>/gi)) {
+    const attr = (name) => {
+      const m = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag[0])
+      return m ? (m[1] ?? m[2] ?? m[3] ?? '') : null
+    }
+    // Read rel and href INDEPENDENTLY. Requiring rel before href meant the commonest other
+    // attribute order was ignored entirely, and every gate quietly went back to judging the
+    // markup alone — with no warning, because a link nobody found looks like a page with no CSS.
+    const rel = (attr('rel') || '').toLowerCase()
+    if (!rel.split(/\s+/).includes('stylesheet')) continue
+    // A sheet scoped to another medium does not apply here: a screen-only stylesheet must not
+    // fail a press check, and a print-only one must not be linted as a screen.
+    const media = (attr('media') || '').toLowerCase().trim()
+    if (opts.media && media && !mediaApplies(media, opts.media)) continue
+    const href = attr('href')
+    if (!href || /^(?:https?:)?\/\//i.test(href) || /^data:/i.test(href)) continue
     let p
     try { p = resolve(dirname(file), decodeURIComponent(href.split('?')[0].split('#')[0])) } catch { continue }
-    if (seen.has(p)) continue
-    seen.add(p)
+    const key = IS_WIN ? p.toLowerCase() : p
+    if (seen.has(key)) continue
+    seen.add(key)
     let css
     try { css = readFileSync(p, 'utf8') } catch { continue }
     pieces.push({ file: p, text: css })
-    // A stylesheet may pull in another with @import, and that is how a shared page size or type
-    // scale is usually kept in one place. Not following it meant reporting "no @page rule" for a
-    // document that declares one, two files away — the exact case this function exists for.
     follow(p, css, pieces, seen, 0)
   }
   return pieces
+}
+
+/** Does a link's `media` attribute cover the medium being judged? Conservative: anything this
+ *  cannot parse counts as applying, because missing a real hairline costs a print run. */
+function mediaApplies(mediaAttr, wanted) {
+  const q = mediaAttr.toLowerCase()
+  if (!q || q === 'all') return true
+  const types = q.split(',').map((s) => s.trim().split(/\s/)[0]).filter(Boolean)
+  if (!types.length) return true
+  if (types.includes('all')) return true
+  // Only decide when every listed type is a plain medium name this understands.
+  const known = ['screen', 'print', 'speech']
+  if (!types.every((x) => known.includes(x))) return true
+  return types.includes(wanted)
 }
 
 /** @import chains, depth-limited. A cycle is stopped by `seen`; the depth cap is for a chain
  *  long enough to be a mistake rather than a system. */
 function follow(from, css, pieces, seen, depth) {
   if (depth > 4) return
-  for (const m of css.matchAll(/@import\s+(?:url\(\s*)?["']([^"')]+)["']/gi)) {
-    if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+  // Quoted, url("…"), url('…') and the bare url(…) form, which is legal and was not followed.
+  for (const m of css.matchAll(/@import\s+(?:url\(\s*)?(?:["']([^"')]+)["']|([^\s"');]+))/gi)) {
+    const href = (m[1] ?? m[2] ?? '').replace(/^url\(\s*/i, '').replace(/\s*\)$/, '')
+    if (!href || /^(?:https?:)?\/\//i.test(href) || /^data:/i.test(href)) continue
     let p
-    try { p = resolve(dirname(from), decodeURIComponent(m[1].split('?')[0].split('#')[0])) } catch { continue }
-    if (seen.has(p)) continue
-    seen.add(p)
+    try { p = resolve(dirname(from), decodeURIComponent(href.split('?')[0].split('#')[0])) } catch { continue }
+    const key = IS_WIN ? p.toLowerCase() : p
+    if (seen.has(key)) continue
+    seen.add(key)
     let css2
     try { css2 = readFileSync(p, 'utf8') } catch { continue }
     pieces.push({ file: p, text: css2 })
     follow(p, css2, pieces, seen, depth + 1)
   }
+}
+
+export function applicableCss(css, markup) {
+  // Comments FIRST. The slice handed to the selector test runs from the previous `}` to this
+  // `{`, so a comment sitting above a rule became part of its selector — and a comment naming
+  // another page's class made a real 0.15pt hairline vanish from the report entirely. Blanked,
+  // not removed, so every position stays exact.
+  const clean = css.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
+
+  const classes = new Set()
+  // class= and className=, because a JSX or Astro page writes the second and the class set
+  // came back empty for those — which blanked every class rule in the sheet.
+  for (const m of markup.matchAll(/\b(?:class|className)\s*=\s*["']([^"']+)["']/gi)) {
+    for (const c of m[1].split(/\s+/)) if (c) classes.add(c.toLowerCase())
+  }
+  const ids = new Set()
+  for (const m of markup.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) ids.add(m[1].toLowerCase())
+
+  const applies = (selector) => {
+    // An escape means the selector names something this scanner cannot read — a Tailwind
+    // `.text-\\[3pt\\]`, an escaped colon. Unreadable is not absent: keep it.
+    // A bracket, like a backslash, means the selector names something this scanner cannot read
+    // — a Tailwind .text-[3pt], an attribute selector fused to a class. The class extractor
+    // stops at the bracket and yields a stub class name that is present nowhere, which would
+    // blank a rule that does render.
+    if (/[\\\[]/.test(selector)) return true
+    return selector.split(',').some((part) => {
+      // The argument of a functional pseudo-class is not a requirement of the subject:
+      // `.rule:not(.thick)` needs `.rule`, and requiring `.thick` deleted the rule.
+      const subject = part.replace(/:(?:not|is|where|has|matches|any)\([^()]*\)/gi, ' ')
+      const needClass = [...subject.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
+      const needId = [...subject.matchAll(/#([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
+      if (!needClass.length && !needId.length) return true          // a tag, :root, *, unknown
+      return needClass.every((c) => classes.has(c)) && needId.every((i) => ids.has(i))
+    })
+  }
+
+  // One pass, tracking brace depth. Only a rule that opens at depth 0 is a candidate, so a rule
+  // inside @media or @supports is never dropped.
+  let out = ''
+  let depth = 0
+  let selStart = 0
+  let blockStart = -1
+  const setAside = []
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i]
+    if (ch === '{') {
+      if (depth === 0) blockStart = i
+      depth++
+      continue
+    }
+    if (ch === '}') {
+      depth--
+      if (depth === 0 && blockStart >= 0) {
+        const selector = clean.slice(selStart, blockStart)
+        const inner = css.slice(blockStart + 1, i)
+        const keep = /@/.test(selector) || applies(selector)
+        if (!keep) setAside.push(selector.trim().replace(/\s+/g, ' ').slice(0, 60))
+        out += css.slice(selStart, blockStart) + '{' + (keep ? inner : ' '.repeat(inner.length)) + '}'
+        selStart = i + 1
+        blockStart = -1
+      }
+      continue
+    }
+  }
+  return { css: out + css.slice(selStart), setAside }
 }

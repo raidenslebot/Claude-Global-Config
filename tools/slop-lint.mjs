@@ -16,7 +16,7 @@
 import { readFileSync, statSync, readdirSync, existsSync, realpathSync } from 'node:fs'
 import { join, extname, basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pageWithStyles } from './paths.mjs'
+import { pageWithStyles, applicableCss } from './paths.mjs'
 
 export const EXTS = new Set(['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', '.svelte', '.astro'])
 const MOVES = 'visual-design-mastery/references/signature-moves.md'
@@ -402,7 +402,14 @@ export function lint(file) {
   // A page is judged with the stylesheets it links, because that is the design. The pieces are
   // joined with a marker of exactly one newline per piece boundary so a position can be mapped
   // back to the file it came from — a line number counted through a concatenation is a lie.
-  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'))
+  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'), { media: 'screen' })
+  // A rule in a shared stylesheet that names nothing on this page is not this page's design.
+  // print-lint filters; this is the gate the write hook runs, so it filters too.
+  const markup = pieces[0].text
+  for (let i = 1; i < pieces.length; i++) {
+    const r = applicableCss(pieces[i].text, markup)
+    pieces[i] = { ...pieces[i], text: r.css }
+  }
   if (pieces.length === 1) return lintText(pieces[0].text, file)
   const joined = pieces.map((p) => p.text).join('\n')
   const r = lintText(joined, file)

@@ -404,3 +404,71 @@ test('a shared stylesheet is read for the page it is on, not for the whole set',
   assert.ok(oddRules.includes('type'), 'an attribute selector is not resolvable, so it is kept')
   assert.ok(oddRules.includes('line'), 'and a rule inside @media is never dropped')
 })
+
+test('the selector test reads selectors, and never blanks a rule that applies', (t) => {
+  // The worst possible outcome for a press gate: a card with a real 0.15pt hairline and 3pt
+  // type reported "0 would fail on press", exit 0. The slice handed to the selector test ran
+  // from the previous } to this {, so a comment above a rule became part of its selector, and
+  // the argument of :not() was read as a requirement of the subject.
+  const d = scratch(t)
+  writeFileSync(join(d, 'set.css'), [
+    '@page{size:3.5in 2in;margin:0}',
+    'body{font-family:Archivo;font-size:9pt}',
+    '/* .letterhead-foot lives elsewhere */',
+    '.hairline-rule { border-top: 0.15pt solid #000; }',
+    '.fine:not(.thick) { font-size: 3pt; }',
+  ].join('\n'), 'utf8')
+  const card = file(d, 'card.html', '<!doctype html><html><head><link rel="stylesheet" href="set.css">'
+    + '</head><body><div class="hairline-rule"></div><p class="fine">x</p></body></html>')
+  const rules = lint(card, {}).findings.map((f) => f.rule)
+  assert.ok(rules.includes('line'), 'a real hairline must never be blanked by a comment')
+  assert.ok(rules.includes('type'), 'nor by a :not() argument')
+
+  // A JSX page writes className=, and reading only class= emptied the set and blanked the sheet.
+  const jsx = file(d, 'jsx.html', '<!doctype html><html><head><link rel="stylesheet" href="set.css">'
+    + '</head><body><div className="hairline-rule"></div></body></html>')
+  assert.ok(lint(jsx, {}).findings.some((f) => f.rule === 'line'), 'className is a class')
+
+  // An escaped selector is unreadable, and unreadable is not absent.
+  writeFileSync(join(d, 'tw.css'), '@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}'
+    + '.text-\[3pt\]{font-size:3pt}', 'utf8')
+  const tw = file(d, 'tw.html', '<!doctype html><html><head><link rel="stylesheet" href="tw.css">'
+    + '</head><body><p class="text-[3pt]">x</p></body></html>')
+  assert.ok(lint(tw, {}).findings.some((f) => f.rule === 'type'), 'an escaped class is kept')
+
+  // And what IS set aside is named, because a silent omission is the shape of a false pass.
+  const other = file(d, 'other.html', '<!doctype html><html><head><link rel="stylesheet" href="set.css">'
+    + '</head><body><p class="name">x</p></body></html>')
+  const scope = lint(other, {}).findings.find((f) => f.rule === 'scope')
+  assert.ok(scope, 'the rules not measured are reported')
+  assert.match(scope.msg, /hairline-rule|fine/)
+})
+
+test('a stylesheet is found whatever order its attributes are in', (t) => {
+  // rel had to come before href, so the commonest other order was ignored entirely and every
+  // gate quietly went back to judging the markup alone — with no warning, because a link nobody
+  // found looks exactly like a page with no CSS.
+  const d = scratch(t)
+  writeFileSync(join(d, 's.css'), '@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:3pt}', 'utf8')
+  const forms = {
+    'rel-first': '<link rel="stylesheet" href="s.css">',
+    'href-first': '<link href="s.css" rel="stylesheet">',
+    unquoted: '<link href=s.css rel=stylesheet>',
+    preload: '<link rel="preload stylesheet" href="s.css">',
+  }
+  for (const [name, tag] of Object.entries(forms)) {
+    const p = file(d, `${name}.html`, `<!doctype html><html><head>${tag}</head><body><p>x</p></body></html>`)
+    assert.ok(lint(p, {}).findings.some((f) => f.rule === 'type'), `${name} must be read`)
+  }
+  // A link inside a comment is not a link.
+  const commented = file(d, 'commented.html', '<!doctype html><html><head><!-- <link rel="stylesheet" href="s.css"> -->'
+    + '<style>@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}</style></head><body><p>x</p></body></html>')
+  assert.ok(!lint(commented, {}).findings.some((f) => f.rule === 'type'))
+
+  // A screen-only sheet is not part of the press file.
+  writeFileSync(join(d, 'screen.css'), '.t{font-size:3pt}', 'utf8')
+  const scoped = file(d, 'scoped.html', '<!doctype html><html><head>'
+    + '<style>@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}</style>'
+    + '<link rel="stylesheet" media="screen" href="screen.css"></head><body><p class="t">x</p></body></html>')
+  assert.ok(!lint(scoped, {}).findings.some((f) => f.rule === 'type'), 'media="screen" is not the press file')
+})

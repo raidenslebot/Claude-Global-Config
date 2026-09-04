@@ -397,7 +397,6 @@ export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {
   // A dimension counts as untouched only if this piece's media can express it at all: asking a
   // stylesheet about frame feedback is not a finding, it is a category error.
   const available = new Set(all.map((t) => t.dim))
-  const untouched = DIMS.filter((d) => available.has(d) && byDim[d] === 0)
 
   const n = used.length
   // The verdict is about SPREAD, not quantity. Grading on a count made this catalogue a target:
@@ -418,6 +417,12 @@ export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {
   // Three is one substantial technique, or a real one plus a small one, or three small ones
   // that together amount to a decision about that dimension.
   const entered = DIMS.filter((d) => liftIn[d] >= 3).length
+
+  // NOT the same test as `entered`, deliberately. "Never entered" is the honest answer to "what
+  // did this never try", and a piece with a layered shadow HAS tried depth — telling it
+  // otherwise is a false statement about the file. `entered` asks a different question: where
+  // was there weight. The two do not partition the eight, and the report must not imply they do.
+  const untouched = DIMS.filter((d) => available.has(d) && byDim[d] === 0)
   const verdict = n <= 1 ? 'assembled'
     : entered <= 2 ? 'conventional'
       : entered <= 4 ? 'considered'
