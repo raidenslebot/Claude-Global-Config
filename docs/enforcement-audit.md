@@ -30,8 +30,9 @@ detect-and-report bucket has grown from three hooks to seven — `post-tool-prin
 (a physical design written without its directions), `post-tool-slop.js` (the templated look on
 every screen file written), `react-doctor.mjs` (registered at last, see A2), and
 `session-start-cgc.js`, which does more than report: it fast-forwards the install, runs the
-doctor and re-applies the install on any failure, runs the suite once per commit, and prints
-one line — and four gates that fail rather than report: `tools/print-lint.mjs`,
+doctor and re-applies the install on any failure an install could actually repair — a finding it
+has no power over used to mean a full install at every session start, for ever — runs the suite
+once per commit under a claim only one session can take, and prints one line — and four gates that fail rather than report: `tools/print-lint.mjs`,
 `tools/slop-lint.mjs`, `tools/page-audit.mjs` and `tools/test/examples.test.mjs`, which holds
 every shipped example to the first three. The design mandates in A1 remain advisory as to
 *consultation*, by the argument A1 makes; their *output* is no longer advisory.

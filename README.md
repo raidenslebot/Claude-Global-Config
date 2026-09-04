@@ -360,9 +360,11 @@ What remains is local-only: `playwright` (bundled browser), `context7` (keyless)
 subscription rather than any vendor API.
 
 **This is checked, not just claimed.** `doctor.mjs` classifies every registered MCP server and
-**fails** on any addressed by URL — someone else's service over the network, which is where a
-login prompt comes from — and it reads every scope a server can hide in, including the
-project-scoped map it previously never looked at. `tools/test/no-external-auth.test.mjs` holds
+**fails** on any addressed by URL at user scope — someone else's service over the network, which
+is where a login prompt comes from — and **warns** on one in a config this package does not own,
+because a failure nothing can clear is not a stricter gate, it is a session-start hook trying to
+repair the same thing for ever. It reads every scope a server loads from: user, project, a
+project's own `.mcp.json`, the host application's config, and each enabled plugin. `tools/test/no-external-auth.test.mjs` holds
 both halves: that `install.mjs` can only ever register a local `command` server, and that doctor
 actually reports a planted remote one. The limit worth stating: connectors provided by the host
 application never appear in `.claude.json`, so nothing here can see them — those live in the

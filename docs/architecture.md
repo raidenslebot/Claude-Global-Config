@@ -119,10 +119,15 @@ What remains — `playwright`, `context7`, `strix`, `T3MP3ST` — is local or ro
 backed by the Claude subscription.
 
 The removals were done by hand and recorded in a table, which made this the repo's largest
-unchecked claim — the exact shape it refuses elsewhere. It is a gate now: `doctor.mjs` fails on
-any MCP server addressed by URL, in every scope including the project-scoped map it used to skip,
-and a test plants one to prove the report fires. Host-application connectors are outside
-`.claude.json` and therefore outside this check; that limit is stated rather than covered.
+unchecked claim — the exact shape it refuses elsewhere. It is a gate now: `doctor.mjs` reads every scope a
+server loads from — user, project, a project's own `.mcp.json`, the host application's config and
+each enabled plugin — and reports any server addressed by URL. It **fails** where this package
+writes, at user scope, and **warns** elsewhere: a remote server inside a plugin or the host app
+arrived by the user's own decision and no install here can remove it, so failing on it made the
+doctor permanently broken for anyone using an official remote-MCP plugin, and made every session
+start attempt a repair that could never work. A test plants one at each scope to prove both
+halves fire. Plugins the host application manages are outside every file on disk; that limit is
+stated in the report itself rather than covered.
 
 ## Decision: physical media go through the browser, and the browser is checked
 

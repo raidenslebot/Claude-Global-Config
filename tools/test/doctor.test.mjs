@@ -26,7 +26,12 @@ function scratch(t) {
 function runDoctorJson(dir) {
   const r = spawnSync(process.execPath, [TOOL, '--json'], {
     cwd: REPO, encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, CLAUDE_CONFIG_DIR: dir, HOME: dir, USERPROFILE: dir },
+    // APPDATA/XDG_CONFIG_HOME too: the host application's config is found through them, and a
+    // test that left them pointing at the real machine would read the real machine.
+    env: {
+      ...process.env, CLAUDE_CONFIG_DIR: dir, HOME: dir, USERPROFILE: dir,
+      APPDATA: join(dir, 'AppData', 'Roaming'), XDG_CONFIG_HOME: join(dir, '.config'),
+    },
   })
   const out = r.stdout || ''
   const at = out.indexOf('{')
@@ -144,4 +149,42 @@ test('a machine with no host-managed plugins gets no caveat', (t) => {
   }), 'utf8')
   const count = runDoctorJson(d).results.find((r) => /MCP process\(es\) per session/.test(r.message))
   assert.doesNotMatch(count.message, /host-application/, 'nothing invisible, nothing to disclose')
+})
+
+test('a remote server is reported at every scope it can hide in', (t) => {
+  // The docs claim each scope is planted and proved. Four scopes carry a server, and the
+  // grading differs by ownership: user scope is this package's to fix, the rest are not.
+  const d = scratch(t)
+  const remote = { type: 'http', url: 'https://example.invalid/mcp' }
+  const hostDir = process.platform === 'win32' ? join(d, 'AppData', 'Roaming', 'Claude')
+    : process.platform === 'darwin' ? join(d, 'Library', 'Application Support', 'Claude')
+      : join(d, '.config', 'Claude')
+  mkdirSync(hostDir, { recursive: true })
+  writeFileSync(join(hostDir, 'claude_desktop_config.json'), JSON.stringify({ mcpServers: { fromHost: remote } }), 'utf8')
+
+  const proj = join(d, 'work')
+  mkdirSync(proj, { recursive: true })
+  writeFileSync(join(proj, '.mcp.json'), JSON.stringify({ mcpServers: { fromProjectFile: remote } }), 'utf8')
+
+  const inst = join(d, '.claude', 'plugins', 'cache', 'm', 'p', '1.0.0')
+  mkdirSync(inst, { recursive: true })
+  writeFileSync(join(inst, '.mcp.json'), JSON.stringify({ mcpServers: { fromPlugin: remote } }), 'utf8')
+  mkdirSync(join(d, '.claude', 'plugins'), { recursive: true })
+  writeFileSync(join(d, '.claude', 'plugins', 'installed_plugins.json'),
+    JSON.stringify({ version: 2, plugins: { 'p@m': [{ scope: 'user', installPath: inst }] } }), 'utf8')
+  writeFileSync(join(d, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'p@m': true } }), 'utf8')
+
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({
+    mcpServers: { fromUser: remote },
+    projects: { [proj]: { mcpServers: { fromProjectMap: remote } } },
+  }), 'utf8')
+
+  const byName = new Map()
+  for (const r of runDoctorJson(d).results.filter((x) => /external service/.test(x.message))) {
+    byName.set(/^(\w+)/.exec(r.message)[1], r.level)
+  }
+  assert.equal(byName.get('fromUser'), 'fail', 'user scope is this package\'s own to fix')
+  for (const name of ['fromHost', 'fromProjectFile', 'fromPlugin', 'fromProjectMap']) {
+    assert.equal(byName.get(name), 'warn', `${name} is reported, and is not this package's to remove`)
+  }
 })
