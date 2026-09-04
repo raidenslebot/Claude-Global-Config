@@ -381,6 +381,9 @@ export function resolveVars(text) {
   return out
 }
 
+/** The one place the score becomes a word. Two copies of these thresholds is how they drift. */
+export const verdictFor = (score) => (score >= 4 ? 'centroid' : score >= 2 ? 'fingerprints' : 'clean')
+
 export function lintText(text, name = 'text') {
   const lineOf = (i) => (i == null || i < 0 ? 0 : text.slice(0, i).split('\n').length)
   const findings = []
@@ -391,10 +394,10 @@ export function lintText(text, name = 'text') {
   for (const f of FAMILIES) {
     let hit = null
     try { hit = f.find(scan, resolved) } catch { hit = null }
-    if (hit) findings.push({ id: f.id, weight: f.weight, line: lineOf(hit.i), sample: String(hit.s).replace(/\s+/g, ' ').trim(), why: f.why })
+    if (hit) findings.push({ id: f.id, weight: f.weight, at: hit.i, line: lineOf(hit.i), sample: String(hit.s).replace(/\s+/g, ' ').trim(), why: f.why })
   }
   const score = findings.reduce((a, f) => a + f.weight, 0)
-  const verdict = score >= 4 ? 'centroid' : score >= 2 ? 'fingerprints' : 'clean'
+  const verdict = verdictFor(score)
   return { file: name, score, max: MAX_SCORE, verdict, findings }
 }
 
@@ -403,31 +406,50 @@ export function lint(file) {
   // joined with a marker of exactly one newline per piece boundary so a position can be mapped
   // back to the file it came from — a line number counted through a concatenation is a lie.
   const pieces = pageWithStyles(file, readFileSync(file, 'utf8'), { media: 'screen' })
-  // A rule in a shared stylesheet that names nothing on this page is not this page's design.
-  // print-lint filters; this is the gate the write hook runs, so it filters too.
+  // A rule in a shared stylesheet that names nothing on this page is not this page's design —
+  // but it is not deleted either. `applicableCss` returns the CSS unchanged plus the ranges it
+  // believes belong to other pages, and a fingerprint found inside one of those is dropped from
+  // THIS page's score while the rule itself stays readable. Deleting the text is what let a
+  // misread selector remove a real finding, so nothing here deletes text.
   const markup = pieces[0].text
-  for (let i = 1; i < pieces.length; i++) {
-    const r = applicableCss(pieces[i].text, markup)
-    pieces[i] = { ...pieces[i], text: r.css }
+  const elsewhere = []
+  {
+    let at = pieces[0].text.length + 1
+    for (let i = 1; i < pieces.length; i++) {
+      for (const [a, b] of applicableCss(pieces[i].text, markup).ranges) elsewhere.push([at + a, at + b])
+      at += pieces[i].text.length + 1
+    }
   }
   if (pieces.length === 1) return lintText(pieces[0].text, file)
   const joined = pieces.map((p) => p.text).join('\n')
   const r = lintText(joined, file)
+  // A fingerprint whose only evidence sits in another page's rule is not this page's.
+  const otherPage = (i) => typeof i === 'number' && elsewhere.some(([a, b]) => i >= a && i < b)
   // Map every finding back to its own file and its own line.
   const bounds = []
   let at = 0
   for (const p of pieces) { bounds.push({ file: p.file, start: at, text: p.text }); at += p.text.length + 1 }
   const lines = (s) => s.split(/\r?\n/).length
   const upTo = joined.split(/\r?\n/)
+  const kept = []
   for (const f of r.findings) {
-    // lintText already turned the index into a line of the joined text; find which piece owns it.
-    const charIndex = upTo.slice(0, Math.max(0, f.line - 1)).reduce((n, l) => n + l.length + 1, 0)
+    // The exact position the family matched at, carried on the finding.
+    const charIndex = f.at
+    // A fingerprint whose evidence sits in a rule that names nothing on this page belongs to
+    // another piece of the set. Dropped from THIS page's score, and the rule left intact — the
+    // stylesheet is still linted in its own right, where the finding is that file's to answer.
+    if (otherPage(charIndex)) continue
     const piece = [...bounds].reverse().find((b) => charIndex >= b.start) || bounds[0]
     if (piece.file !== file) {
       f.file = piece.file
       f.line = lines(joined.slice(piece.start, charIndex))
     }
+    kept.push(f)
   }
+  r.findings = kept
+  r.score = kept.reduce((n, f) => n + f.weight, 0)
+  // The same thresholds lintText uses, not a second set that could drift from them.
+  r.verdict = verdictFor(r.score)
   return r
 }
 

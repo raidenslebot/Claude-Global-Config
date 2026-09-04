@@ -379,3 +379,38 @@ test('the same design lints the same in every colour notation', () => {
     'oklch(0.65 0.25 350)', 'oklch(0.88 0.30 140)'), 'oklch.html')
   assert.deepEqual(ids(asOklch), ids(hex), 'oklch is the same design')
 })
+
+test('a rule from another page is dropped from the score, and its text is never deleted', (t) => {
+  // The structural rule both gates now obey: applicability changes a finding's WEIGHT, never
+  // the source it was found in. Deleting the text is how a misread selector removed a real
+  // hairline from a press report entirely, and the same mechanism sat in this gate.
+  const d = scratch(t)
+  writeFileSync(join(d, 'set.css'), 'body{font-family:Georgia,serif}\n'
+    + '.letterhead-only{background:linear-gradient(135deg,#667eea,#764ba2)}\n', 'utf8')
+  const link = '<link rel="stylesheet" href="set.css">'
+
+  const cardPath = join(d, 'card.html')
+  writeFileSync(cardPath, `<!doctype html><html><head>${link}</head><body><p class="name">Card</p></body></html>`, 'utf8')
+  const card = lint(cardPath)
+  assert.equal(card.score, 0, 'the card is not charged with the letterhead\'s gradient')
+
+  const letterPath = join(d, 'letter.html')
+  writeFileSync(letterPath, `<!doctype html><html><head>${link}</head><body><div class="letterhead-only">L</div></body></html>`, 'utf8')
+  const letter = lint(letterPath)
+  assert.ok(letter.findings.some((f) => f.id === 'gradient-purple'), 'the page that renders it is')
+
+  // And the stylesheet answers for itself when linted in its own right — the finding is not
+  // lost, it is simply not the card's.
+  const own = lint(join(d, 'set.css'))
+  assert.ok(own.findings.some((f) => f.id === 'gradient-purple'), 'the sheet still owns its own fingerprint')
+})
+
+test('a finding carries the position it was found at, not one reconstructed from a line', () => {
+  // Reconstructing the offset from the line number lands at the START of the line, which is
+  // outside the rule whenever a rule begins mid-line — so the filter above silently missed.
+  const r = lintText('<style>body{font-family:Inter,sans-serif}\n.h{background:linear-gradient(90deg,#a855f7,#ec4899)}</style>', 'x.html')
+  for (const f of r.findings) {
+    assert.equal(typeof f.at, 'number', `${f.id} carries its index`)
+    assert.ok(f.at >= 0)
+  }
+})

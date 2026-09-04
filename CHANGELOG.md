@@ -5,6 +5,44 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.58.0 — 2026-09-03
+
+Four review rounds have found around forty-three defects, and rounds three and four each found
+bugs in the previous round's fixes — three consecutive false *failures* in `print-lint`, then two
+false *passes*, all of them mine. Patching the next edge case would have produced a fifth round.
+This changes the shape of the thing instead.
+
+**The rule both gates now obey: applicability changes a finding's WEIGHT, never the text it was
+found in.**
+
+The filter that decides whether a stylesheet rule belongs to the page being judged is a
+heuristic — it reads selectors without a DOM, and it will keep being wrong at the edges. That is
+tolerable. What was not tolerable is what it did when wrong: it **deleted** the rule, so a
+selector it misread removed a real 0.15pt hairline from a press report and the card came back
+clean. A gate that guesses in the direction of *this does not apply* will produce silent false
+passes for ever, however many edge cases are patched.
+
+So `applicableCss` returns the stylesheet **unchanged**, plus the character ranges it believes
+belong to other pages. Nothing is erased.
+
+- `print-lint` **grades** a measurement inside one of those ranges as a warning rather than a
+  failure, and says why. The worst case of a misread selector is now a warning where a failure
+  belonged — never a missing measurement.
+- `slop-lint` drops such a fingerprint from *this page's* score while the rule stays readable,
+  and the stylesheet still answers for it when linted in its own right. The finding is not lost;
+  it is simply not the card's.
+
+A test holds the invariant directly: a stylesheet built to defeat the selector scanner in every
+way found so far — a comment naming another page above a rule, a `:not()` argument, an attribute
+selector fused to a class, a rule inside `@media` — must have every one of its three measurements
+appear in the report, and since all three genuinely apply, all three must be failures.
+
+Two smaller things fell out. A finding now carries the exact position it was matched at, instead
+of reconstructing one from its line number — which landed at the start of the line, outside the
+rule whenever a rule begins mid-line, so the filter above silently missed. And the score-to-word
+thresholds existed in two places; they are one function now, because two copies of a threshold
+is how they drift apart.
+
 ## 1.57.0 — 2026-09-03
 
 A fourth adversarial review, and the two worst findings were both mine from the hour before —

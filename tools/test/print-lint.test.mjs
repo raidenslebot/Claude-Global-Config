@@ -383,16 +383,22 @@ test('a shared stylesheet is read for the page it is on, not for the whole set',
   const link = '<link rel="stylesheet" href="shared.css">'
 
   const card = file(d, 'card.html', `<!doctype html><html><head>${link}</head><body><p class="name">Harbour Swim Club</p></body></html>`)
-  const cardRules = lint(card, {}).findings.map((f) => f.rule)
-  assert.ok(!cardRules.includes('type'), 'the card has no 4pt footnote on it')
-  assert.ok(!cardRules.includes('line'), 'nor a hairline divider')
+  // Nothing is deleted — deleting is how a card with a REAL hairline passed clean. The
+  // measurement stays on the page, graded down, because a selector misread then costs severity
+  // rather than visibility.
+  const cardFindings = lint(card, {}).findings
+  const cardFails = cardFindings.filter((f) => f.level === 'fail').map((f) => f.rule)
+  assert.ok(!cardFails.includes('type'), 'the card is not FAILED for a footnote it does not have')
+  assert.ok(!cardFails.includes('line'), 'nor for a divider it does not have')
+  const downgraded = cardFindings.filter((f) => f.level === 'warn' && /names nothing on this page/.test(f.msg))
+  assert.ok(downgraded.length >= 2, 'but both are still reported, with the reason')
 
   // The page that DOES carry them still fails, which is the whole point of the gate.
   const sheet = file(d, 'letterhead.html', `<!doctype html><html><head>${link}</head><body>`
     + '<p class="legal-footnote">tiny</p><div class="hairline-divider"></div></body></html>')
-  const sheetRules = lint(sheet, {}).findings.map((f) => f.rule)
-  assert.ok(sheetRules.includes('type'), '4pt type on the page that has it')
-  assert.ok(sheetRules.includes('line'), 'and the hairline')
+  const sheetFails = lint(sheet, {}).findings.filter((f) => f.level === 'fail').map((f) => f.rule)
+  assert.ok(sheetFails.includes('type'), '4pt type FAILS on the page that has it')
+  assert.ok(sheetFails.includes('line'), 'and so does the hairline')
 
   // Conservative by design: anything the scanner cannot resolve is kept, because the cost of
   // missing a real hairline is a box of cards.
@@ -400,9 +406,9 @@ test('a shared stylesheet is read for the page it is on, not for the whole set',
     + '[data-fine]{font-size:3pt}\n@media print{.x{border-top:0.05pt solid}}', 'utf8')
   const odd = file(d, 'odd.html', '<!doctype html><html><head><link rel="stylesheet" href="odd.css">'
     + '</head><body><p>x</p></body></html>')
-  const oddRules = lint(odd, {}).findings.map((f) => f.rule)
-  assert.ok(oddRules.includes('type'), 'an attribute selector is not resolvable, so it is kept')
-  assert.ok(oddRules.includes('line'), 'and a rule inside @media is never dropped')
+  const oddFails = lint(odd, {}).findings.filter((f) => f.level === 'fail').map((f) => f.rule)
+  assert.ok(oddFails.includes('type'), 'an attribute selector is not resolvable, so it still fails')
+  assert.ok(oddFails.includes('line'), 'and a rule inside @media is never graded down')
 })
 
 test('the selector test reads selectors, and never blanks a rule that applies', (t) => {
@@ -471,4 +477,33 @@ test('a stylesheet is found whatever order its attributes are in', (t) => {
     + '<style>@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}</style>'
     + '<link rel="stylesheet" media="screen" href="screen.css"></head><body><p class="t">x</p></body></html>')
   assert.ok(!lint(scoped, {}).findings.some((f) => f.rule === 'type'), 'media="screen" is not the press file')
+})
+
+test('a misread selector costs severity, never the measurement', (t) => {
+  // The structural point of grading rather than deleting. Whatever this scanner gets wrong about
+  // a selector, the measurement stays on the page: the worst case is a warning where a failure
+  // belonged, not a card with a real hairline reported as clean.
+  const d = scratch(t)
+  // Selectors chosen to defeat the scanner in every way found so far, all of them applying.
+  writeFileSync(join(d, 'tricky.css'), [
+    '@page{size:3.5in 2in;margin:0}',
+    'body{font-family:Archivo;font-size:9pt}',
+    '/* a comment naming .some-other-page */',
+    '.rule-a:not(.never){ border-top: 0.1pt solid }',
+    '.rule-b[data-x]{ font-size: 2pt }',
+    '@media print { .rule-c { border-top: 0.08pt solid } }',
+  ].join('\n'), 'utf8')
+  const p = file(d, 'tricky.html', '<!doctype html><html><head><link href="tricky.css" rel="stylesheet">'
+    + '</head><body><div class="rule-a"></div><p class="rule-b">x</p><div class="rule-c"></div></body></html>')
+
+  const findings = lint(p, {}).findings
+  // Every one of the three is reported somehow — that is the invariant that matters.
+  for (const needle of [/0\.1pt/, /2pt/, /0\.08pt/]) {
+    assert.ok(findings.some((f) => needle.test(f.msg)), `${needle} must appear somewhere in the report`)
+  }
+  // And because all three really do apply, all three are failures.
+  const fails = findings.filter((f) => f.level === 'fail')
+  assert.ok(fails.some((f) => /0\.1pt/.test(f.msg)), 'a comment above a rule does not soften it')
+  assert.ok(fails.some((f) => /2pt/.test(f.msg)), 'an attribute selector does not soften it')
+  assert.ok(fails.some((f) => /0\.08pt/.test(f.msg)), 'a rule inside @media does not soften it')
 })

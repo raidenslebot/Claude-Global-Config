@@ -453,6 +453,7 @@ export function applicableCss(css, markup) {
   let selStart = 0
   let blockStart = -1
   const setAside = []
+  const ranges = []
   for (let i = 0; i < clean.length; i++) {
     const ch = clean[i]
     if (ch === '{') {
@@ -466,13 +467,22 @@ export function applicableCss(css, markup) {
         const selector = clean.slice(selStart, blockStart)
         const inner = css.slice(blockStart + 1, i)
         const keep = /@/.test(selector) || applies(selector)
-        if (!keep) setAside.push(selector.trim().replace(/\s+/g, ' ').slice(0, 60))
-        out += css.slice(selStart, blockStart) + '{' + (keep ? inner : ' '.repeat(inner.length)) + '}'
+        if (!keep) {
+          setAside.push(selector.trim().replace(/\s+/g, ' ').slice(0, 60))
+          // The RANGE, not a deletion. See the note on the return value.
+          ranges.push([blockStart + 1, i])
+        }
+        out += css.slice(selStart, blockStart) + '{' + inner + '}'
         selStart = i + 1
         blockStart = -1
       }
       continue
     }
   }
-  return { css: out + css.slice(selStart), setAside }
+  // The CSS comes back UNCHANGED, with the ranges of rules that appear to name nothing on this
+  // page. Nothing is deleted, because deleting is how a gate produces a silent false pass: a
+  // selector this scanner reads wrongly used to remove a real hairline from the report entirely.
+  // The caller grades those findings down instead — a misread then costs severity, not
+  // visibility, and the measurement is still on the page for a human to see.
+  return { css: out + css.slice(selStart), setAside, ranges }
 }

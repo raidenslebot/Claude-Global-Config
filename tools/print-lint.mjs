@@ -153,10 +153,18 @@ export function lint(file, opts = {}) {
   // A rule in a shared stylesheet that cannot match this page is not this page's problem.
   const markup = pieces[0].text
   const setAside = []
-  for (let i = 1; i < pieces.length; i++) {
-    const r = applicableCss(pieces[i].text, markup)
-    pieces[i] = { ...pieces[i], text: r.css }
-    for (const sel of r.setAside) setAside.push(`${basename(pieces[i].file)}: ${sel}`)
+  // Ranges in the JOINED text whose rules appear to name nothing on this page. A finding inside
+  // one is reported as a warning rather than a failure — never removed.
+  const elsewhere = []
+  {
+    let at = pieces[0].text.length + 1
+    for (let i = 1; i < pieces.length; i++) {
+      const r = applicableCss(pieces[i].text, markup)
+      pieces[i] = { ...pieces[i], text: r.css }
+      for (const sel of r.setAside) setAside.push(`${basename(pieces[i].file)}: ${sel}`)
+      for (const [s, e] of r.ranges) elsewhere.push([at + s, at + e])
+      at += pieces[i].text.length + 1
+    }
   }
   const text = pieces.map((p) => p.text).join(String.fromCharCode(10))
   const isSvg = extname(file).toLowerCase() === '.svg'
@@ -173,6 +181,14 @@ export function lint(file, opts = {}) {
   }
   const fail = (rule, msg) => say('fail', rule, msg)
   const warn = (rule, msg) => say('warn', rule, msg)
+  /** A measurement inside a rule that names nothing on this page is real, but it is not this
+   *  page's failure. Reported, with the reason, at warning level — because the alternative is
+   *  deleting it, and a deleted measurement is how a card with a real hairline passed clean. */
+  const inAnotherPage = (i) => typeof i === 'number' && elsewhere.some(([s, e]) => i >= s && i < e)
+  const grade = (rule, i, msg) => {
+    if (inAnotherPage(i)) warn(rule, `${msg} — but its rule names nothing on this page, so it is probably another piece's; check that it does not render here`)
+    else fail(rule, msg)
+  }
 
   // Nothing is set aside in silence. A rule dropped because it cannot match this page is the
   // right call, and it is also the exact shape of a false pass — so it is named. A selector this
@@ -223,8 +239,8 @@ export function lint(file, opts = {}) {
   // 4. Type below the minimum.
   const sizes = []
   // CSS form only (a colon): the attribute form is read below, once, with an optional unit.
-  for (const m of text.matchAll(/font-size\s*:\s*([\d.]+)\s*(pt|px|mm|in|cm|pc|em|rem)/gi)) sizes.push({ src: m[0], v: m[1], u: m[2] })
-  for (const m of text.matchAll(/\bfont\s*:\s*(?:[a-z-]+\s+)*?([\d.]+)(pt|px|mm|in|cm|pc)(?:\/[\d.]+)?\s/gi)) sizes.push({ src: m[0].trim(), v: m[1], u: m[2] })
+  for (const m of text.matchAll(/font-size\s*:\s*([\d.]+)\s*(pt|px|mm|in|cm|pc|em|rem)/gi)) sizes.push({ src: m[0], v: m[1], u: m[2], at: m.index })
+  for (const m of text.matchAll(/\bfont\s*:\s*(?:[a-z-]+\s+)*?([\d.]+)(pt|px|mm|in|cm|pc)(?:\/[\d.]+)?\s/gi)) sizes.push({ src: m[0].trim(), v: m[1], u: m[2], at: m.index })
   for (const m of text.matchAll(/font-size="([\d.]+)(pt|px|mm|in|cm|pc)?"/gi)) sizes.push({ src: m[0], v: m[1], u: m[2] || (isSvg ? 'svg' : 'px') })
   const rootPt = (() => { const m = text.match(/html\s*\{[^}]*font-size\s*:\s*([\d.]+)(pt|px)/i); return m ? toPt(m[1], m[2]) : 12 })()
   for (const s of sizes) {
@@ -233,7 +249,7 @@ export function lint(file, opts = {}) {
     // No viewBox: a user unit is a CSS pixel, so the px conversion is the right fallback, not a skip.
     if (s.u === 'svg') { if (!declared) { warn('type', `${s.src} — unitless SVG font-size; declare the SVG in physical units to check it`); continue } pt = svgUserToPt(text, declared, Number(s.v)) ?? toPt(s.v, 'px') }
     else pt = toPt(s.v, s.u)
-    if (pt < method.text) fail('type', `${s.src} = ${belowLimit(pt, method.text)}pt, below the ${method.text}pt minimum for ${method.label}`)
+    if (pt < method.text) grade('type', s.at, `${s.src} = ${belowLimit(pt, method.text)}pt, below the ${method.text}pt minimum for ${method.label}`)
     else if (pt < method.reversedText) warn('type', `${s.src} = ${belowLimit(pt, method.reversedText)}pt — fine positive; too small if reversed (light on dark) for ${method.label}`)
   }
   if (sizes.length === 0) warn('type', 'no font-size found — if type is set by an external stylesheet this lint cannot see it')
@@ -241,7 +257,7 @@ export function lint(file, opts = {}) {
   // 5. Lines below the minimum.
   for (const m of text.matchAll(/\b(?:border(?:-(?:top|right|bottom|left))?(?:-width)?|outline(?:-width)?)\s*:\s*([\d.]+)(pt|px|mm|in)/gi)) {
     const pt = toPt(m[1], m[2])
-    if (pt > 0 && pt < method.line) fail('line', `${m[0]} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
+    if (pt > 0 && pt < method.line) grade('line', m.index, `${m[0]} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
   }
   for (const m of text.matchAll(/stroke-width\s*[:=]\s*"?([\d.]+)(pt|px|mm|in)?/gi)) {
     // The match stops at the number, so the attribute form has no closing quote.
@@ -250,7 +266,7 @@ export function lint(file, opts = {}) {
     if (m[2]) pt = toPt(m[1], m[2])
     else if (isSvg && declared) { pt = svgUserToPt(text, declared, Number(m[1])) ?? toPt(m[1], 'px') }
     else pt = toPt(m[1], 'px')
-    if (pt > 0 && pt < method.line) fail('line', `${src} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
+    if (pt > 0 && pt < method.line) grade('line', m.index, `${src} = ${belowLimit(pt, method.line)}pt, below the ${method.line}pt minimum for ${method.label} — it will drop out`)
   }
 
   // 6. Rasters placed below the required dpi.
