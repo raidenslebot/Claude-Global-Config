@@ -298,11 +298,25 @@ export function pluginServers(home = HOME) {
  *  be counted; the point of naming them is that a count which silently omits them is worse than
  *  a count that says what it left out. */
 export function hostManagedPlugins(home = HOME) {
-  const cfg = readJsonQuietly(join(home, '.claude.json')) || readJsonQuietly(CLAUDE_JSON) || {}
+  // CLAUDE_JSON first: it already accounts for CLAUDE_CONFIG_DIR, which is the whole reason
+  // these paths are computed in one place. The home-relative path is the fallback for a caller
+  // that named a home of its own.
+  const cfg = readJsonQuietly(home === HOME ? CLAUDE_JSON : join(home, '.claude.json'))
+    || readJsonQuietly(join(home, '.claude.json')) || {}
   const used = Object.keys(cfg.pluginUsage || {})
   if (!used.length) return []
-  const installed = new Set(Object.keys((readJsonQuietly(join(home, '.claude', 'plugins', 'installed_plugins.json')) || {}).plugins || {}))
-  return used.filter((k) => !installed.has(k)).sort()
+  // Compared by name, not by name@marketplace: the same plugin is recorded under @inline as
+  // well as under the marketplace it was installed from, and counting both said twelve where
+  // seven was true — while naming five plugins the doctor had just read from disk.
+  const installed = new Set(Object.keys((readJsonQuietly(join(home, '.claude', 'plugins', 'installed_plugins.json')) || {}).plugins || {})
+    .map((k) => String(k).split('@')[0]))
+  const seen = new Set()
+  return used.filter((k) => {
+    const name = String(k).split('@')[0]
+    if (installed.has(name) || seen.has(name)) return false
+    seen.add(name)
+    return true
+  }).sort()
 }
 
 /** Read JSON, or nothing. A config that is absent or malformed is not a finding here. */

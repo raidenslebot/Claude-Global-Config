@@ -509,16 +509,27 @@ if (wants('mcp') || wants('mcp-register')) {
             + `that is ${dupes.length} extra process(es) in EVERY session. Remove with: node tools/install.mjs --only=mcp --dedupe`)
           continue
         }
+        // Both of these are written before the mutation lands, so both are removed when it does
+        // not. The failure path here is the one the message below tells the user to retry, and a
+        // config directory filling with full copies — env blocks and all — is not an acceptable
+        // price for trying again.
+        const backup = hostPath + '.bak-' + Date.now()
+        const tmp = hostPath + '.cgc-' + process.pid
         try {
-          writeFileSync(hostPath + '.bak-' + Date.now(), JSON.stringify(host, null, 2) + '\n', 'utf8')
+          writeFileSync(backup, JSON.stringify(host, null, 2) + '\n', 'utf8')
           for (const k of dupes) delete host.mcpServers[k]
           // Rename, not truncate: this file belongs to a running application that writes its
-          // own preferences into it, and a half-written config is worse than a duplicate.
-          const tmp = hostPath + '.cgc-' + process.pid
+          // own preferences into it, and a half-written config is worse than a duplicate. The
+          // rename is atomic; the read-modify-write around it is not, so a preference the app
+          // writes between the read above and this line is still lost.
           writeFileSync(tmp, JSON.stringify(host, null, 2) + '\n', 'utf8')
           renameSync(tmp, hostPath)
           ok(`removed ${dupes.length} duplicate registration(s) from the ${label} config (${dupes.join(', ')}); a backup sits beside it. Restart the app for it to take effect.`)
         } catch (e) {
+          // Nothing half-done is left behind: no orphan temp, and no backup of a file that was
+          // never changed.
+          try { rmSync(tmp, { force: true }) } catch { /* never existed */ }
+          try { rmSync(backup, { force: true }) } catch { /* never existed */ }
           // Naming the file matters: this used to report a failure to update ~/.claude.json,
           // which had succeeded, and sent the reader to the wrong place.
           warn(`could not rewrite the ${label} config at ${hostPath} — ${e.message}. It is often locked while the application is running; close it and re-run, or remove ${dupes.join(', ')} from it by hand.`)

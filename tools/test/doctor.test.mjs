@@ -85,8 +85,11 @@ test('a failure this package cannot repair does not ask the installer to try', (
   const remote = j.results.filter((r) => /external service/.test(r.message))
   assert.equal(remote.length, 1, 'the remote server is still reported')
   assert.equal(remote[0].level, 'warn', 'but not as a broken install: it is not this package\'s to remove')
-  for (const r of j.results.filter((x) => x.level === 'fail')) {
-    assert.equal(typeof r.repairable, 'boolean', 'every failure states whether an install could fix it')
+  // Asserting the flag is "a boolean" could not fail — push() stamps one on every result. What
+  // matters is the value, on the failures where getting it wrong costs an install per session.
+  const dupe = j.results.find((r) => /registered 2 times/.test(r.message))
+  if (dupe && dupe.level === 'fail') {
+    assert.equal(dupe.repairable, false, 'the install the hook runs never passes --dedupe')
   }
 })
 
@@ -130,7 +133,19 @@ test('the process count says what it could not count', (t) => {
   writeFileSync(join(d, '.claude.json'), JSON.stringify({
     mcpServers: { local: { command: process.execPath, args: [join(d, 'x.js')] } },
     // Used, but in no installed-plugins registry: the host application owns it.
-    pluginUsage: { 'desktop-commander@inline': { usageCount: 3 }, 'sanity@inline': { usageCount: 1 } },
+    pluginUsage: {
+      'desktop-commander@inline': { usageCount: 3 },
+      'sanity@inline': { usageCount: 1 },
+      // The alias case, and the reason this said twelve where seven was true: an INSTALLED
+      // plugin also carries an @inline usage record, and keying on name@marketplace counted it
+      // twice — naming plugins the doctor had just read from disk as ones it cannot see.
+      'superpowers@inline': { usageCount: 9 },
+      'superpowers@claude-plugins-official': { usageCount: 9 },
+    },
+  }), 'utf8')
+  mkdirSync(join(d, '.claude', 'plugins'), { recursive: true })
+  writeFileSync(join(d, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({
+    version: 2, plugins: { 'superpowers@claude-plugins-official': [{ scope: 'user', installPath: join(d, 'sp') }] },
   }), 'utf8')
   const j = runDoctorJson(d)
   const count = j.results.find((r) => /MCP process\(es\) per session/.test(r.message))

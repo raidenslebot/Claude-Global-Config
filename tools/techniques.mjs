@@ -400,13 +400,30 @@ export function measure(raw, { ext = '', cwd = process.cwd() } = {}) {
   const untouched = DIMS.filter((d) => available.has(d) && byDim[d] === 0)
 
   const n = used.length
-  const verdict = n <= 1 ? 'assembled' : n <= 4 ? 'conventional' : n <= 8 ? 'considered' : 'ambitious'
+  // The verdict is about SPREAD, not quantity. Grading on a count made this catalogue a target:
+  // "ambitious = 9 or more" is an instruction to collect, and a piece that collects nine
+  // techniques from one dimension is decorated, not designed — while a piece that made one real
+  // decision in each of four dimensions is the thing worth having. Quantity was the wrong axis,
+  // and a package that scores it will produce work that all looks the same.
+  //
+  // The floor stays a count, because it is not a matter of taste: nothing reached for at all is
+  // a piece that does nothing a default could not.
+  const entered = DIMS.filter((d) => byDim[d] > 0).length
+  const verdict = n <= 1 ? 'assembled'
+    : entered <= 2 ? 'conventional'
+      : entered <= 4 ? 'considered'
+        : 'ambitious'
+  // Many techniques inside one or two dimensions is the signature of collecting rather than
+  // deciding, and it is invisible to any count.
+  const concentrated = n >= 6 && entered <= 2 ? { n, entered } : null
   // Suggest into the thinnest dimensions first, highest lift next: widen what the piece does
   // rather than piling more of what it already does.
   const missing = all.filter((t) => !usedIds.has(t.id))
     .sort((a, b) => (byDim[a.dim] - byDim[b.dim]) || (b.lift - a.lift) || a.id.localeCompare(b.id))
 
   return {
+    entered,
+    concentrated,
     media: media.map((m) => ({ id: m.id, label: m.label })),
     detected, used, usedIds, byDim, untouched, count: n, pool: all.length, verdict, missing,
   }
@@ -440,7 +457,11 @@ Detects the MEDIUM (web, SVG, canvas, shader, 3D, native, game, TUI, data-viz, p
 the piece against that medium's own vocabulary, and names the expressive DIMENSIONS it never
 entered: material, structure, type, time, depth, response, generative, variation.
 
-Verdicts: assembled (0–1 techniques), conventional (2–4), considered (5–8), ambitious (9+).
+Verdicts are about SPREAD, not quantity: assembled (nothing reached for at all), then by how
+many of the eight dimensions a piece entered — conventional (1–2), considered (3–4),
+ambitious (5+). Nine techniques inside one dimension is decoration; one real decision in
+each of four is a design. Grading on a count turns the catalogue into a target, and a
+target is how every piece ends up looking the same.
 --min <n> exits 1 below that count. Quantity is not quality — a technique that could be removed
 without the piece reading differently was decoration — but a piece that reaches for none of them
 was assembled rather than designed.
@@ -521,6 +542,12 @@ export function main(argv = process.argv.slice(2)) {
   if (suggest.length) {
     console.log(`\n  \x1b[1mnever tried\x1b[0m${args.all ? '' : ` (${m.missing.length} absent; the ${suggest.length} that would widen it most)`}`)
     for (const t of suggest) console.log(`    \x1b[2m${t.dim.padEnd(11)}\x1b[0m ${t.what}`)
+  }
+  if (m.concentrated) {
+    console.log(`
+  [33m${m.concentrated.n} techniques, all inside ${m.concentrated.entered} dimension(s).[0m `
+      + 'That is collecting, not deciding — nine moves in one dimension is decoration, and it is invisible to any count. '
+      + 'The dimensions it never entered are questions about what the piece IS.')
   }
   console.log(m.verdict === 'assembled'
     ? '\n  \x1b[31mThis was assembled, not designed.\x1b[0m Nothing here does anything a default cannot. Answer the dimension questions first — they change what the piece IS — then pick the technique that serves the answer.\n'

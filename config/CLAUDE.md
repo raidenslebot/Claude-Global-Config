@@ -96,6 +96,21 @@ palettes, layout grammars, materials, motion laws, image treatments — is
 it set, not by its name: `cgc specimen --display <face> --text <face> --palette <colours>`
 renders the pairing at display and reading size, reversed, with every colour and its contrast.
 
+**Every gate above is a LIST, and a list converges.** Avoid a blacklist and you land where
+everyone else who avoided it landed; score against a menu and the menu becomes the target. That
+is not a hypothetical: this package shipped six example designs across six different fields in
+ONE palette — the same cream ground in all six, the same burnt orange in five. Nothing measured
+it, because nothing here could. **`cgc distinct <file|dir>` measures self-similarity**: it
+extracts a piece's signature — the ground and accent hue in perceptual buckets, the type pairing,
+the layout grammar, the motion law — and compares it against the rest of YOUR work, naming the
+axes it repeats and the piece it repeats them from. It has no opinion about cream or about
+orange; it only says *you have made this before*. Three of five axes shared with another project
+is a habit rather than a decision, and the author is the one who decides whether the habit is the
+point. Run it before shipping anything into a body of work, and treat a `repeat` as a question
+about which axis carries the most meaning — then change that one. Siblings in the same folder are
+one project and never count against each other: a three-post series is supposed to look like
+itself.
+
 **One command runs the whole loop: `cgc check <file|dir>`.** It reads the file and runs every
 gate that applies to it — the ambition measure on any design file, the fingerprint lint on web
 source, the rendered-page audit on a page, the frame capture on a page that animates, the press
@@ -136,9 +151,12 @@ instead of being pasted, typed custom properties (`@property`) which are the onl
 gradient at all, variable font axes past weight and optical sizing, `text-box` trim, container
 queries and subgrid, deliberate grid overlap, gradient masks instead of another card, blend modes,
 generated grain from `feTurbulence`, scroll-driven animation with no library, View Transitions,
-`@starting-style`. Verdicts: assembled (0–1 techniques), conventional (2–4), considered (5–8),
-ambitious (9+); a hook reports it on every substantial design file written, in whichever medium
-it recognises — a fragment shader is judged as a shader and never handed CSS advice, and a file
+`@starting-style`. **The verdict is about SPREAD, not quantity** — assembled (nothing reached
+for at all), then by how many of the eight dimensions the piece entered: conventional (1–2),
+considered (3–4), ambitious (5+). Grading on a count turned the catalogue into a target, and a
+target is how every piece ends up looking the same; nine techniques inside one dimension is
+decoration and is now named as collecting rather than deciding. A hook reports it on every
+substantial design file written, in whichever medium it recognises — a fragment shader is judged as a shader and never handed CSS advice, and a file
 in no recognised medium is left alone. Quantity is not
 quality and a technique adopted for its own sake is decoration — pick the one or two the IDEA
 requires, and let them change the STRUCTURE rather than the surface: if it could be removed and

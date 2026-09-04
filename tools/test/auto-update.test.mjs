@@ -309,3 +309,30 @@ test('a claim left by a run that died is not a claim', (t) => {
   assert.equal(readFileSync(join(w.friend, 'testruns.txt'), 'utf8'), '1', 'the stale claim was taken over')
   assert.equal(existsSync(claim), false, 'and released afterwards')
 })
+
+test('a failure an install cannot repair does not run one, at every session start, for ever', (t) => {
+  // verify() re-runs the whole install on any doctor failure. The flag that stops it was added
+  // to doctor.mjs and read by the hook, but nothing tested the two ends together — and the
+  // release's own flagship finding was still emitted as repairable, so the loop it was written
+  // to break was still reachable on exactly the failure it was written for.
+  const w = world(t, { doctor: true })
+  // A doctor that always fails with something no install can put back.
+  writeFileSync(join(w.friend, 'tools', 'doctor.mjs'),
+    'console.log(JSON.stringify({ healthy: false, counts: { ok: 3, fail: 1 }, '
+    + "results: [{ level: 'fail', repairable: false, message: 'two servers registered, and neither is ours to remove' }] }))\n")
+  const { line } = fire(w, w.friend)
+  assert.match(line, /DEGRADED/, 'the failure is still reported')
+  assert.doesNotMatch(line, /repaired/, 'but no install was run for something an install cannot fix')
+
+  // The other direction, so the flag cannot be switched on by accident and silence real repair.
+  writeFileSync(join(w.friend, 'tools', 'doctor.mjs'),
+    'console.log(JSON.stringify({ healthy: false, counts: { ok: 3, fail: 1 }, '
+    + "results: [{ level: 'fail', repairable: true, message: 'hooks/post-tool-slop.js not registered' }] }))\n")
+  assert.match(fire(w, w.friend).line, /repaired/, 'a repairable failure still triggers the install')
+
+  // And a finding from before the flag existed defaults to repairable, as it always behaved.
+  writeFileSync(join(w.friend, 'tools', 'doctor.mjs'),
+    'console.log(JSON.stringify({ healthy: false, counts: { ok: 3, fail: 1 }, '
+    + "results: [{ level: 'fail', message: 'an older finding with no flag' }] }))\n")
+  assert.match(fire(w, w.friend).line, /repaired/, 'no flag means repair, which is the old behaviour')
+})

@@ -35,9 +35,11 @@ const NODE = NODE_TOKEN.includes('{{') ? process.execPath : NODE_TOKEN
 const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || (CONFIG_TOKEN.includes('{{') ? path.join(os.homedir(), '.claude') : CONFIG_TOKEN)
 const STATE = path.join(CONFIG_ROOT, '.cgc')
 const TEST_TTL_MS = 24 * 60 * 60 * 1000
-// A claim older than this belongs to a run that died. The suite takes about a minute and a half
-// and is capped at 240s, so five minutes is well past any honest run.
-const TEST_CLAIM_STALE_MS = 5 * 60 * 1000
+// A claim older than this belongs to a run that died. The run is capped at 240s, but the mtime
+// is set once and never refreshed, and the machine this protects is by definition the loaded
+// one — a suspended or thrashing session must not have its LIVE claim reaped and a second suite
+// started beside it. Well past the timeout, not merely past it.
+const TEST_CLAIM_STALE_MS = 20 * 60 * 1000
 
 function git(args, timeout = 15000) {
   return spawnSync('git', args, {

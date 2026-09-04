@@ -167,7 +167,7 @@ phase('MCP servers')
     // server listed here loads in every session alongside the ones above.
     for (const [label, p] of hostConfigs()) {
       const m = readJsonQuietly(p)?.mcpServers
-      if (m && Object.keys(m).length) scopes.push([` (${label})`, m])
+      if (m && Object.keys(m).length) scopes.push([` (${label})`, m, null, 'host'])
     }
     // Claude Code also reads a project's own .mcp.json, which loads in that project's sessions
     // alongside everything above. Not enumerating it left the commonest project-level
@@ -181,8 +181,8 @@ phase('MCP servers')
 
     // `project` marks a scope that loads ONLY in that project's sessions, which is what makes
     // the same name in two different projects one server in each rather than two in one.
-    const servers = scopes.flatMap(([where, map, project]) =>
-      Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {}, project: project || null })))
+    const servers = scopes.flatMap(([where, map, project, kind]) =>
+      Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {}, project: project || null, kind: kind || null })))
 
     // A NAME registered in more than one scope that LOADS TOGETHER is two servers running, each
     // costing a process for the life of every session. But scopes do not all load together: a
@@ -218,8 +218,10 @@ phase('MCP servers')
         // config, of a name this package registers, is removable by --dedupe: that is a
         // failure. A plugin's own file, or a project's, is not this package's to edit, so it
         // is reported as the decision it needs rather than as a broken install nothing can fix.
-        const fixable = xs.some((x) => /host app/.test(x.where)) && ourNames.has(name)
-        if (fixable) fail(`${msg} Keep the one this package registers (a direct node command) and remove the other: node tools/install.mjs --only=mcp --dedupe`)
+        const fixable = xs.some((x) => x.kind === 'host') && ourNames.has(name)
+        // Not repairable by the install the session hook runs: that one never passes --dedupe,
+        // and a failure it cannot clear means a full install at every session start, for ever.
+        if (fixable) fail(`${msg} Keep the one this package registers (a direct node command) and remove the other: node tools/install.mjs --only=mcp --dedupe`, { repairable: false })
         else warn(`${msg} None of these is this package's to edit — disable one of them, or remove the name from the config that should not carry it.`)
       }
     }
@@ -227,7 +229,12 @@ phase('MCP servers')
 
     // What one session actually costs, since the count is the thing that bites and no single
     // config file shows it. An npx or cmd wrapper stays resident alongside the server it spawns.
-    const perSession = servers.reduce((n, x) => n + (/^(?:npx|cmd|sh|bash|pnpm|yarn)(?:\.\w+)?$/i.test(String(x.s.command || '')) ? 2 : 1), 0)
+    // Only ONE project's scopes load in a session, so a machine that remembers thirty projects
+    // does not start thirty servers. Counting them all inflated the one number this check is
+    // for — by an order of magnitude on an ordinary machine.
+    const cost = (xs) => xs.reduce((n, x) => n + (/^(?:npx|cmd|sh|bash|pnpm|yarn)(?:\.\w+)?$/i.test(String(x.s.command || '')) ? 2 : 1), 0)
+    const perProject = [...projects.values()].map((xs) => cost(xs))
+    const perSession = cost(always) + (perProject.length ? Math.max(...perProject) : 0)
     // Plugins the host application manages register their servers at runtime; no file here
     // describes them, so they cannot be counted. Saying "about N per session" while a whole
     // category is invisible is the same defect this phase exists to catch, committed here.
@@ -279,7 +286,12 @@ phase('MCP servers')
         fail(`${name}${where}: command not found — ${s.command}`, { repairable: !where.trim() })
       }
       else if (!entry) warn(`${name}${where}: no entry point in args`)
-      else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
+      // Same rule as the command above: a missing entry in a config this package does not own
+      // is a real failure and a real report, but re-running this install cannot put it back —
+      // and a failure it cannot clear means a full install at every session start, for ever.
+      else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) {
+        fail(`${name}${where}: server entry missing — ${entry}`, { repairable: !where.trim() })
+      }
       else ok(`${name}${where} · ${basename(entry)}`)
     }
 

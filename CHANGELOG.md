@@ -5,6 +5,80 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.50.0 — 2026-09-03
+
+Two things: a measure this package did not have, and the second review of the freeze fixes.
+
+### Everything here was a list, and a list converges
+
+The complaint was that this package "promotes patterns and hardcoded methods… it does the same
+things the same way all the time." It is correct, and it is structural. Every gate here judged a
+design against a fixed set — 23 slop fingerprints, 62 named techniques, 8 dimensions — and both
+directions of a list converge: avoid a blacklist and you land where everyone else who avoided it
+landed, score against a menu and the menu becomes the target. Then the verdict made it explicit.
+`ambitious = 9 or more techniques` is an instruction to collect.
+
+And the evidence was sitting in the repository. Six shipped examples, six different fields, **one
+palette**: the same cream ground in all six, the same burnt orange in five, the same navy in four,
+Archivo in three. The reference set that teaches taste was one look wearing six hats, and nothing
+could see it because nothing here measured whether a piece resembles the piece before it.
+
+**`cgc distinct <file|dir>` measures self-similarity.** It extracts a signature — the ground and
+accent hue in perceptual buckets, the type pairing, the layout grammar, the motion law — and
+compares it against the rest of your work, naming the axes it repeats and the piece it repeats
+them from. It has no opinion about cream or about orange; there is no list in it. It says only:
+*you have made this before, and here is where*. Three of five axes shared with another project is
+a habit rather than a decision. Turned on this package's own examples it grades the identity
+sheet a **repeat** — ground, accent and type shared with the deck.
+
+Details that decide whether it is honest rather than merely clever. The ground is read where it is
+painted, from the rule that sets it, because a ground is declared once and covers everything while
+an accent repeated in nine rules covers almost nothing — counting occurrences had this exactly
+backwards. An accent is identified by hue without the lightness step, so two hand-picked oranges a
+few percent apart are one orange rather than two. Siblings in one folder are one project and never
+count against each other: a three-post series is supposed to look like itself. The corpus is your
+tree, never this package's examples, because telling a stranger their page resembles a swimming
+club they have never heard of is a comparison against someone else's taste. And a corpus of one
+says so instead of reporting "distinct", because one piece is no evidence of originality.
+
+**The ambition verdict now measures spread, not quantity.** Assembled still means nothing was
+reached for — that is a floor, not a matter of taste — but above it the grade is how many of the
+eight dimensions a piece entered: conventional (1–2), considered (3–4), ambitious (5+). Seven
+techniques inside two dimensions used to score `considered` and look like progress; it now reads
+`conventional` and says plainly that it is collecting rather than deciding.
+
+### The second review of the freeze fixes
+
+Eight more confirmed, and the worst was that the `repairable` flag from 1.48.0 was applied to one
+call site and not the others — so the loop it was written to break was still reachable **on this
+release series' own flagship finding**. A host-app duplicate was emitted as repairable while the
+install the session hook runs never passes `--dedupe` and can only warn without it: a full install
+at every session start, for ever, over a duplicate it could not remove. Marked unrepairable, along
+with a missing server entry in a config this package does not own and a `~/.claude.json` that will
+not parse — no install makes a file parse.
+
+- **The scope model was applied to the duplicates and not to the count beside them.** Every
+  remembered project added a server to a per-session total only one project ever loads: a machine
+  with thirty projects was told it starts hundreds of processes. The count is now the always-loaded
+  scopes plus the largest single project.
+- **The host-managed disclosure over-reported by seventy per cent.** Keyed on `name@marketplace`,
+  an installed plugin that also carries an `@inline` usage record counted as unreadable — twelve
+  reported where seven was true, five of them plugins the doctor had just read from disk.
+- **`hostManagedPlugins()` read the wrong file under `CLAUDE_CONFIG_DIR`**, which is the one case
+  those paths exist to honour.
+- **Severity hung on a display string produced in another module.** Renaming the label "host app"
+  would have turned every host-app duplicate from fail to warn with a green suite; the scope now
+  carries a flag.
+- **`--dedupe` littered the host config directory unboundedly.** The temp file was never removed on
+  failure and the backup was written before every attempt — and that failure path is the one the
+  message tells the user to retry.
+- **The claim's stale window was barely wider than the run it guards.** Five minutes against a
+  240-second timeout, with an mtime set once and never refreshed, on the loaded machine this
+  exists to protect: a live claim could be reaped and a second suite started beside it. Twenty.
+- **A test that could not fail.** `typeof r.repairable === 'boolean'` holds whatever the value is,
+  because every result carries the field. It asserts the value now, and a new test drives the flag
+  end to end through the hook — the half nothing covered, which is why the defect above shipped.
+
 ## 1.49.0 — 2026-09-03
 
 **The count added to make the cost visible was itself hiding a whole category.** The doctor
