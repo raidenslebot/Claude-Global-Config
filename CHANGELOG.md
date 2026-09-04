@@ -5,6 +5,18 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.56.0 — 2026-09-03
+
+**The fingerprint lint under-detected the notation this package tells authors to use.** The
+acid-on-black family looked for its dark ground with a regex that accepted only hex and
+rgb(), so the same three fingerprints written in oklch scored 3 where the hex version scored
+4 — the most modern-looking version of the template was the one version that went unreported.
+Found by checking parity after the oklch conversion landed, not by a review.
+
+A test now holds the general rule: the same design, in hex, in rgb() derived from it, and in
+oklch, must produce the same findings. A gate that can be evaded by changing notation is not
+a gate.
+
 ## 1.55.0 — 2026-09-03
 
 The last confirmed finding of the review, and the third false failure introduced by teaching

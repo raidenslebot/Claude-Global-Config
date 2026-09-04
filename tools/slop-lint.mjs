@@ -241,7 +241,11 @@ export const FAMILIES = [
       // A face, a colour or a ground named through a token is still what is on the page.
       const t = resolved || orig
       const dark = first(/\bbg-(black|(gray|zinc|neutral|slate|stone)-950)\b/, t)
-        || [...t.matchAll(/background(?:-color)?\s*:\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\))/gi)].map((m) => ({ i: m.index, s: m[1], c: hsl(m[1]) })).find((x) => nearBlack(x.c))
+        // Every notation, not just hex and rgb(). This package tells authors to write colour in
+        // oklch, and an oklch ground was invisible here — so the most modern-looking version of
+        // this exact fingerprint was the one version that went unreported.
+        || [...t.matchAll(new RegExp(`background(?:-color)?\s*:\s*(${COLOUR.source})`, 'gi'))]
+          .map((m) => ({ i: m.index, s: m[1], c: hsl(m[1]) })).find((x) => nearBlack(x.c))
       if (!dark) return null
       const tw = first(/\b(text|bg|border|from|to)-(green|emerald|lime|cyan)-(400|500)\b/, t)
       if (tw) return { i: dark.i, s: `${dark.s} + ${tw.s}` }

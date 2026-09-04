@@ -345,3 +345,37 @@ test('a page is judged with the stylesheets it links, and each finding names its
   const odd = lint(join(d, 'odd.html'))
   assert.equal(odd.score, inline.score, 'an unreachable or repeated sheet changes nothing')
 })
+
+test('the same design lints the same in every colour notation', () => {
+  // The families were written against hex and rgb(). This package tells authors to write colour
+  // in oklch — so the most modern-looking version of a fingerprint was the one version that went
+  // unreported: an oklch ground was invisible to the acid-on-black family, which only ever
+  // looked for `#hex` or `rgb()` in a background declaration.
+  const page = (bg, from, to, acid) => `<!doctype html><html lang="en"><head><meta charset="utf-8">`
+    + `<title>L</title><style>body{background:${bg};color:#94a3b8;font-family:Inter,sans-serif}`
+    + `.hero h1{background:linear-gradient(90deg,${from},${to});-webkit-background-clip:text;color:transparent}`
+    + `.acid{color:${acid}}</style></head><body><section class="hero"><h1>x</h1></section></body></html>`
+
+  const hex = lintText(page('#0b0f19', '#a855f7', '#ec4899', '#39ff14'), 'hex.html')
+  const ids = (r) => r.findings.map((f) => f.id).sort()
+  assert.ok(ids(hex).includes('acid-on-black'), 'the hex baseline finds all three')
+  assert.ok(ids(hex).includes('gradient-purple'))
+
+  // The same colours as rgb(), derived rather than retyped, so the two cannot drift apart.
+  const rgb = (h) => {
+    const k = hsl(h)
+    const c = (1 - Math.abs(2 * k.l - 1)) * k.s
+    const x = c * (1 - Math.abs(((k.h / 60) % 2) - 1))
+    const m = k.l - c / 2
+    const t = k.h < 60 ? [c, x, 0] : k.h < 120 ? [x, c, 0] : k.h < 180 ? [0, c, x]
+      : k.h < 240 ? [0, x, c] : k.h < 300 ? [x, 0, c] : [c, 0, x]
+    return `rgb(${t.map((v) => Math.round((v + m) * 255)).join(',')})`
+  }
+  const asRgb = lintText(page(rgb('#0b0f19'), rgb('#a855f7'), rgb('#ec4899'), rgb('#39ff14')), 'rgb.html')
+  assert.deepEqual(ids(asRgb), ids(hex), 'rgb() is the same design')
+
+  // And in oklch, which is what the mandate asks for.
+  const asOklch = lintText(page('oklch(0.16 0.03 265)', 'oklch(0.63 0.24 303)',
+    'oklch(0.65 0.25 350)', 'oklch(0.88 0.30 140)'), 'oklch.html')
+  assert.deepEqual(ids(asOklch), ids(hex), 'oklch is the same design')
+})
