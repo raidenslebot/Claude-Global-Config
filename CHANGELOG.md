@@ -5,6 +5,52 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.51.0 — 2026-09-03
+
+The measure landed in 1.50.0; this is the part it was pointing at. Six shipped examples in one
+palette is not fixed by a tool that can see it — it is fixed by making something else.
+
+**A seventh example, in a register the other six do not have.** `coldwater-branch-timetable`: a
+printed A3 wall timetable for a rural branch line. Its idea is that the vertical axis is journey
+time, so a station sits as far down the sheet as it is far along the line and the long empty run
+across the fen is a long empty run on the paper. The sheet is a portrait of one route rather than
+a list of departures, which is also why it passes its own swap test: another line has another
+silhouette.
+
+It shares no axis with the others. A cool white stock instead of their cream, a signal crimson at
+a different hue from their orange, Archivo Narrow with IBM Plex Mono instead of Archivo, and a
+computed-grid grammar — rows placed by `calc()` on a track of one minute each — instead of a
+stacked or placed composition. `cgc distinct` is what settles that, and it is the reason the
+example exists.
+
+**Six passes, and four of the six defects came from a gate rather than from reading the source.**
+The record is in `review.md`. Two are worth naming here:
+
+- **A breakpoint fired on the paper.** `@media (max-width: 300mm)`, written for a narrow screen,
+  matches an A3 sheet at 297mm — so the print render was re-scaling the piece being proofed and
+  the proof was of a different design from the one that would print. Invisible in source, obvious
+  in a picture. It is the whole case for rendering rather than reasoning.
+- **`print-lint` could not see the design.** It reported *no `@page` rule — the document has no
+  physical size* for a sheet that declares A3 in its stylesheet, because it read the markup only.
+  For any piece whose CSS lives in a separate file — nearly all real print work — it measured no
+  type, no line weights and no rasters, and could have reported a pass having checked almost
+  nothing. It now reads a page with the stylesheets it links, as the browser does. The example
+  found it by being built the way real work is built.
+
+**`cgc distinct` learned what a project is.** A brand delivered across fields arrives as
+`brand-deck`, `brand-email`, `brand-icons`, and treating those as three separate works reported
+the very consistency they exist to demonstrate — the same crying-wolf error as calling a
+three-post series a repeat. Folders whose names share a leading run of words are one body of
+work. And the verdict now counts other *projects* rather than other files, because "distinct
+against one other project" is barely evidence: a thin corpus is reported as thin instead of
+dressed up as a clean bill.
+
+Two blind spots in the signature, both found by pointing it at the new piece: the grammar was
+reading the visually-hidden utility every accessible page carries — absolutely positioned and
+clipped — as composition, so every page read as "placed" and "cut"; and it could not see a
+computed grid at all, which meant the one structural decision a piece had made was the one thing
+it could not describe.
+
 ## 1.50.0 — 2026-09-03
 
 Two things: a measure this package did not have, and the second review of the freeze fixes.

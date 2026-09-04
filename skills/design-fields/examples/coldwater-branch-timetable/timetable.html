@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coldwater Branch — weekday timetable</title>
+<!-- A printed wall sheet at A3. The vertical axis is real time: row position is computed from
+     minutes past the first departure, so the gap between two trains is the length of the wait.
+     Directions and the passes: directions.md, review.md
+     Render: cgc print timetable.html --size a3 · Gate: cgc check . -->
+<link rel="stylesheet" href="sheet.css">
+</head>
+<body>
+<section class="sheet">
+
+  <header class="masthead">
+    <h1>Coldwater Branch</h1>
+    <p class="sub">Monday to Saturday &middot; from 14 September</p>
+  </header>
+
+  <!-- The scale, so the spacing reads as minutes rather than as taste. Journey time from
+       Coldwater, which is the axis every row is placed on. -->
+  <div class="scale" aria-hidden="true">
+    <span style="--at: 0">0<i>min</i></span>
+    <span style="--at: 20">20</span>
+    <span style="--at: 40">40</span>
+    <span style="--at: 60">60</span>
+    <span style="--at: 76">76</span>
+  </div>
+
+  <table class="board">
+    <caption class="vh">Departures from Coldwater, Monday to Saturday</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="stop">calling at</th>
+        <th scope="col">1</th>
+        <th scope="col">2</th>
+        <th scope="col">3</th>
+        <th scope="col">4</th>
+        <th scope="col" class="note-col">5<span class="mark">†</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="--at: 0">
+        <th scope="row" class="stop">Coldwater</th>
+        <td>06<span class="c">:</span>12</td><td>08<span class="c">:</span>04</td>
+        <td>12<span class="c">:</span>40</td><td>17<span class="c">:</span>05</td>
+        <td class="sun">20<span class="c">:</span>18</td>
+      </tr>
+      <tr style="--at: 9">
+        <th scope="row" class="stop">Marsh Halt <span class="req">request</span></th>
+        <td>06<span class="c">:</span>21</td><td>08<span class="c">:</span>13</td>
+        <td>12<span class="c">:</span>49</td><td>17<span class="c">:</span>14</td>
+        <td class="sun">20<span class="c">:</span>27</td>
+      </tr>
+      <tr style="--at: 23">
+        <th scope="row" class="stop">Nether Fen</th>
+        <td>06<span class="c">:</span>35</td><td>08<span class="c">:</span>27</td>
+        <td>13<span class="c">:</span>03</td><td>17<span class="c">:</span>28</td>
+        <td class="sun">20<span class="c">:</span>41</td>
+      </tr>
+      <tr style="--at: 41">
+        <th scope="row" class="stop">Gaunt Bridge</th>
+        <td>06<span class="c">:</span>53</td><td>08<span class="c">:</span>45</td>
+        <td>13<span class="c">:</span>21</td><td>17<span class="c">:</span>46</td>
+        <td class="sun">20<span class="c">:</span>59</td>
+      </tr>
+      <tr style="--at: 58">
+        <th scope="row" class="stop">Wraycombe</th>
+        <td>07<span class="c">:</span>10</td><td>09<span class="c">:</span>02</td>
+        <td>13<span class="c">:</span>38</td><td>18<span class="c">:</span>03</td>
+        <td class="sun">21<span class="c">:</span>16</td>
+      </tr>
+      <tr style="--at: 76">
+        <th scope="row" class="stop">Ardleigh Sands</th>
+        <td>07<span class="c">:</span>28</td><td>09<span class="c">:</span>20</td>
+        <td>13<span class="c">:</span>56</td><td>18<span class="c">:</span>21</td>
+        <td class="sun">21<span class="c">:</span>34</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <footer class="notes">
+    <p class="legend"><span class="swatch" aria-hidden="true"></span>
+      <span class="mark">†</span> Service 5 does not run on Sundays or public holidays.</p>
+    <p>Marsh Halt is a request stop. Signal the driver from the platform; tell the guard on board.</p>
+    <p class="issue">Coldwater &amp; District Railway &middot; sheet 3 of 4 &middot; valid until 12 December</p>
+  </footer>
+
+</section>
+</body>
+</html>

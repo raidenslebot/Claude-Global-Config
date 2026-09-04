@@ -79,9 +79,27 @@ function faces(text) {
   return out
 }
 
+/** Blank the bodies of visually-hidden utilities. Every accessible page carries one, and it is
+ *  absolutely positioned and clipped — so reading it as composition told every page it was
+ *  "placed" and "cut", which is a fact about the a11y helper and not about the design. */
+function withoutHiddenUtilities(text) {
+  return text.replace(/\{([^{}]*)\}/g, (whole, body) => {
+    const srOnly = /clip-path\s*:\s*inset\(\s*50%/i.test(body)
+      || (/(?:^|[;\s])width\s*:\s*1px/i.test(body) && /(?:^|[;\s])height\s*:\s*1px/i.test(body))
+    return srOnly ? '{' + ' '.repeat(body.length) + '}' : whole
+  })
+}
+
 /** The layout grammar, as coarse shapes rather than as a checklist. */
-function grammar(text) {
+function grammar(raw) {
+  const text = withoutHiddenUtilities(raw)
   const g = new Set()
+  // A grid whose tracks or placements are COMPUTED is a coordinate system, not a container —
+  // the piece is drawn on a scale rather than stacked. Missing it meant the one structural
+  // decision a piece had made was the one thing this could not see.
+  if (/grid-template-(?:rows|columns)\s*:[^;}]*calc\(|grid-row\s*:\s*calc\(|grid-column\s*:\s*calc\(/i.test(text)) g.add('computed-grid')
+  if (/display\s*:\s*contents/i.test(text)) g.add('regridded')
+  if (/grid-template-(?:areas|columns)\s*:\s*\[/i.test(text)) g.add('named-lines')
   if (/grid-template-columns\s*:\s*repeat\(\s*(\d)/i.test(text)) {
     const n = /grid-template-columns\s*:\s*repeat\(\s*(\d)/i.exec(text)[1]
     g.add(`grid-${n}up`)
@@ -174,6 +192,17 @@ export function compare(a, b) {
   return { axes, score: axes.length }
 }
 
+/** The body of work a folder belongs to. Two folders whose names share a run of two or more
+ *  leading words are one project: `harbor-swim-club-deck` and `harbor-swim-club-icons` are an
+ *  identity system delivered across fields, not two designs that happen to agree. */
+export function projectKey(dir) {
+  const name = basename(dir)
+  const parts = name.split(/[-_]/).filter(Boolean)
+  // Two words is enough to be a name and not a category: `deck` and `icons` share nothing,
+  // `harbor-swim-club-deck` and `harbor-swim-club-icons` share three.
+  return parts.length >= 3 ? join(dirname(dir), parts.slice(0, parts.length - 1).join('-')) : dir
+}
+
 // ── files ────────────────────────────────────────────────────────────────────────────────────
 
 function walk(p, out = [], seen = new Set()) {
@@ -242,18 +271,31 @@ export function judge(targets, corpusFiles) {
       const s = sig(f)
       return s ? { file: f, ...compare(mine, s) } : null
     }).filter(Boolean).sort((a, b) => b.score - a.score)
-    // A piece in the same folder is the same PROJECT: a three-post series is supposed to look
-    // like itself, and calling that a repeat would be crying wolf at the one place consistency
-    // is the job. The habit shows across projects, so that is what the verdict is drawn from.
+    // A piece in the same PROJECT is supposed to look like itself: a three-post series, and a
+    // brand's deck and its icon set, are consistent on purpose, and calling that a repeat is
+    // crying wolf at the one place consistency is the job. The habit shows ACROSS projects.
+    //
+    // A project is a folder — and also a family of folders that share a name. An identity
+    // system is delivered as brand-deck, brand-email, brand-icons, and treating those as three
+    // separate works would report the very consistency they exist to demonstrate.
     const here = dirname(resolve(file))
-    const elsewhere = matches.filter((m) => dirname(resolve(m.file)) !== here)
+    const same = (a, b) => a === b || projectKey(a) === projectKey(b)
+    const elsewhere = matches.filter((m) => !same(dirname(resolve(m.file)), here))
     const nearest = elsewhere[0] || null
-    const sibling = matches.find((m) => dirname(resolve(m.file)) === here) || null
+    const sibling = matches.find((m) => same(dirname(resolve(m.file)), here) && resolve(m.file) !== resolve(file)) || null
+    // How many other PROJECTS, not how many other files: ten pages of one site is one look, and
+    // "distinct against one other project" is barely evidence of anything. A thin corpus is
+    // reported as thin rather than dressed up as a clean bill.
+    const projectsSeen = new Set(elsewhere.map((m) => projectKey(dirname(resolve(m.file)))))
     const verdict = !elsewhere.length ? 'alone'
       : !nearest || nearest.score <= 1 ? 'distinct'
         : nearest.score === 2 ? 'familiar'
           : 'repeat'
-    out.push({ file, signature: mine, nearest, sibling, verdict, corpus: elsewhere.length })
+    out.push({
+      file, signature: mine, nearest, sibling, verdict,
+      corpus: elsewhere.length, projects: projectsSeen.size,
+      thin: projectsSeen.size < 3 && verdict === 'distinct',
+    })
   }
   return out
 }
@@ -274,7 +316,11 @@ function report(results, { quiet = false } = {}) {
       console.log(`    ${C.dim}no other project to compare it with — a corpus of one says nothing about whether this is a habit${C.off}`)
       continue
     }
-    console.log(`    ${colour}${r.verdict}${C.off} ${C.dim}against ${r.corpus} piece(s) from other projects${C.off}`)
+    console.log(`    ${colour}${r.verdict}${C.off} ${C.dim}against ${r.projects} other project(s), ${r.corpus} piece(s)${C.off}`)
+    if (r.thin) {
+      console.log(`    ${C.yellow}thin evidence${C.off} ${C.dim}— looking unlike one or two other things is not range.`
+        + ` This says almost nothing until there is more work to compare against.${C.off}`)
+    }
     if (r.nearest && r.nearest.score) {
       console.log(`    ${C.dim}nearest: ${relative(process.cwd(), r.nearest.file) || r.nearest.file}${C.off}`)
       for (const a of r.nearest.axes) console.log(`      ${C.dim}same ${a.axis}: ${a.what}${C.off}`)
@@ -282,7 +328,7 @@ function report(results, { quiet = false } = {}) {
   }
   const line = {
     alone: 'Nothing to compare against. Judge it on its own terms.',
-    distinct: 'This does not look like the other work here. That is the floor, not proof it is good.',
+    distinct: 'This does not look like the other work here. That is the floor, not proof it is good — and if the corpus is two projects wide, it is barely even the floor.',
     familiar: 'This shares two axes with something you have already made. Deliberate, or a reflex?',
     repeat: 'You have made this before. Three or more of five axes are the same piece wearing a different subject — if the repetition is the identity, say so; if it is not, change the one that carries the most meaning.',
   }[worst]

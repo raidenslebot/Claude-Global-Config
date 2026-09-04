@@ -1,0 +1,278 @@
+/* Coldwater Branch — a printed wall timetable at A3.
+   The idea: a station sits as far down the sheet as it is far along the line, so the sheet is a
+   picture of the route rather than a list of departures. Every rule below serves that or the
+   legibility of a number read standing up in bad light.
+   Directions and the passes: directions.md, review.md */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+/* A3 trim (297 × 420) plus 3.175mm of bleed on every side, because the paper-coloured ground is
+   PRINTED and runs off the edge — a sheet authored at exactly trim comes back from the guillotine
+   with white slivers wherever the cut wanders. The margin carries the bleed plus the safe inset,
+   so nothing that must be read sits within 14mm of the trim. */
+@page { size: 303.35mm 426.35mm; margin: 17.175mm; }
+
+:root {
+  /* One ink, one paper, in oklch so the tints below can be derived from them rather than
+     hand-picked — a hand-picked ramp drifts in lightness and this sheet is mostly rules. */
+  --ink: oklch(0.24 0.02 160);
+  --paper: oklch(0.97 0.008 150);
+  /* Every weight of rule comes from the ink itself. Relative colour syntax, so changing the ink
+     moves the whole sheet and nothing has to be kept in step by hand. */
+  --rule: oklch(from var(--ink) l c h / 0.30);
+  /* The colon is the least important character in a time, but it is still a character. */
+  --colon: oklch(from var(--ink) calc(l + 0.30) c h);
+  --rule-faint: oklch(from var(--ink) l c h / 0.13);
+  --quiet: oklch(from var(--ink) calc(l + 0.22) c h);
+  /* The one colour that is not the ink, and it means exactly one thing. A signal crimson rather
+     than a warm orange-red: it has to read as a warning, not as a second brand colour. */
+  --sunday: oklch(0.48 0.21 5);
+
+  --minute: 4.15mm;             /* the scale of the whole sheet: one minute of journey */
+  --stops: 76;                  /* Coldwater to Ardleigh Sands */
+  --face: 'Archivo Narrow', 'Helvetica Neue Condensed', 'Arial Narrow', sans-serif;
+  --num: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { background: oklch(from var(--paper) calc(l - 0.06) c h); }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--face);
+  font-optical-sizing: auto;
+  /* The line breaks of the notes are decided, not accepted. */
+  text-wrap: pretty;
+}
+
+.sheet {
+  width: 297mm;
+  min-height: 420mm;
+  margin: 0 auto;
+  padding: 16mm 16mm 12mm;
+  background: var(--paper);
+  display: grid;
+  grid-template-columns: [scale] 12mm [board] 1fr;
+  grid-template-rows: auto 1fr auto;
+  column-gap: 4mm;
+}
+
+/* ── masthead ─────────────────────────────────────────────────────────────────────────────── */
+
+.masthead {
+  grid-column: scale / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1mm 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.6pt solid var(--ink);
+  margin-bottom: 8mm;
+}
+
+h1 {
+  margin: 0;
+  font-size: 25pt;
+  font-weight: 600;
+  font-stretch: 87.5%;
+  letter-spacing: 0.005em;
+  line-height: 1;
+  /* A timetable has no headline, so the name is set at the size of a label, not a banner. */
+  text-transform: uppercase;
+}
+
+.sub {
+  margin: 0;
+  font-family: var(--num);
+  font-size: 10pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--quiet);
+}
+
+/* ── the axis ─────────────────────────────────────────────────────────────────────────────── */
+/* The scale is drawn so the spacing reads as minutes rather than as taste. It shares the row
+   track with the board, which is what makes the two the same measurement rather than two
+   drawings that happen to line up. */
+
+.scale, .board { grid-row: 2; }
+
+.scale {
+  grid-column: scale;
+  display: grid;
+  grid-template-rows: repeat(calc(var(--stops) + 1), var(--minute));
+  justify-items: end;
+  align-content: start;
+  padding-top: 25mm;                 /* the head row plus the gap: the axis starts below the rule */
+  font-family: var(--num);
+  font-size: 8.5pt;
+  color: var(--quiet);
+}
+
+.scale span {
+  grid-row: calc(var(--at) + 1);
+  line-height: 0;
+  white-space: nowrap;
+}
+
+.scale i { font-style: normal; letter-spacing: 0.06em; }
+
+/* ── the board ────────────────────────────────────────────────────────────────────────────── */
+
+.board {
+  grid-column: board;
+  display: grid;
+  grid-template-columns: [stop] 1fr repeat(5, [t] 20mm);
+  /* One track per minute of the journey, plus one for the heads. Every row is placed on it. */
+  grid-template-rows: 19mm 6mm repeat(calc(var(--stops) + 1), var(--minute));
+  align-content: start;
+  border-collapse: collapse;
+}
+
+.board thead, .board tbody, .board tr { display: contents; }
+
+.board th, .board td { margin: 0; }
+
+thead th {
+  grid-row: 1;
+  align-self: end;
+  padding-bottom: 2mm;
+  font-family: var(--num);
+  font-size: 10pt;
+  font-weight: 500;
+  text-align: right;
+  color: var(--quiet);
+  border-bottom: 0.6pt solid var(--ink);
+}
+
+thead th.stop { text-align: left; font-family: var(--face); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* A row is placed by how far along the line it is. This one declaration is the whole idea; take
+   it out and the sheet becomes an ordinary table of departures. */
+tbody tr > * { grid-row: calc(var(--at) + 3); }
+
+
+tbody th.stop {
+  grid-column: stop;
+  align-self: center;
+  padding-right: 4mm;
+  font-size: 13pt;
+  font-weight: 600;
+  font-stretch: 87.5%;
+  text-align: left;
+  line-height: 1;
+  white-space: nowrap;
+  /* The leader rule that carries the eye from a long station name to its first time. It is
+     drawn from the ink, so it is never a second colour. */
+  background: linear-gradient(to right, transparent, transparent) no-repeat;
+}
+
+tbody th.stop::after {
+  content: '';
+  display: block;
+  margin-top: 1.6mm;
+  border-top: 0.4pt solid var(--rule-faint);
+}
+
+.req {
+  display: inline-block;
+  margin-left: 1.5mm;
+  font-family: var(--num);
+  font-size: 8pt;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--quiet);
+  vertical-align: 0.35em;
+}
+
+tbody td {
+  align-self: center;
+  font-family: var(--num);
+  font-size: 12.5pt;
+  font-weight: 500;
+  /* Lining, tabular figures: every column aligns on the minute, which is the only reason a
+     column of times is readable at all. */
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+  line-height: 1;
+  font-feature-settings: 'zero' 1;
+}
+
+/* The colon is the least important character in a time, so it is the quietest — but it is read,
+   so it is quiet rather than absent. At 30% of the ink it measured 1.81:1 on the paper. */
+.c { color: var(--colon); padding: 0 0.2mm; }
+
+/* The one colour on the sheet, and it is a fact about the service. */
+tbody td.sun { color: var(--sunday); }
+
+.mark { font-family: var(--num); font-size: 0.8em; vertical-align: 0.4em; }
+thead th.note-col .mark { color: var(--sunday); }
+
+/* ── notes ────────────────────────────────────────────────────────────────────────────────── */
+
+.notes {
+  grid-column: scale / -1;
+  margin-top: 10mm;
+  padding-top: 3mm;
+  border-top: 0.6pt solid var(--ink);
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+
+.notes p { margin: 0 0 1.6mm; max-width: 62ch; }
+
+.legend { display: flex; align-items: baseline; gap: 2mm; }
+
+.swatch {
+  width: 3mm;
+  height: 3mm;
+  flex: none;
+  background: var(--sunday);
+  transform: translateY(0.2mm);
+}
+
+.issue {
+  font-family: var(--num);
+  font-size: 8.5pt;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--quiet);
+  margin-top: 4mm;
+  /* Monospace sets wider than the prose above it, and this line is a reference rather than a
+     sentence: it is read across, not down. */
+  max-width: none;
+}
+
+.vh {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* A wall sheet is read on paper. On a screen narrower than the sheet, the minute shrinks with
+   the viewport rather than the sheet scrolling sideways — the proportions are the information,
+   so they are what is preserved. */
+/* SCREEN only. An A3 sheet is 297mm wide, so an unscoped max-width:300mm breakpoint fires
+   during the print render and quietly re-scales the piece being proofed — the proof was of a
+   different design from the one that would be printed. */
+@media screen and (max-width: 300mm) {
+  :root { --minute: 2.6mm; }
+  .sheet { width: 100%; min-height: 0; padding: 8mm; }
+  h1 { font-size: 26pt; }
+}
+
+@media print {
+  html { background: none; }
+  /* The page box IS the sheet. The inset lives here rather than in @page, because the renderer
+     drives the PDF's own margins and a sheet with no padding of its own ran the last service
+     column and the end of the strapline straight off the right edge of the paper.
+     3.175mm of that is bleed and is trimmed away; the rest is the safe margin. */
+  .sheet { width: auto; min-height: 100vh; margin: 0; padding: 20mm 20mm 16mm; }
+}

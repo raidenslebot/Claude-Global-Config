@@ -123,8 +123,22 @@ export function declaredSize(text, { svg = false } = {}) {
   return no('no `@page { size: W H }` rule — the document has no physical size')
 }
 
+/** A page and the stylesheets it links are one document, because that is what the browser sends
+ *  to the printer. Reading only the markup meant this reported "no physical size" for a piece
+ *  that declares A3 in its stylesheet, and — far worse — could report that a document passed
+ *  after measuring none of its type, none of its rules and none of its rasters. Almost all real
+ *  print work keeps its CSS in a separate file. */
+export function withLinkedStyles(file, text) {
+  let all = text
+  for (const m of text.matchAll(/<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+    if (/^(?:https?:)?\/\//i.test(m[1]) || /^data:/i.test(m[1])) continue
+    try { all += '\n' + readFileSync(resolve(dirname(file), decodeURIComponent(m[1].split('?')[0].split('#')[0])), 'utf8') } catch { /* not ours to read */ }
+  }
+  return all
+}
+
 export function lint(file, opts = {}) {
-  const text = readFileSync(file, 'utf8')
+  const text = withLinkedStyles(file, readFileSync(file, 'utf8'))
   const isSvg = extname(file).toLowerCase() === '.svg'
   const method = MINIMUMS[opts.method || 'paper']
   if (!method) throw new Error(`unknown --method "${opts.method}" — one of ${Object.keys(MINIMUMS).join(', ')}`)
