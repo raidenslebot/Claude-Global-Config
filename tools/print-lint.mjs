@@ -160,7 +160,7 @@ export function lint(file, opts = {}) {
     let at = pieces[0].text.length + 1
     for (let i = 1; i < pieces.length; i++) {
       const r = applicableCss(pieces[i].text, markup)
-      pieces[i] = { ...pieces[i], text: r.css }
+      pieces[i] = { ...pieces[i], text: r.css, ranges: r.ranges }
       for (const sel of r.setAside) setAside.push(`${basename(pieces[i].file)}: ${sel}`)
       for (const [s, e] of r.ranges) elsewhere.push([at + s, at + e])
       at += pieces[i].text.length + 1
@@ -275,7 +275,7 @@ export function lint(file, opts = {}) {
     // Per PIECE, because a url() in a stylesheet is relative to that stylesheet. Resolving
     // every one against the HTML's directory made the ordinary css/ + css/photo.png layout
     // unfindable, and an unfindable raster is a warning — which is a pass.
-    for (const { file: owner, text: ownerText } of pieces)
+    for (const { file: owner, text: ownerText, ranges: ownerRanges = [] } of pieces)
     for (const rule of blankQuoted(ownerText).matchAll(/\{([^{}]*background(?:-image)?\s*:[^;{}]*url\(\s*["']?([^"')]+)["']?\s*\)[^{}]*)\}/gi)) {
       const body = rule[1]
       const srcRaw = rule[2]
@@ -288,7 +288,16 @@ export function lint(file, opts = {}) {
       if (!px) { warn('raster', `${srcRaw} — background image not found or not a readable PNG/JPEG at ${p}; its resolution cannot be verified`); continue }
       const inches = toIn(wm[1], wm[2])
       const dpi = Math.round(px / inches)
-      if (dpi < method.raster) fail('raster', `${srcRaw} is ${px}px placed as a background at ${inches.toFixed(2)}in = ${dpi}dpi, below ${method.raster} — it will print soft`)
+      if (dpi < method.raster) {
+        // Graded like type and lines: a background inside a rule that names nothing on this page
+        // is real, and it is not this page's failure.
+        // rule.index points at the opening brace; the range starts one past it, at the body.
+        const bodyAt = rule.index + 1
+        const inOther = ownerRanges.some(([a, b]) => bodyAt >= a && bodyAt < b)
+        const msg = `${srcRaw} is ${px}px placed as a background at ${inches.toFixed(2)}in = ${dpi}dpi, below ${method.raster} — it will print soft`
+        if (inOther) warn('raster', `${msg} — but its rule names nothing on this page, so it is probably another piece's; check that it does not render here`)
+        else fail('raster', msg)
+      }
     }
     // An HTML <img src> or an SVG <image href> — a raster placed in an SVG prints just as soft.
     for (const m of text.matchAll(/<(?:img|image)\b[^>]*\b(?:src|href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi)) {

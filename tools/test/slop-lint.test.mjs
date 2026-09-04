@@ -414,3 +414,45 @@ test('a finding carries the position it was found at, not one reconstructed from
     assert.ok(f.at >= 0)
   }
 })
+
+test('a family looks again rather than reporting the one hit it happened to find first', (t) => {
+  // The structural difference from print-lint, and the false pass it caused. print-lint reports
+  // EVERY measurement, so one inside another page's rule can be graded down and stay visible.
+  // A fingerprint family reports ONE REPRESENTATIVE — so dropping the finding whose index sits
+  // in another page's rule threw away the evidence that was never in that rule at all.
+  const d = scratch(t)
+  writeFileSync(join(d, 'site.css'), [
+    '.letterhead-only{background:linear-gradient(135deg,#667eea,#764ba2)}',
+    '.hero{background:linear-gradient(135deg,#a855f7,#ec4899)}',
+  ].join('\n'), 'utf8')
+  const p = join(d, 'page.html')
+  writeFileSync(p, '<!doctype html><html><head><link rel="stylesheet" href="site.css"></head>'
+    + '<body><div class="hero">x</div></body></html>', 'utf8')
+
+  const r = lint(p)
+  assert.ok(r.findings.some((f) => f.id === 'gradient-purple'),
+    'the page paints a textbook purple gradient in .hero; the sibling rule must not hide it')
+  // And it reports the instance that actually renders, not the sibling's.
+  const g = r.findings.find((f) => f.id === 'gradient-purple')
+  assert.match(g.sample, /a855f7|ec4899/, `reported the applying instance, got ${g.sample}`)
+
+  // A token-heavy sheet: three families read the var()-resolved text, whose indices do not line
+  // up with the source once a substitution changes a length, so the drop decision was being made
+  // on an index that pointed past the end of the text.
+  writeFileSync(join(d, 'tokens.css'), [
+    ':root{--a:#111;--b:#222;--c:#333;--d:#444;--e:#555;--f:#666}',
+    '.pricing-table{color:var(--a);border-color:var(--b);background:var(--c);outline-color:var(--d);fill:var(--e);stroke:var(--f)}',
+    '.title{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}',
+  ].join('\n'), 'utf8')
+  const q = join(d, 'tokens.html')
+  writeFileSync(q, '<!doctype html><html><head><link rel="stylesheet" href="tokens.css"></head>'
+    + '<body><h1 class="title">x</h1></body></html>', 'utf8')
+  assert.ok(lint(q).findings.some((f) => f.id === 'gradient-purple'),
+    'a var-heavy sheet must not shift the index far enough to hide a real gradient')
+
+  // The other direction still holds: a rule this page does not render is not its fingerprint.
+  const c = join(d, 'card.html')
+  writeFileSync(c, '<!doctype html><html><head><link rel="stylesheet" href="site.css"></head>'
+    + '<body><p class="name">x</p></body></html>', 'utf8')
+  assert.equal(lint(c).score, 0, 'neither gradient renders on the card')
+})

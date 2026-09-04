@@ -5,6 +5,59 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.60.0 — 2026-09-03
+
+A fifth review, aimed squarely at the claim 1.58.0 made. Its verdict: **the mechanism holds for
+`print-lint` and fails for `slop-lint`** — where it introduced silent false passes that 1.57.0 did
+not have. Both halves are worth having in writing.
+
+**It holds for `print-lint`, and that is measured rather than argued.** The reviewer differentially
+fuzzed it — the same stylesheet linted from a page naming every class and a page naming none —
+over 4,000 single-sheet and 3,000 multi-sheet configurations, 20,738 failure messages, **zero
+drops**. Every measurement that fails when everything applies reappears either as the identical
+failure or the identical text with the "names nothing on this page" suffix.
+
+**It fails for `slop-lint`, for a structural reason I missed.** `print-lint` reports *every*
+measurement it finds, so one inside another page's rule can be graded down and stay visible. A
+fingerprint family reports **one representative** — the first place it matched. Dropping the
+finding whose index sits in another page's rule therefore threw away the evidence that was never
+in that rule at all:
+
+```css
+.letterhead-only{ background: linear-gradient(135deg,#667eea,#764ba2) }   /* sibling page */
+.hero{ background: linear-gradient(135deg,#a855f7,#ec4899) }             /* THIS page */
+```
+
+A page painting that second gradient came back **clean**. So for this gate the decision is made
+*inside* the scan: the set-aside rules are blanked, the family looks again, and it reports the
+instance that does render here. Blanking preserves length, so every position stays exact — and the
+stylesheet is still linted in its own right, where a rule this scanner misreads is that file's
+finding to answer. The two gates now differ on purpose, and the reason is written where the code
+is.
+
+A second, independent cause of the same false pass: three families read the `var()`-**resolved**
+text, whose indices do not line up with the source once a substitution changes a length — so the
+drop decision was made on an index that could point past the end of the text. An ordinary
+token-based stylesheet was enough to trigger it. Attribution now *locates* the sample in the
+scanned text rather than computing a position, which is exact for literal samples and
+self-correcting for the rest.
+
+Also from the review:
+
+- **A background raster was never graded.** `grade()` reached type and lines and not rasters, so a
+  background inside a rule the tool itself named in its own `scope` warning still hard-failed. The
+  match points at the opening brace and the range starts one past it, at the body — the off-by-one
+  the reviewer said to check, and it was there.
+- **A statement at-rule poisoned the next rule's selector.** The selector slice runs from the
+  previous `}`, so an `@import "x.css";` above a rule put an `@` in that rule's selector and it
+  could never be graded down. It costs only noise, but it made behaviour depend on what preceded a
+  rule.
+- Dead code from the previous release removed.
+
+The reviewer also noted that the tests shipped with 1.58.0 could not have caught either false
+pass: the fixture had no `var()` and only one gradient, and the `at` assertion checked only that
+the number existed. Both are now real.
+
 ## 1.59.0 — 2026-09-03
 
 **The invariant from 1.58.0, property-tested rather than asserted.** Twenty thousand assembled

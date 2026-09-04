@@ -540,3 +540,27 @@ test('an id or class carrying a regex metacharacter never crashes or silences th
     assert.ok(findings.some((f) => f.rule === 'raster' && f.level === 'fail'))
   }
 })
+
+test('a background raster is graded like every other measurement', (t) => {
+  // grade() was applied to type and lines and not to rasters, so a background inside a rule the
+  // tool itself named in its own `scope` warning still hard-FAILED — the false-failure direction
+  // the filter exists to remove. The index also needed care: the match points at the opening
+  // brace and the range starts one past it, at the body.
+  const d = scratch(t)
+  const png = Buffer.alloc(33)
+  png.write('\x89PNG\r\n\x1a\n', 0, 'latin1'); png.writeUInt32BE(13, 8); png.write('IHDR', 12, 'latin1')
+  png.writeUInt32BE(1256, 16); png.writeUInt32BE(800, 20)
+  writeFileSync(join(d, 'photo.png'), png)
+  writeFileSync(join(d, 's.css'), '@page{size:8.5in 11in;margin:0}\nbody{font-family:Archivo;font-size:10pt}\n'
+    + '.pricing-hero{width:6in;height:3in;background-image:url("photo.png")}', 'utf8')
+  const link = '<link rel="stylesheet" href="s.css">'
+
+  const card = lint(file(d, 'card.html', `<!doctype html><html><head>${link}</head><body><p class="name">x</p></body></html>`), {})
+  const cardRaster = card.findings.find((f) => f.rule === 'raster')
+  assert.ok(cardRaster, 'the measurement is still reported')
+  assert.equal(cardRaster.level, 'warn', 'but the card does not render .pricing-hero')
+
+  const hero = lint(file(d, 'hero.html', `<!doctype html><html><head>${link}</head><body><div class="pricing-hero"></div></body></html>`), {})
+  const heroRaster = hero.findings.find((f) => f.rule === 'raster')
+  assert.ok(heroRaster && heroRaster.level === 'fail', '209dpi FAILS on the page that shows it')
+})

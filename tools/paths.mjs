@@ -464,7 +464,12 @@ export function applicableCss(css, markup) {
     if (ch === '}') {
       depth--
       if (depth === 0 && blockStart >= 0) {
-        const selector = clean.slice(selStart, blockStart)
+        // A statement at-rule (@import, @charset, @namespace) ends at its semicolon; without
+        // cutting there, its `@` lands in the NEXT rule's selector slice and that rule can never
+        // be graded. Costs only noise, but it made the behaviour depend on what preceded a rule.
+        const rawSel = clean.slice(selStart, blockStart)
+        const lastSemi = rawSel.lastIndexOf(';')
+        const selector = lastSemi >= 0 ? rawSel.slice(lastSemi + 1) : rawSel
         const inner = css.slice(blockStart + 1, i)
         const keep = /@/.test(selector) || applies(selector)
         if (!keep) {
