@@ -209,6 +209,76 @@ on disk. A suite that cannot lose tests silently is worth more than one that run
 
 ---
 
+## The machine slows to a crawl, or Task Manager shows dozens of `node` processes
+
+**Symptom.** Opening a few Claude windows and using the machine normally makes it freeze. Task
+Manager shows fifty to a hundred `node.exe` (or `node`) processes. Nothing appears to be running.
+
+**Cause.** Two, and they compound. Both are multiplied by the number of open sessions, which is
+why the machine is fine with two windows and dead with fifteen.
+
+1. **A server registered in more than one place runs more than once.** A name in
+   `~/.claude.json` *and* in the host application's own `claude_desktop_config.json` is two
+   servers, not one entry written twice — each starts a process in every session. An `npx`-
+   launched one costs a resident wrapper process besides, and re-checks the registry on every
+   launch. Each config file looks correct on its own, which is exactly why this survives review.
+2. **The self-test used to run once per session rather than once per commit.** Its result is
+   cached, but the cache is only written when the run finishes, so every session that started
+   during the run saw a miss and launched its own. `node --test` defaults to one worker per CPU:
+   on a 24-core machine one run is around 60 processes and 5.6 GB. Fifteen at once is not
+   survivable on 32 GB. Fixed in 1.47.0 — if you are on an older version, update.
+
+**Diagnosis.** The doctor names both:
+
+```bash
+node tools/doctor.mjs
+```
+
+Its MCP phase reads every scope a server can load from — user, project, the host application's
+config, and each enabled plugin's `.mcp.json` — fails on any name found in more than one, and
+prints the number no single config file shows: *about N MCP processes per session*.
+
+To see it yourself, on Windows:
+
+```bash
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId,ParentProcessId,CommandLine | Format-Table -Wrap"
+```
+
+and on macOS or Linux:
+
+```bash
+ps -eo pid,ppid,command | grep -E 'node|npx' | grep -v grep
+```
+
+Group by parent: one set per session is expected, two sets of the same server is the bug.
+
+**Fix.** Remove the duplicate, keeping the one this package registers (a direct `node` command,
+no wrapper, no registry check):
+
+```bash
+node tools/install.mjs --only=mcp --dedupe
+```
+
+That edits only the host application's config, only for names this package registers, and writes
+a backup beside it first. A duplicate carried by a **plugin** is reported and never touched — that
+file belongs to the plugin and returns on its next update, so disable the plugin or drop this
+package's copy, but not both.
+
+Already-open sessions keep the processes they started with; the change takes effect on the next
+session. And the count is per window: even at three processes each, fifteen windows is
+forty-five. If you keep many open, that is the floor.
+
+**Turning the self-test down further.** It is capped at a quarter of the machine's cores, at most
+four workers. To go lower on a machine you want kept free:
+
+```bash
+CGC_TEST_CONCURRENCY=2 npm test
+```
+
+Set it in the environment and the session-start self-test honours it too.
+
+---
+
 ## An MCP server does not connect
 
 **Symptom.** The server is listed in `~/.claude.json` but never comes up. No error, or a generic
