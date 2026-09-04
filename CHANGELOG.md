@@ -5,6 +5,31 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.55.0 — 2026-09-03
+
+The last confirmed finding of the review, and the third false failure introduced by teaching
+`print-lint` to read stylesheets.
+
+**A shared stylesheet failed one page for another page's rules.** A set-wide sheet carries every
+piece's declarations, so a business card linking it failed for a `.legal-footnote` at 4pt that is
+printed on the letterhead and appears nowhere on the card, and for a hairline divider it does not
+have. A press gate that fails a correct file is worse than no gate: it is the reason people stop
+reading the output.
+
+A stylesheet is now filtered to the rules that could match the page being judged. Deliberately
+conservative in both directions:
+
+- A rule is dropped only when a class or id it **requires** is absent from the markup. A tag
+  selector, `:root`, `*`, an attribute selector, anything the scanner cannot resolve — all kept,
+  because the cost of missing a real hairline is a box of cards and the cost of keeping an
+  inapplicable rule is a line of noise.
+- Only a **top-level** rule is ever dropped. A flat regex matches the innermost braces first, so
+  `@media print { .x { … } }` handed the scanner `.x` and the at-rule guard never saw it; the
+  scan tracks brace depth, and anything nested inside an at-rule is kept whole.
+- The page that *does* carry the rule still fails for it, which is the entire point.
+
+The blanking preserves length, so every position and line number downstream stays exact.
+
 ## 1.54.0 — 2026-09-03
 
 The tail of the same review, including one finding that undermined the release before it.

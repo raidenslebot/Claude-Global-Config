@@ -129,6 +129,64 @@ export function declaredSize(text, { svg = false } = {}) {
  *  that declares A3 in its stylesheet, and — far worse — could report that a document passed
  *  after measuring none of its type, none of its rules and none of its rasters. Almost all real
  *  print work keeps its CSS in a separate file. */
+/** Blank the rules in a stylesheet that cannot match this page's markup.
+ *
+ *  A set-wide stylesheet carries every piece's rules. Reading it whole failed a business card
+ *  for a `.legal-footnote` at 4pt that is printed on the letterhead and appears nowhere on the
+ *  card — a FAIL for something that does not exist on the page being judged. The blanking keeps
+ *  the length, so every position and line number downstream stays exact.
+ *
+ *  Deliberately conservative: a rule is dropped only when a class or id it REQUIRES is absent
+ *  from the markup. Anything the scanner cannot resolve — an attribute selector, a
+ *  pseudo-element, a tag, a bare `*` — is kept, because the cost of missing a real hairline is
+ *  a box of cards, and the cost of keeping an inapplicable one is a line of noise. */
+export function applicableCss(css, markup) {
+  const classes = new Set()
+  for (const m of markup.matchAll(/\bclass\s*=\s*["']([^"']+)["']/gi)) {
+    for (const c of m[1].split(/\s+/)) if (c) classes.add(c.toLowerCase())
+  }
+  const ids = new Set()
+  for (const m of markup.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) ids.add(m[1].toLowerCase())
+
+  const applies = (selector) => selector.split(',').some((part) => {
+    const needClass = [...part.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
+    const needId = [...part.matchAll(/#([A-Za-z_][\w-]*)/g)].map((x) => x[1].toLowerCase())
+    // A tag, :root, *, an attribute selector, anything unresolved: keep it. The cost of missing
+    // a real hairline is a box of cards; the cost of keeping an extra rule is a line of noise.
+    if (!needClass.length && !needId.length) return true
+    return needClass.every((c) => classes.has(c)) && needId.every((i) => ids.has(i))
+  })
+
+  // One pass, tracking brace depth. Only a rule that opens at depth 0 is a candidate, so a rule
+  // inside @media or @supports is never dropped.
+  let out = ''
+  let depth = 0
+  let selStart = 0
+  let blockStart = -1
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i]
+    if (ch === '{') {
+      if (depth === 0) { blockStart = i; }
+      depth++
+      continue
+    }
+    if (ch === '}') {
+      depth--
+      if (depth === 0 && blockStart >= 0) {
+        const selector = css.slice(selStart, blockStart)
+        const inner = css.slice(blockStart + 1, i)
+        // An at-rule is a container, never a rule of its own.
+        const keep = /@/.test(selector) || applies(selector)
+        out += selector + '{' + (keep ? inner : ' '.repeat(inner.length)) + '}'
+        selStart = i + 1
+        blockStart = -1
+      }
+      continue
+    }
+  }
+  return out + css.slice(selStart)
+}
+
 export function withLinkedStyles(file, text) {
   return pageWithStyles(file, text).map((p) => p.text).join(String.fromCharCode(10))
 }
@@ -139,6 +197,9 @@ export function lint(file, opts = {}) {
   // ordinary css/ + css/photo.png layout unfindable — reported as a warning and passed, which
   // is precisely the false pass this function was written to close.
   const pieces = pageWithStyles(file, readFileSync(file, 'utf8'))
+  // A rule in a shared stylesheet that cannot match this page is not this page's problem.
+  const markup = pieces[0].text
+  for (let i = 1; i < pieces.length; i++) pieces[i] = { ...pieces[i], text: applicableCss(pieces[i].text, markup) }
   const text = pieces.map((p) => p.text).join(String.fromCharCode(10))
   const isSvg = extname(file).toLowerCase() === '.svg'
   const method = MINIMUMS[opts.method || 'paper']

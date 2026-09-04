@@ -368,3 +368,39 @@ test('a url() in a stylesheet resolves against that stylesheet, and @import is f
   const cyc = file(d, 'cyc.html', '<!doctype html><html><head><link rel="stylesheet" href="a.css"></head><body><p>x</p></body></html>')
   assert.ok(!lint(cyc, {}).findings.some((f) => f.rule === 'size'))
 })
+
+test('a shared stylesheet is read for the page it is on, not for the whole set', (t) => {
+  // A set-wide stylesheet carries every piece's rules. Reading it whole failed a business card
+  // for a .legal-footnote at 4pt that is printed on the letterhead and appears nowhere on the
+  // card — a FAIL for something that does not exist on the page being judged.
+  const d = scratch(t)
+  writeFileSync(join(d, 'shared.css'), [
+    '@page{size:3.5in 2in;margin:0}',
+    'body{font-family:Archivo;font-size:9pt}',
+    '.legal-footnote{font-size:4pt}',
+    '.hairline-divider{border-top:0.1pt solid}',
+  ].join('\n'), 'utf8')
+  const link = '<link rel="stylesheet" href="shared.css">'
+
+  const card = file(d, 'card.html', `<!doctype html><html><head>${link}</head><body><p class="name">Harbour Swim Club</p></body></html>`)
+  const cardRules = lint(card, {}).findings.map((f) => f.rule)
+  assert.ok(!cardRules.includes('type'), 'the card has no 4pt footnote on it')
+  assert.ok(!cardRules.includes('line'), 'nor a hairline divider')
+
+  // The page that DOES carry them still fails, which is the whole point of the gate.
+  const sheet = file(d, 'letterhead.html', `<!doctype html><html><head>${link}</head><body>`
+    + '<p class="legal-footnote">tiny</p><div class="hairline-divider"></div></body></html>')
+  const sheetRules = lint(sheet, {}).findings.map((f) => f.rule)
+  assert.ok(sheetRules.includes('type'), '4pt type on the page that has it')
+  assert.ok(sheetRules.includes('line'), 'and the hairline')
+
+  // Conservative by design: anything the scanner cannot resolve is kept, because the cost of
+  // missing a real hairline is a box of cards.
+  writeFileSync(join(d, 'odd.css'), '@page{size:3.5in 2in;margin:0}body{font-family:Archivo;font-size:9pt}'
+    + '[data-fine]{font-size:3pt}\n@media print{.x{border-top:0.05pt solid}}', 'utf8')
+  const odd = file(d, 'odd.html', '<!doctype html><html><head><link rel="stylesheet" href="odd.css">'
+    + '</head><body><p>x</p></body></html>')
+  const oddRules = lint(odd, {}).findings.map((f) => f.rule)
+  assert.ok(oddRules.includes('type'), 'an attribute selector is not resolvable, so it is kept')
+  assert.ok(oddRules.includes('line'), 'and a rule inside @media is never dropped')
+})
