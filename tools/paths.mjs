@@ -241,7 +241,7 @@ export function hostConfigs(home = HOME) {
   // The environment wins only for the REAL home: %APPDATA% and $XDG_CONFIG_HOME can be
   // redirected on a live machine and must be honoured there, but a caller that names a home is
   // naming one, and an env var silently overriding it makes the argument a lie.
-  const own = home === HOME
+  const own = resolve(home) === resolve(HOME)
   const bases = process.platform === 'win32'
     ? [own && process.env.APPDATA ? process.env.APPDATA : join(home, 'AppData', 'Roaming')]
     : process.platform === 'darwin'
@@ -259,14 +259,30 @@ export function pluginServers(home = HOME) {
     const s = readJsonQuietly(p)
     if (s && s.enabledPlugins) enabled = { ...enabled, ...s.enabledPlugins }
   }
+  // Where each plugin is actually installed, straight from the registry that records it.
+  const installed = readJsonQuietly(join(home, '.claude', 'plugins', 'installed_plugins.json'))
+  const paths = new Map()
+  for (const [key, entries] of Object.entries((installed && installed.plugins) || {})) {
+    const first = Array.isArray(entries) ? entries.find((e) => e && e.installPath) : null
+    if (first) paths.set(key, first.installPath)
+  }
+
   const roots = join(home, '.claude', 'plugins', 'marketplaces')
   for (const [key, on] of Object.entries(enabled)) {
     if (!on) continue
     const [name, market] = String(key).split('@')
-    for (const rel of [[market, 'plugins', name], [market, 'external_plugins', name], [market, name]]) {
-      const p = join(roots, ...rel.filter(Boolean), '.mcp.json')
-      const m = readJsonQuietly(p)
-      const servers = m && (m.mcpServers || (typeof m === 'object' && !m.mcpServers ? m : null))
+    // The installed copy first — it is the one that loads. The marketplace layouts are a
+    // fallback for a plugin installed some other way, including a single-plugin marketplace
+    // whose repository root IS the plugin, which the old candidate list could never match.
+    const candidates = [
+      paths.get(key),
+      ...[[market, 'plugins', name], [market, 'external_plugins', name], [market, name], [market]]
+        .map((rel) => join(roots, ...rel.filter(Boolean))),
+    ].filter(Boolean)
+    for (const dir of candidates) {
+      const m = readJsonQuietly(join(dir, '.mcp.json'))
+      // Either { mcpServers: {...} } or a bare map of servers, both of which are shipped.
+      const servers = m && (m.mcpServers || (typeof m === 'object' && !Array.isArray(m) ? m : null))
       if (servers && Object.keys(servers).length) { out.push([name, servers]); break }
     }
   }

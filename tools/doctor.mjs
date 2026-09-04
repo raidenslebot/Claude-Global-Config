@@ -26,10 +26,12 @@ let failures = 0
 
 const say = (m) => { if (!JSON_OUT) console.log(m) }
 const phase = (n) => { current = n; say(`\n\x1b[1m── ${n} ${'─'.repeat(Math.max(0, 58 - n.length))}\x1b[0m`) }
-const push = (level, m) => results.push({ phase: current, level, message: m })
+// `repairable` says whether re-running the install could fix this. Default true, because that
+// was the behaviour before any check could report something an install has no power over.
+const push = (level, m, opts) => results.push({ phase: current, level, message: m, repairable: opts?.repairable !== false })
 const ok = (m) => { say(`  \x1b[32mok\x1b[0m    ${m}`); push('ok', m) }
 const warn = (m) => { say(`  \x1b[33mwarn\x1b[0m  ${m}`); push('warn', m) }
-const fail = (m) => { say(`  \x1b[31mFAIL\x1b[0m  ${m}`); push('fail', m); failures++ }
+const fail = (m, opts) => { say(`  \x1b[31mFAIL\x1b[0m  ${m}`); push('fail', m, opts); failures++ }
 
 /** A bare command name is resolved through PATH; anything with a separator must exist as written. */
 function resolveExe(cmd) {
@@ -159,7 +161,7 @@ phase('MCP servers')
     const scopes = [['', cfg?.mcpServers]]
     for (const [proj, v] of Object.entries(cfg?.projects || {})) {
       const m = v && typeof v === 'object' ? v.mcpServers : null
-      if (m && Object.keys(m).length) scopes.push([` (project ${basename(String(proj))})`, m])
+      if (m && Object.keys(m).length) scopes.push([` (project ${basename(String(proj))})`, m, String(proj)])
     }
     // The host application's own registry. It is a sibling of this file, not inside it, and a
     // server listed here loads in every session alongside the ones above.
@@ -167,29 +169,61 @@ phase('MCP servers')
       const m = readJsonQuietly(p)?.mcpServers
       if (m && Object.keys(m).length) scopes.push([` (${label})`, m])
     }
+    // Claude Code also reads a project's own .mcp.json, which loads in that project's sessions
+    // alongside everything above. Not enumerating it left the commonest project-level
+    // duplicate invisible to a check whose whole purpose is to find one.
+    for (const proj of Object.keys(cfg?.projects || {})) {
+      const m = readJsonQuietly(join(String(proj), '.mcp.json'))?.mcpServers
+      if (m && Object.keys(m).length) scopes.push([` (project file ${basename(String(proj))}/.mcp.json)`, m, String(proj)])
+    }
     // Every enabled plugin may ship an .mcp.json, and an enabled plugin's servers load too.
     for (const [label, m] of pluginServers()) scopes.push([` (plugin ${label})`, m])
 
-    const servers = scopes.flatMap(([where, map]) =>
-      Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {} })))
+    // `project` marks a scope that loads ONLY in that project's sessions, which is what makes
+    // the same name in two different projects one server in each rather than two in one.
+    const servers = scopes.flatMap(([where, map, project]) =>
+      Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {}, project: project || null })))
 
-    // A NAME registered in more than one scope is not a duplicate entry — it is two servers
-    // running. Each costs a process for the life of every session, and an npx-launched one
-    // costs a wrapper process besides and checks the registry on every launch. Multiplied by
-    // the number of open sessions this is what takes a machine down, and nothing reported it
-    // because each scope looked correct on its own.
-    const byName = new Map()
-    for (const x of servers) byName.set(x.name, [...(byName.get(x.name) || []), x])
-    const dupes = [...byName.entries()].filter(([, xs]) => xs.length > 1)
-    if (dupes.length) {
-      for (const [name, xs] of dupes) {
+    // A NAME registered in more than one scope that LOADS TOGETHER is two servers running, each
+    // costing a process for the life of every session. But scopes do not all load together: a
+    // project-scoped server loads only in a session opened in that project, so the same name in
+    // two different projects is one server in each, never two in one — reporting that as a
+    // duplicate was a false positive on an ordinary setup.
+    // The names this package registers, read here rather than reached forward for: the
+    // manifest is the same one the registration check below uses.
+    const ourNames = new Set()
+    try { for (const k of Object.keys(readJson(join(REPO, 'library', 'mcp-servers', 'servers.json')).servers)) ourNames.add(k) } catch { /* no manifest: nothing is ours */ }
+
+    const always = servers.filter((x) => !x.project)
+    const projects = new Map()
+    for (const x of servers.filter((x) => x.project)) projects.set(x.project, [...(projects.get(x.project) || []), x])
+    const sets = [['', always], ...[...projects.entries()].map(([p, xs]) => [p, [...always, ...xs]])]
+
+    const seen = new Set()
+    let duplicates = 0
+    for (const [, set] of sets) {
+      const byName = new Map()
+      for (const x of set) byName.set(x.name, [...(byName.get(x.name) || []), x])
+      for (const [name, xs] of byName) {
+        if (xs.length < 2) continue
+        const key = name + '|' + xs.map((x) => x.where).sort().join('|')
+        if (seen.has(key)) continue
+        seen.add(key)
+        duplicates++
         const where = xs.map((x) => x.where.trim() || '(user scope)').join(' AND ')
-        fail(`MCP server "${name}" is registered ${xs.length} times — ${where}. Every one of them `
-          + `starts a process in EVERY session: ${xs.length} copies of one server, times the number of `
-          + `open windows. Keep the one this package registers (a direct node command) and remove the `
-          + `others, or run: node tools/install.mjs --only=mcp --dedupe`)
+        const msg = `MCP server "${name}" is registered ${xs.length} times — ${where}. Every one of them `
+          + `starts a process in EVERY session it loads in: ${xs.length} copies of one server, times the `
+          + `number of open windows.`
+        // Severity follows what can be DONE about it. A duplicate in the host application's
+        // config, of a name this package registers, is removable by --dedupe: that is a
+        // failure. A plugin's own file, or a project's, is not this package's to edit, so it
+        // is reported as the decision it needs rather than as a broken install nothing can fix.
+        const fixable = xs.some((x) => /host app/.test(x.where)) && ourNames.has(name)
+        if (fixable) fail(`${msg} Keep the one this package registers (a direct node command) and remove the other: node tools/install.mjs --only=mcp --dedupe`)
+        else warn(`${msg} None of these is this package's to edit — disable one of them, or remove the name from the config that should not carry it.`)
       }
-    } else if (servers.length) ok(`no MCP server is registered twice (${servers.length} across ${scopes.length} scope(s))`)
+    }
+    if (!duplicates && servers.length) ok(`no MCP server is registered twice in any one session (${servers.length} registration(s) across ${scopes.length} scope(s))`)
 
     // What one session actually costs, since the count is the thing that bites and no single
     // config file shows it. An npx or cmd wrapper stays resident alongside the server it spawns.
@@ -211,12 +245,27 @@ phase('MCP servers')
       const url = s.url || s.serverUrl || s.httpUrl
       const remoteType = /^(sse|http|https|ws|wss|streamable-http)$/i.test(String(s.type || ''))
       if (url || remoteType) {
-        fail(`${name}${where}: external service (${url || s.type}) — this config is ` +
-          `subscription-only. Remove it, or replace it with a locally installed server.`)
+        // The mandate binds what THIS package registers. A remote server in the host
+        // application's config or inside a plugin arrived by the user's own decision and no
+        // install here can remove it — reporting that as a FAIL made the doctor permanently
+        // broken for anyone using an official remote-MCP plugin, and made every session start
+        // run a repair that could never work.
+        const ours = !where.trim()
+        if (ours) {
+          fail(`${name}${where}: external service (${url || s.type}) — this config is ` +
+            `subscription-only. Remove it, or replace it with a locally installed server.`)
+        } else {
+          warn(`${name}${where}: external service (${url || s.type}) — reachable only with an ` +
+            `account, and not this package's to remove. It ends at a login prompt; drop it if you did not mean to add it.`)
+        }
         continue
       }
       const entry = (s.args || [])[0]
-      if (!resolveExe(String(s.command || ''))) fail(`${name}${where}: command not found — ${s.command}`)
+      if (!resolveExe(String(s.command || ''))) {
+        // Same rule: a broken command in somebody else's config is a real problem and a real
+        // report, but not one re-running this install can fix.
+        fail(`${name}${where}: command not found — ${s.command}`, { repairable: !where.trim() })
+      }
       else if (!entry) warn(`${name}${where}: no entry point in args`)
       else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) fail(`${name}${where}: server entry missing — ${entry}`)
       else ok(`${name}${where} · ${basename(entry)}`)

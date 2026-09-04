@@ -277,3 +277,39 @@ test('nothing imports a SCRIPT — importing one runs it', () => {
     }
   }
 })
+
+test('a plugin is found where it is INSTALLED, not where it is catalogued', (t) => {
+  // The loaded copy lives at the installPath recorded in installed_plugins.json, under
+  // plugins/cache/<market>/<plugin>/<version>. Guessing at the marketplace catalog layout
+  // missed seven of eight enabled plugins on a real machine, so the plugin arm of the
+  // duplicate check returned nothing at all — a reassuring blank, not a check.
+  const home = mkdtempSync(join(tmpdir(), 'cgc-plug-'))
+  t.after(() => rmSync(home, { recursive: true, force: true }))
+  const w = (rel, obj) => {
+    const p = join(home, ...rel)
+    mkdirSync(dirname(p), { recursive: true })
+    writeFileSync(p, JSON.stringify(obj), 'utf8')
+  }
+  w(['.claude', 'settings.json'], { enabledPlugins: { 'ctx@market': true, 'off@market': false } })
+  const inst = join(home, '.claude', 'plugins', 'cache', 'market', 'ctx', '1.2.3')
+  mkdirSync(inst, { recursive: true })
+  writeFileSync(join(inst, '.mcp.json'), JSON.stringify({ mcpServers: { context7: { type: 'http', url: 'https://mcp.context7.com/mcp' } } }), 'utf8')
+  w(['.claude', 'plugins', 'installed_plugins.json'], { version: 2, plugins: { 'ctx@market': [{ scope: 'user', installPath: inst, version: '1.2.3' }] } })
+  // Installed but DISABLED: it loads nothing, so it contributes nothing.
+  const off = join(home, '.claude', 'plugins', 'cache', 'market', 'off', '1.0.0')
+  mkdirSync(off, { recursive: true })
+  writeFileSync(join(off, '.mcp.json'), JSON.stringify({ mcpServers: { nope: { command: 'node' } } }), 'utf8')
+
+  const found = pluginServers(home)
+  assert.deepEqual(found.map(([n]) => n), ['ctx'])
+  assert.deepEqual(Object.keys(found[0][1]), ['context7'])
+
+  // A single-plugin marketplace whose repository root IS the plugin still resolves, since
+  // nothing records an installPath for it.
+  const home2 = mkdtempSync(join(tmpdir(), 'cgc-plug2-'))
+  t.after(() => rmSync(home2, { recursive: true, force: true }))
+  mkdirSync(join(home2, '.claude', 'plugins', 'marketplaces', 'solo'), { recursive: true })
+  writeFileSync(join(home2, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'solo@solo': true } }), 'utf8')
+  writeFileSync(join(home2, '.claude', 'plugins', 'marketplaces', 'solo', '.mcp.json'), JSON.stringify({ mcpServers: { thing: { command: 'node' } } }), 'utf8')
+  assert.deepEqual(pluginServers(home2).map(([n]) => n), ['solo'], 'a marketplace whose root is the plugin')
+})

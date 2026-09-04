@@ -172,8 +172,13 @@ function doctor() {
   const j = readJsonText(r.stdout)
   if (!j || !j.counts) return { ok: 0, total: 0, failed: ['doctor did not answer'] }
   const c = j.counts
-  const failed = (j.results || []).filter((x) => x.level === 'fail').map((x) => x.message)
-  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed }
+  const fails = (j.results || []).filter((x) => x.level === 'fail')
+  const failed = fails.map((x) => x.message)
+  // Only a failure an install could actually repair is worth re-installing for. Without this,
+  // one unfixable finding makes EVERY session start run a full install and report DEGRADED
+  // for ever — the same per-session multiplication these checks exist to prevent.
+  const repairable = fails.some((x) => x.repairable !== false)
+  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed, repairable }
 }
 function readJsonText(s) { try { return JSON.parse(String(s || '')) } catch { return null } }
 
@@ -181,7 +186,7 @@ function verify() {
   let d = doctor()
   if (!d) return null
   let repaired = false
-  if (d.failed.length) {
+  if (d.failed.length && d.repairable !== false) {
     // Something a session relies on is missing. Put it back, then look again.
     repaired = runInstall()
     d = doctor() || d
@@ -197,32 +202,55 @@ function selfTest(head) {
   if (last && last.head === head && Date.now() - (last.at || 0) < TEST_TTL_MS) return { ...last, cached: true }
   // Claim the run before starting it. Written before, not after, because the gap between
   // "started" and "finished" is the whole problem.
+  //
+  // Three distinct outcomes, and conflating any two of them broke this once already:
+  //   taken   — this session owns the run, and must release the claim afterwards
+  //   held    — another session is running it; report what is known and start nothing
+  //   broken  — the claim cannot be made at all, which is not permission to run N of them
   const claim = path.join(STATE, 'selftest.running')
   const take = () => {
+    // The state directory first, and separately: mkdirSync throws EEXIST when STATE exists as
+    // a FILE, and reading that as "the claim is held" wedged the self-test off permanently
+    // while the line still said "enabled".
     try {
       fs.mkdirSync(STATE, { recursive: true })
+    } catch (e) {
+      return { state: 'broken', why: `the state directory ${STATE} is not usable (${e.code || e.message})` }
+    }
+    try {
       const fd = fs.openSync(claim, 'wx')
       fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }))
       fs.closeSync(fd)
-      return true
+      return { state: 'taken' }
     } catch (e) {
-      if (e.code !== 'EEXIST') return true          // cannot claim at all: run rather than skip
-      // A claim left behind by a run that died is not a claim.
-      try { if (Date.now() - fs.statSync(claim).mtimeMs > TEST_CLAIM_STALE_MS) fs.unlinkSync(claim) } catch { return false }
-      return false
+      if (e.code !== 'EEXIST') return { state: 'broken', why: `the claim file could not be written (${e.code || e.message})` }
+      // A claim left behind by a run that died is not a claim. It may also be a directory,
+      // which unlink refuses on Windows — remove it either way, or say it cannot be removed.
+      let age = 0
+      try { age = Date.now() - fs.statSync(claim).mtimeMs } catch { return { state: 'held' } }
+      if (age <= TEST_CLAIM_STALE_MS) return { state: 'held' }
+      try { fs.rmSync(claim, { recursive: true, force: true }) } catch (e2) {
+        return { state: 'broken', why: `a stale claim at ${claim} could not be removed (${e2.code || e2.message})` }
+      }
+      return { state: 'held' }                      // removed; the caller's retry takes it
     }
   }
-  if (!take() && !take()) {
-    // Another session is running the suite right now. Report what is known and say whose run
-    // it is — a number from a run this session did not do is still a number worth having.
-    return last && last.head === head ? { ...last, cached: true, deferred: true } : { deferred: true, total: 0, pass: 0, fail: 0, skipped: 0 }
+
+  let got = take()
+  if (got.state === 'held') got = take()            // the stale one was just cleared: try once
+  if (got.state !== 'taken') {
+    // Never run unguarded. A broken claim means every session would run its own suite, which
+    // is the failure this exists to prevent — so it is reported, not worked around.
+    const known = last && last.head === head ? { ...last, cached: true } : { total: 0, pass: 0, fail: 0, skipped: 0 }
+    return { ...known, deferred: true, claimBroken: got.state === 'broken' ? got.why : null }
   }
 
   let r
   try {
     r = spawnSync(NODE, [tool('run-tests.mjs')], { cwd: REPO, encoding: 'utf8', timeout: 240000, windowsHide: true })
   } finally {
-    try { fs.unlinkSync(claim) } catch { /* another session cleared a stale claim */ }
+    // Only ours to release — this session took it, or it would not have got here.
+    try { fs.rmSync(claim, { force: true }) } catch { /* another session cleared a stale claim */ }
   }
   const text = String(r.stdout || '') + String(r.stderr || '')
   const num = (k) => { const m = new RegExp(`(?:ℹ|#)\\s*${k}\\s+(\\d+)`).exec(text); return m ? Number(m[1]) : null }
@@ -246,7 +274,8 @@ function compose(ver, u, v, t) {
   if (t) {
     const counts = `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`
     parts.push(t.timedOut ? 'tests timed out'
-      : t.deferred ? (t.total ? `${counts} (another session is re-running them)` : 'tests running in another session')
+      : t.claimBroken ? `tests not run — ${t.claimBroken}`
+        : t.deferred ? (t.total ? `${counts} (another session is re-running them)` : 'tests running in another session')
         : t.unread ? 'the test suite could not be read'
           : counts)
   }

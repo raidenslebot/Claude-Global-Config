@@ -475,13 +475,14 @@ if (wants('mcp') || wants('mcp-register')) {
       for (const [name, spec] of Object.entries(JSON.parse(readFileSync(manifest, 'utf8')).servers)) {
         entries[name] = join(mcpRoot, 'node_modules', ...spec.entry)
       }
-      let n = 0
+      const registered = new Set()
       for (const [name, entry] of Object.entries(entries)) {
         if (!existsSync(entry)) { warn(`${name} entry not found, skipping registration`); continue }
         // Pin the node binary: relying on PATH is how MCP servers silently die.
         cfg.mcpServers[name] = { command: vars.NODE, args: [entry], env: {} }
-        n++
+        registered.add(name)
       }
+      const n = registered.size
       writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8')
       ok(`registered ${n} MCP server(s), node pinned to ${vars.NODE}`)
 
@@ -492,10 +493,15 @@ if (wants('mcp') || wants('mcp-register')) {
       // Only the host-app config is edited, and only for names this package registers: a
       // plugin's .mcp.json belongs to the plugin and would come back on its next update, so
       // that case is reported with the one action that actually holds — disable the plugin.
-      const ours = new Set(Object.keys(entries))
+      // What was REGISTERED, never what the manifest names: removing a name from the host
+      // config after failing to register it here leaves that server running nowhere at all.
+      const ours = registered
       for (const [label, hostPath] of hostConfigs()) {
         let host
-        try { host = JSON.parse(readFileSync(hostPath, 'utf8').replace(/^\uFEFF/, '')) } catch { continue }
+        try { host = JSON.parse(readFileSync(hostPath, 'utf8').replace(/^\uFEFF/, '')) } catch (e) {
+          warn(`the ${label} config at ${hostPath} could not be read (${e.message.slice(0, 60)}) — a duplicate hiding behind a typo in it is invisible to this check`)
+          continue
+        }
         const dupes = Object.keys(host.mcpServers || {}).filter((k) => ours.has(k))
         if (!dupes.length) continue
         if (!DEDUPE) {
@@ -503,10 +509,20 @@ if (wants('mcp') || wants('mcp-register')) {
             + `that is ${dupes.length} extra process(es) in EVERY session. Remove with: node tools/install.mjs --only=mcp --dedupe`)
           continue
         }
-        writeFileSync(hostPath + '.bak-' + Date.now(), JSON.stringify(host, null, 2) + '\n', 'utf8')
-        for (const k of dupes) delete host.mcpServers[k]
-        writeFileSync(hostPath, JSON.stringify(host, null, 2) + '\n', 'utf8')
-        ok(`removed ${dupes.length} duplicate registration(s) from the ${label} config (${dupes.join(', ')}); a backup sits beside it`)
+        try {
+          writeFileSync(hostPath + '.bak-' + Date.now(), JSON.stringify(host, null, 2) + '\n', 'utf8')
+          for (const k of dupes) delete host.mcpServers[k]
+          // Rename, not truncate: this file belongs to a running application that writes its
+          // own preferences into it, and a half-written config is worse than a duplicate.
+          const tmp = hostPath + '.cgc-' + process.pid
+          writeFileSync(tmp, JSON.stringify(host, null, 2) + '\n', 'utf8')
+          renameSync(tmp, hostPath)
+          ok(`removed ${dupes.length} duplicate registration(s) from the ${label} config (${dupes.join(', ')}); a backup sits beside it. Restart the app for it to take effect.`)
+        } catch (e) {
+          // Naming the file matters: this used to report a failure to update ~/.claude.json,
+          // which had succeeded, and sent the reader to the wrong place.
+          warn(`could not rewrite the ${label} config at ${hostPath} — ${e.message}. It is often locked while the application is running; close it and re-run, or remove ${dupes.join(', ')} from it by hand.`)
+        }
       }
       for (const [plugin, servers] of pluginServers()) {
         const dupes = Object.keys(servers).filter((k) => ours.has(k))

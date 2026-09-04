@@ -552,12 +552,19 @@ test('the test runner is capped, so one suite cannot take the whole machine', ()
   const auto = ask(undefined)
   assert.ok(auto >= 2 && auto <= 4, `the automatic cap stays small, got ${auto}`)
 
-  // A shipped suite obeys the same cap rather than opening its own worker-per-CPU pool.
+  // Every shipped suite obeys the same cap, whatever its runner is called. Looking only at
+  // test/run.js would let a suite with a differently named runner pass this while quietly
+  // opening its own worker-per-CPU pool — which is the whole failure being guarded against.
   for (const name of readdirSync(REPO, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules').map((e) => e.name)) {
-    const runner = join(REPO, name, 'test', 'run.js')
-    if (!existsSync(runner)) continue
-    const s = readFileSync(runner, 'utf8')
-    assert.match(s, /--test-concurrency=/, `${name}'s runner must cap its workers too`)
-    assert.match(s, /CGC_TEST_CONCURRENCY/, `${name}'s runner must honour the parent's cap`)
+    let script
+    try { script = JSON.parse(readFileSync(join(REPO, name, 'package.json'), 'utf8'))?.scripts?.test } catch { continue }
+    if (!script) continue
+    // The file the test script actually runs, if it names one.
+    const named = /(?:^|\s)([\w./-]+\.(?:m?js|cjs))(?:\s|$)/.exec(script)
+    const runner = named ? join(REPO, name, named[1]) : null
+    assert.ok(runner && existsSync(runner), `${name}'s test script must name a runner this can inspect: ${script}`)
+    const src = readFileSync(runner, 'utf8')
+    assert.match(src, /--test-concurrency=/, `${name}'s runner (${named[1]}) must cap its workers too`)
+    assert.match(src, /CGC_TEST_CONCURRENCY/, `${name}'s runner (${named[1]}) must honour the parent's cap`)
   }
 })

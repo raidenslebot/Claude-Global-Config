@@ -5,6 +5,58 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.48.0 — 2026-09-03
+
+An adversarial review of 1.46.0 and 1.47.0 — the two releases that fixed the freeze — returned
+eight confirmed defects, and the worst of them were in the checks added to prevent it. A gate
+written in a hurry against a live incident is exactly the code most likely to be wrong.
+
+**`--dedupe` could delete a server it had failed to register.** The set it removed from the host
+config was the *manifest*, not what was actually written. The registration loop skips any server
+whose entry file is missing — an offline npm, a partial checkout, a failed install — and the
+dedupe then removed that name from the other config anyway, leaving the server registered
+**nowhere** while the summary said `0 failed`. It now removes only names it has just registered,
+and the doctor's own remediation text points straight at this path.
+
+**Two projects were reported as duplicating each other.** Every project's servers were flattened
+into one namespace, but a project-scoped server loads only in that project's sessions: the same
+name in two projects is one server in each, never two in one. Duplicates are now computed per
+loading set — everything always-loaded, plus one project at a time.
+
+**And a FAIL nothing could clear ran a full install at every session start.** `verify()` reinstalls
+whenever the doctor reports any failure, so an unfixable finding meant an install per session and
+a permanent DEGRADED — the same per-session multiplication these checks exist to catch. Findings
+now say whether an install could repair them, and the hook only repairs when one could. Severity
+follows the same rule: a duplicate in the host application's config, of a name this package
+registers, is a failure with `--dedupe` beside it; a duplicate inside a plugin or a project is a
+warning, because it is not this package's to edit. A remote MCP server carries the
+subscription-only mandate as a failure at user scope, where this package writes, and as a warning
+elsewhere — enabling any official remote-MCP plugin used to break the doctor permanently.
+
+**The plugin arm of the check was reading the wrong tree.** It guessed at the marketplace catalog
+layout; the copy Claude Code loads is the installed one, whose path is recorded in
+`installed_plugins.json`. Seven of eight enabled plugins on this machine matched none of the
+guessed paths, so a plugin re-registering a server was reported as *no duplicates* — precisely the
+false negative 1.46.0 claimed to close. A single-plugin marketplace whose repository root is the
+plugin could never match either. And Claude Code reads a project's own `.mcp.json`, which was
+never enumerated at all.
+
+**The self-test claim could wedge permanently while reporting "enabled".** `mkdirSync` throws
+EEXIST when the state directory exists as a *file*, and that landed in the same branch as "the
+claim is held" — so every session deferred, for ever, and the line looked healthy because a
+deferred run has no failures. The three outcomes are now distinct: taken, held, and **broken**,
+where broken says so in the session line and never runs unguarded. A claim left as a directory is
+removed rather than refused, the release only happens when this session took it, and a claim that
+cannot be made no longer means every session runs its own suite.
+
+Smaller, same review: the host config is rewritten by rename rather than truncated in place — it
+belongs to a running application that writes its own preferences into it — and a failure to write
+it now names *that* file instead of reporting a failure to update `~/.claude.json`, which had
+succeeded. A host config that will not parse is reported instead of silently dropping out of a
+check whose whole purpose is completeness. `hostConfigs()` compares resolved paths rather than
+raw strings. The concurrency guard follows each shipped suite's test script to whatever runner it
+names, rather than only looking at `test/run.js`.
+
 ## 1.47.0 — 2026-09-03
 
 **This package froze the machine it was installed on, and the mechanism was its own self-test.**
