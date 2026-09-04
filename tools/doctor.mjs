@@ -10,7 +10,7 @@
 import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly, hostManagedPlugins } from './paths.mjs'
 import { buildVars } from './paths.mjs'
 
 const { LIBRARY_ROOT } = buildVars()
@@ -228,10 +228,22 @@ phase('MCP servers')
     // What one session actually costs, since the count is the thing that bites and no single
     // config file shows it. An npx or cmd wrapper stays resident alongside the server it spawns.
     const perSession = servers.reduce((n, x) => n + (/^(?:npx|cmd|sh|bash|pnpm|yarn)(?:\.\w+)?$/i.test(String(x.s.command || '')) ? 2 : 1), 0)
+    // Plugins the host application manages register their servers at runtime; no file here
+    // describes them, so they cannot be counted. Saying "about N per session" while a whole
+    // category is invisible is the same defect this phase exists to catch, committed here.
+    const hostManaged = hostManagedPlugins()
+    const caveat = hostManaged.length
+      ? ` — plus whatever the ${hostManaged.length} host-application plugin(s) register, which no file here describes (${hostManaged.slice(0, 3).join(', ')}${hostManaged.length > 3 ? ', …' : ''}). At least one of them starts an npx wrapper and a server in every session.`
+      : ''
     if (perSession >= 8) {
-      warn(`Each session starts about ${perSession} MCP processes (${servers.length} servers). Ten open `
-        + `windows is roughly ${perSession * 10} processes before you have run anything.`)
-    } else if (servers.length) ok(`about ${perSession} MCP process(es) per session`)
+      warn(`Each session starts at least ${perSession} MCP processes (${servers.length} servers). Ten open `
+        + `windows is roughly ${perSession * 10} processes before you have run anything${caveat}`)
+    } else if (servers.length) {
+      // The caveat is carried in the sentence, not in the status. A warning nobody can ever
+      // clear — every desktop install has these — teaches people to skim warnings, which is a
+      // worse outcome than the thing being warned about.
+      ok(`at least ${perSession} MCP process(es) per session, from ${servers.length} server(s) in ${scopes.length} scope(s)${caveat}`)
+    }
 
     if (cfg && !servers.length) warn('no MCP servers registered')
     for (const { name, where, s } of servers) {

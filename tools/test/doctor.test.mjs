@@ -114,3 +114,34 @@ test('a project .mcp.json is read, because Claude Code reads it', (t) => {
   assert.ok(j.results.some((r) => /"shared" is registered 2 times/.test(r.message)),
     'the project file loads alongside the user scope and must be counted')
 })
+
+test('the process count says what it could not count', (t) => {
+  // Plugins the host application manages register their servers at runtime; no file on disk
+  // describes them, and at least one starts two node processes in every session. Reporting
+  // "about 3 per session" while a whole category is invisible is the same defect this phase
+  // exists to catch — so the number is "at least", and it names what it left out.
+  const d = scratch(t)
+  writeFileSync(join(d, 'x.js'), '', 'utf8')
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({
+    mcpServers: { local: { command: process.execPath, args: [join(d, 'x.js')] } },
+    // Used, but in no installed-plugins registry: the host application owns it.
+    pluginUsage: { 'desktop-commander@inline': { usageCount: 3 }, 'sanity@inline': { usageCount: 1 } },
+  }), 'utf8')
+  const j = runDoctorJson(d)
+  const count = j.results.find((r) => /MCP process\(es\) per session/.test(r.message))
+  assert.ok(count, 'the per-session cost is reported')
+  assert.match(count.message, /at least/, 'never a bare number when a category is invisible')
+  assert.match(count.message, /2 host-application plugin\(s\)/)
+  assert.match(count.message, /desktop-commander@inline/)
+  assert.equal(count.level, 'ok', 'a caveat nobody can clear is not a warning')
+})
+
+test('a machine with no host-managed plugins gets no caveat', (t) => {
+  const d = scratch(t)
+  writeFileSync(join(d, 'x.js'), '', 'utf8')
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({
+    mcpServers: { local: { command: process.execPath, args: [join(d, 'x.js')] } },
+  }), 'utf8')
+  const count = runDoctorJson(d).results.find((r) => /MCP process\(es\) per session/.test(r.message))
+  assert.doesNotMatch(count.message, /host-application/, 'nothing invisible, nothing to disclose')
+})

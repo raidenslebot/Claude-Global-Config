@@ -289,6 +289,22 @@ export function pluginServers(home = HOME) {
   return out
 }
 
+/** Plugins the HOST APPLICATION manages, which no file here describes.
+ *
+ *  These carry the `@inline` marketplace and are recorded in ~/.claude.json's pluginUsage while
+ *  appearing in neither installed_plugins.json nor enabledPlugins. Their MCP servers are
+ *  registered by the application at runtime, so nothing on disk can be read to find them — and
+ *  at least one of them on this machine starts two node processes in every session. They cannot
+ *  be counted; the point of naming them is that a count which silently omits them is worse than
+ *  a count that says what it left out. */
+export function hostManagedPlugins(home = HOME) {
+  const cfg = readJsonQuietly(join(home, '.claude.json')) || readJsonQuietly(CLAUDE_JSON) || {}
+  const used = Object.keys(cfg.pluginUsage || {})
+  if (!used.length) return []
+  const installed = new Set(Object.keys((readJsonQuietly(join(home, '.claude', 'plugins', 'installed_plugins.json')) || {}).plugins || {}))
+  return used.filter((k) => !installed.has(k)).sort()
+}
+
 /** Read JSON, or nothing. A config that is absent or malformed is not a finding here. */
 export function readJsonQuietly(p) {
   try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return null }

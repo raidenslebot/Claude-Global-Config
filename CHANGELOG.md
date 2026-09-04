@@ -5,6 +5,25 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.49.0 — 2026-09-03
+
+**The count added to make the cost visible was itself hiding a whole category.** The doctor
+reported `about 3 MCP processes per session` — a confident number, produced by reading every
+config file it knows about, while twelve plugins on this machine are managed by the host
+application, register their servers at runtime, and appear in no file on disk at all. One of them
+starts an npx wrapper and a server in every session. That is precisely the defect this whole
+release series has been about, committed inside the fix for it.
+
+It now reports **at least** N, and names what it could not count. The caveat rides in the
+sentence rather than in the status: a warning that every desktop install would carry and nobody
+could ever clear teaches people to skim warnings, which is a worse outcome than the thing being
+warned about.
+
+Host-managed plugins are identified without guessing — recorded in `~/.claude.json`'s
+`pluginUsage` under the `@inline` marketplace, while absent from `installed_plugins.json` and
+from `enabledPlugins`. Nothing here can read what they register; the point of naming them is that
+a number which silently omits a category is worse than one that says what it left out.
+
 ## 1.48.0 — 2026-09-03
 
 An adversarial review of 1.46.0 and 1.47.0 — the two releases that fixed the freeze — returned
