@@ -7,7 +7,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { lintText, lint, hsl, FAMILIES, MAX_SCORE } from '../slop-lint.mjs'
 import { REPO } from '../paths.mjs'
@@ -296,4 +296,52 @@ test('every family leaves alone the legitimate design it sits next to', () => {
   }
   assert.deepEqual(fired, [], 'families that fired on a page doing the legitimate version')
   assert.ok(Object.keys(cases).length >= 16, 'a family without a near-miss page is a family nobody checked')
+})
+
+test('a page is judged with the stylesheets it links, and each finding names its own file', (t) => {
+  // The same design scored 13 with its CSS inline and 4 with the CSS one file away — five of
+  // seven fingerprints vanished, because a centred hero needs the markup AND the rule while a
+  // purple gradient lives only in the rule. Nearly all real work keeps its CSS in a file.
+  const d = scratch(t)
+  const css = [
+    'body{background:#0b0f19;color:#94a3b8;font-family:Inter,sans-serif}',
+    '.blob{position:absolute;border-radius:9999px;filter:blur(64px);background:#a855f7;width:24rem;height:24rem}',
+    '.hero{text-align:center;padding:8rem 0}',
+    '.hero h1{background:linear-gradient(90deg,#a855f7,#ec4899);-webkit-background-clip:text;color:transparent}',
+    '.card{backdrop-filter:blur(12px);background:rgba(255,255,255,.1);border-radius:1rem;padding:1.5rem}',
+  ].join('\n')
+  const body = '<div class="blob"></div>'
+    + '<section class="hero"><h1>Supercharge your workflow</h1><p>Seamless, effortless, blazing fast.</p>'
+    + '<a class="btn">Get started</a><a class="btn">Book a demo</a></section>'
+    + '<div class="grid"><div class="card">🚀 Fast</div><div class="card">🔒 Secure</div><div class="card">⚡ Simple</div></div>'
+
+  writeFileSync(join(d, 'style.css'), css, 'utf8')
+  writeFileSync(join(d, 'split.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>L</title><link rel="stylesheet" href="style.css"></head><body>${body}</body></html>`, 'utf8')
+  writeFileSync(join(d, 'inline.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>L</title><style>${css}</style></head><body>${body}</body></html>`, 'utf8')
+
+  const split = lint(join(d, 'split.html'))
+  const inline = lint(join(d, 'inline.html'))
+  assert.equal(split.score, inline.score, 'the same design scores the same however its CSS is stored')
+  assert.deepEqual(split.findings.map((f) => f.id).sort(), inline.findings.map((f) => f.id).sort())
+
+  // A finding from the stylesheet names that file, with a line number inside it — "L4" printed
+  // under the page's own heading sends the reader to line 4 of the markup, where nothing is.
+  const fromCss = split.findings.filter((f) => f.file)
+  assert.ok(fromCss.length >= 3, 'the CSS-only fingerprints are attributed to the CSS')
+  const cssLines = css.split('\n').length
+  for (const f of fromCss) {
+    assert.equal(basename(f.file), 'style.css')
+    assert.ok(f.line >= 1 && f.line <= cssLines, `line ${f.line} is inside style.css (${cssLines} lines)`)
+  }
+  // A fingerprint that needs the markup stays on the page.
+  assert.ok(split.findings.some((f) => f.id === 'hero-centroid' && !f.file))
+
+  // A stylesheet that is remote, missing or listed twice does not break the read.
+  writeFileSync(join(d, 'odd.html'), '<!doctype html><html><head>'
+    + '<link rel="stylesheet" href="https://example.invalid/a.css">'
+    + '<link rel="stylesheet" href="gone.css">'
+    + '<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="style.css">'
+    + `</head><body>${body}</body></html>`, 'utf8')
+  const odd = lint(join(d, 'odd.html'))
+  assert.equal(odd.score, inline.score, 'an unreachable or repeated sheet changes nothing')
 })

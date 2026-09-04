@@ -16,6 +16,7 @@
 import { readFileSync, statSync, readdirSync, existsSync, realpathSync } from 'node:fs'
 import { join, extname, basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pageWithStyles } from './paths.mjs'
 
 export const EXTS = new Set(['.html', '.htm', '.css', '.scss', '.jsx', '.tsx', '.vue', '.svelte', '.astro'])
 const MOVES = 'visual-design-mastery/references/signature-moves.md'
@@ -362,7 +363,29 @@ export function lintText(text, name = 'text') {
 }
 
 export function lint(file) {
-  return lintText(readFileSync(file, 'utf8'), file)
+  // A page is judged with the stylesheets it links, because that is the design. The pieces are
+  // joined with a marker of exactly one newline per piece boundary so a position can be mapped
+  // back to the file it came from — a line number counted through a concatenation is a lie.
+  const pieces = pageWithStyles(file, readFileSync(file, 'utf8'))
+  if (pieces.length === 1) return lintText(pieces[0].text, file)
+  const joined = pieces.map((p) => p.text).join('\n')
+  const r = lintText(joined, file)
+  // Map every finding back to its own file and its own line.
+  const bounds = []
+  let at = 0
+  for (const p of pieces) { bounds.push({ file: p.file, start: at, text: p.text }); at += p.text.length + 1 }
+  const lines = (s) => s.split(/\r?\n/).length
+  const upTo = joined.split(/\r?\n/)
+  for (const f of r.findings) {
+    // lintText already turned the index into a line of the joined text; find which piece owns it.
+    const charIndex = upTo.slice(0, Math.max(0, f.line - 1)).reduce((n, l) => n + l.length + 1, 0)
+    const piece = [...bounds].reverse().find((b) => charIndex >= b.start) || bounds[0]
+    if (piece.file !== file) {
+      f.file = piece.file
+      f.line = lines(joined.slice(piece.start, charIndex))
+    }
+  }
+  return r
 }
 
 function expand(paths) {
@@ -402,7 +425,10 @@ export function main(argv = process.argv.slice(2)) {
     const colour = r.verdict === 'centroid' ? '\x1b[31m' : r.verdict === 'fingerprints' ? '\x1b[33m' : '\x1b[32m'
     console.log(`\n${colour}${basename(r.file)}\x1b[0m — ${r.verdict.toUpperCase()} (score ${r.score} of ${r.max})`)
     for (const f of r.findings) {
-      console.log(`  ${f.weight === 2 ? '\x1b[31m✖\x1b[0m' : '\x1b[33m!\x1b[0m'} ${f.id.padEnd(16)} L${String(f.line).padEnd(5)} ${f.sample.slice(0, 70)}`)
+      // A finding from a linked stylesheet names that file: "L4" printed under the page's own
+      // heading sends the reader to line 4 of the markup, where there is nothing to see.
+      const where = f.file ? `${basename(f.file)}:${f.line}` : `L${f.line}`
+      console.log(`  ${f.weight === 2 ? '\x1b[31m✖\x1b[0m' : '\x1b[33m!\x1b[0m'} ${f.id.padEnd(16)} ${where.padEnd(13)} ${f.sample.slice(0, 66)}`)
       console.log(`      → ${f.why} (${MOVES}).`)
     }
     if (r.verdict === 'centroid') console.log('  This is the template. Do not decorate it — change the structure with the divergence protocol, then lint again.')

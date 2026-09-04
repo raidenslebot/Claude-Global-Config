@@ -5,6 +5,28 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.52.0 — 2026-09-03
+
+**The fingerprint gate was reading a fragment.** The identical page scored **13** with its CSS
+inline and **4** with the CSS one file away — five of seven fingerprints vanished, because a
+centred hero needs the markup *and* the rule while a purple gradient lives only in the rule.
+Nearly all real work keeps its CSS in a separate file, so the most-used gate here was grading
+something other than the design.
+
+Third time today, so the reader now lives once in `paths.mjs`. `pageWithStyles` returns the
+pieces rather than one string, because a line number counted through a concatenation points at
+nothing: every finding is mapped back to the file it is in, and the report says `style.css:4`
+rather than `L4` under the page heading — which would send the reader to line 4 of the markup,
+where there is nothing to see.
+
+**A flag the doctor recommends is now documented by the tool that has it.** `install.mjs
+--only=mcp --dedupe` was named in a failure message and absent from `--help`. A new gate asserts
+that every flag any tool actually reads appears in that tool's own help.
+
+And print-lint reading linked stylesheets, from an hour earlier, shipped with no regression
+test — which is how a fix silently reverts. Covered now, including that a remote or missing
+sheet is skipped rather than fatal, so a page is never failed for something it does not control.
+
 ## 1.51.0 — 2026-09-03
 
 The measure landed in 1.50.0; this is the part it was pointing at. Six shipped examples in one

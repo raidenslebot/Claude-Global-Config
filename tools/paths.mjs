@@ -333,3 +333,27 @@ export function concurrency() {
   const cpus = typeof availableParallelism === 'function' ? availableParallelism() : 4
   return Math.max(2, Math.min(4, Math.floor(cpus / 4) || 2))
 }
+
+/** A page and the stylesheets it links, in the order a browser would apply them.
+ *
+ *  Every gate that read only the markup was judging a fragment. The same page scored 13 with
+ *  its CSS inline and 4 with the CSS one file away — five of seven fingerprints vanished,
+ *  because a centred hero needs the markup AND the rule, and a purple gradient lives only in
+ *  the rule. Nearly all real work keeps its CSS in a separate file.
+ *
+ *  Returns the pieces rather than one string, so a finding can be reported against the file it
+ *  is actually in: a line number counted through a concatenation points at nothing. */
+export function pageWithStyles(file, text) {
+  const pieces = [{ file, text }]
+  const seen = new Set()
+  for (const m of text.matchAll(/<link\b[^>]*rel\s*=\s*["']stylesheet["'][^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+    const href = m[1]
+    if (/^(?:https?:)?\/\//i.test(href) || /^data:/i.test(href)) continue
+    let p
+    try { p = resolve(dirname(file), decodeURIComponent(href.split('?')[0].split('#')[0])) } catch { continue }
+    if (seen.has(p)) continue
+    seen.add(p)
+    try { pieces.push({ file: p, text: readFileSync(p, 'utf8') }) } catch { /* not ours to read */ }
+  }
+  return pieces
+}
