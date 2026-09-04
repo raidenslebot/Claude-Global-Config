@@ -5,6 +5,35 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.47.0 — 2026-09-03
+
+**This package froze the machine it was installed on, and the mechanism was its own self-test.**
+The session-start hook runs the suite once per commit. The cache that records the result is
+written when the run *finishes* — so for the eighty-odd seconds it takes, every session that
+starts sees a miss and launches its own. Measured: **one run is 60 node processes and 5.6 GB
+resident**, because `node --test` defaults to one worker per CPU and this machine has 24, and a
+shipped suite spawns its own pool on top. Fifteen open windows is fifteen of those. On 32 GB the
+machine stops.
+
+Two changes, because either alone is insufficient:
+
+- **Exactly one session runs the suite.** The claim is written *before* the run rather than
+  after, since the gap between started and finished is the entire problem. A session that cannot
+  claim it reports the last known counts and says whose run it is — `tests running in another
+  session` — rather than starting a second one or printing a number nothing produced. A claim
+  left behind by a run that died is taken over after five minutes, so one crash does not mean no
+  session ever tests again.
+- **One run is capped.** `--test-concurrency` is bounded to a quarter of the machine's cores, at
+  most four, overridable with `CGC_TEST_CONCURRENCY`, and the cap is handed down to every shipped
+  suite so the total is bounded rather than multiplied. 60 processes and 5.6 GB became 39 and
+  2.9 GB — about half of what remains is the resident MCP servers, not the suite. A suite that
+  takes ninety seconds either way is not worth a machine.
+
+**And a second script that runs when imported.** `run-tests.mjs` executes the whole suite at
+module scope, exactly like `doctor.mjs` — a test written for the cap discovered it by importing
+it. `concurrency()` joined the other shared helpers in `paths.mjs`, and the guard that asserted
+nothing imports the doctor now covers every script, from the tools *and* from the tests.
+
 ## 1.46.0 — 2026-09-03
 
 **A machine froze with a hundred node processes open, and every config file involved looked

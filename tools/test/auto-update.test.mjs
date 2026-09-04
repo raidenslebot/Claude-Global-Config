@@ -278,3 +278,34 @@ test('a test run that produces no counts is not reported as zero tests', (t) => 
   assert.match(line, /the test suite could not be read/, line)
   assert.doesNotMatch(line, /0\/0 tests/, 'zero of zero is an answer nothing gave')
 })
+
+test('only one session runs the suite; the rest report rather than pile on', (t) => {
+  // The cache is written when a run FINISHES, so for the eighty seconds it takes, every session
+  // that starts sees a miss and launches its own. One run measured 60 node processes and 5.6 GB;
+  // fifteen windows opening together is how a 32 GB machine froze from a package checking itself.
+  const w = world(t, { tests: true })
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  // A claim that a live session is running the suite right now.
+  writeFileSync(join(state, 'selftest.running'), JSON.stringify({ pid: process.pid, at: Date.now() }))
+
+  const { line } = fire(w, w.friend)
+  assert.match(line, /tests running in another session/, line)
+  assert.equal(existsSync(join(w.friend, 'testruns.txt')), false, 'it must not have run the suite')
+  assert.ok(existsSync(join(state, 'selftest.running')), 'and it must not clear a claim it does not hold')
+})
+
+test('a claim left by a run that died is not a claim', (t) => {
+  // Otherwise one crash during a test run means no session ever tests again.
+  const w = world(t, { tests: true })
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  const claim = join(state, 'selftest.running')
+  writeFileSync(claim, JSON.stringify({ pid: 999999, at: 0 }))
+  utimesSync(claim, new Date(Date.now() - 30 * 60 * 1000), new Date(Date.now() - 30 * 60 * 1000))
+
+  const { line } = fire(w, w.friend)
+  assert.match(line, /3\/3 tests/, line)
+  assert.equal(readFileSync(join(w.friend, 'testruns.txt'), 'utf8'), '1', 'the stale claim was taken over')
+  assert.equal(existsSync(claim), false, 'and released afterwards')
+})

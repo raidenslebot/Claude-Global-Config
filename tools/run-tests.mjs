@@ -21,7 +21,7 @@ import { readdirSync, existsSync, readFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { askedForHelp } from './paths.mjs'
+import { askedForHelp , concurrency} from './paths.mjs'
 
 // A request for help is never a request to run the suite.
 if (askedForHelp(import.meta.url)) process.exit(0)
@@ -60,7 +60,7 @@ if (!files.length) {
  *  that sees NODE_TEST_CONTEXT reports into the parent instead of printing its own summary —
  *  exit 0 with no counts, which reads exactly like a suite that has no tests in it. */
 function cleanEnv() {
-  const env = { ...process.env }
+  const env = { ...process.env, CGC_TEST_CONCURRENCY: String(CONCURRENCY) }
   delete env.NODE_TEST_CONTEXT
   delete env.NODE_OPTIONS
   return env
@@ -92,11 +92,13 @@ function stripSummary(text) {
   return text.split(/\r?\n/).filter((l) => !SUMMARY.test(l)).join('\n')
 }
 
+const CONCURRENCY = concurrency()
+
 const suites = shippedSuites()
 // This package's own tests, then every suite it ships. Both are captured so that exactly ONE
 // summary block is printed at the end: the session hook reads the first ℹ counts it finds, and
 // two blocks would have it report one suite as the whole.
-const own = spawnSync(process.execPath, ['--test', ...files], { encoding: 'utf8' })
+const own = spawnSync(process.execPath, [`--test-concurrency=${CONCURRENCY}`, '--test', ...files], { encoding: 'utf8' })
 const ownText = (own.stdout || '') + (own.stderr || '')
 process.stdout.write(stripSummary(ownText))
 

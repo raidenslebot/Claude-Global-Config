@@ -14,6 +14,7 @@ import { readdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import * as os from 'node:os'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const filter = process.argv[2]
@@ -30,5 +31,9 @@ if (files.length === 0) {
   process.exit(1)
 }
 
-const r = spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' })
+// One worker per CPU is the default and it is far too many on a large machine, especially
+// when several sessions start at once. CGC_TEST_CONCURRENCY carries the parent's cap.
+const asked = Number(process.env.CGC_TEST_CONCURRENCY)
+const workers = Number.isFinite(asked) && asked >= 1 ? Math.floor(asked) : Math.max(2, Math.min(4, Math.floor((os.availableParallelism?.() || 4) / 4) || 2))
+const r = spawnSync(process.execPath, [`--test-concurrency=${workers}`, '--test', ...files], { stdio: 'inherit' })
 process.exit(r.status ?? 1)

@@ -6,7 +6,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -260,13 +260,20 @@ test('every scope an MCP server loads from is enumerated, not only ~/.claude.jso
   assert.deepEqual(hostConfigs(join(home, 'empty')), [], 'a home with no host config has no host scope')
 })
 
-test('no tool imports doctor.mjs — it is a script that exits at module scope', () => {
-  // It runs its checks top-level and ends with process.exit, so an `import` of it does not
-  // borrow a helper, it runs the doctor and kills the importing process. Shared helpers live
-  // in paths.mjs for exactly this reason, and this is the guard on that.
-  for (const f of readdirSync(TOOLS).filter((f) => f.endsWith('.mjs') && f !== 'doctor.mjs')) {
-    const src = readFileSync(join(TOOLS, f), 'utf8')
-    assert.doesNotMatch(src, /^\s*import[^\n]*from\s+['"]\.\/doctor\.mjs['"]/m,
-      `${f} imports doctor.mjs, which would run the doctor and exit the process`)
+test('nothing imports a SCRIPT — importing one runs it', () => {
+  // doctor.mjs runs its checks top-level and ends with process.exit; run-tests.mjs runs the
+  // whole suite. An import of either does not borrow a helper, it does the work — and in the
+  // doctor's case kills the importing process. Shared helpers live in paths.mjs for exactly
+  // this reason. Both landmines were found the same way: by stepping on one.
+  const SCRIPTS = ['doctor.mjs', 'run-tests.mjs']
+  for (const script of SCRIPTS) {
+    assert.ok(existsSync(join(TOOLS, script)), `${script} exists`)
+    for (const [dir, prefix] of [[TOOLS, '\\./'], [join(TOOLS, 'test'), '\\.\\./']]) {
+      const re = new RegExp(`^\\s*import[^\\n]*from\\s+['"]${prefix}${script.replace('.', '\\.')}['"]`, 'm')
+      for (const f of readdirSync(dir).filter((f) => f.endsWith('.mjs') && f !== script)) {
+        assert.doesNotMatch(readFileSync(join(dir, f), 'utf8'), re,
+          `${f} imports ${script} — that runs it as a side effect of the import; spawn it instead`)
+      }
+    }
   }
 })

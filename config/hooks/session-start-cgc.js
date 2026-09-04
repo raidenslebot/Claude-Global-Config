@@ -35,6 +35,9 @@ const NODE = NODE_TOKEN.includes('{{') ? process.execPath : NODE_TOKEN
 const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || (CONFIG_TOKEN.includes('{{') ? path.join(os.homedir(), '.claude') : CONFIG_TOKEN)
 const STATE = path.join(CONFIG_ROOT, '.cgc')
 const TEST_TTL_MS = 24 * 60 * 60 * 1000
+// A claim older than this belongs to a run that died. The suite takes about a minute and a half
+// and is capped at 240s, so five minutes is well past any honest run.
+const TEST_CLAIM_STALE_MS = 5 * 60 * 1000
 
 function git(args, timeout = 15000) {
   return spawnSync('git', args, {
@@ -192,7 +195,35 @@ function selfTest(head) {
   const cache = path.join(STATE, 'selftest.json')
   const last = readJson(cache)
   if (last && last.head === head && Date.now() - (last.at || 0) < TEST_TTL_MS) return { ...last, cached: true }
-  const r = spawnSync(NODE, [tool('run-tests.mjs')], { cwd: REPO, encoding: 'utf8', timeout: 240000, windowsHide: true })
+  // Claim the run before starting it. Written before, not after, because the gap between
+  // "started" and "finished" is the whole problem.
+  const claim = path.join(STATE, 'selftest.running')
+  const take = () => {
+    try {
+      fs.mkdirSync(STATE, { recursive: true })
+      const fd = fs.openSync(claim, 'wx')
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }))
+      fs.closeSync(fd)
+      return true
+    } catch (e) {
+      if (e.code !== 'EEXIST') return true          // cannot claim at all: run rather than skip
+      // A claim left behind by a run that died is not a claim.
+      try { if (Date.now() - fs.statSync(claim).mtimeMs > TEST_CLAIM_STALE_MS) fs.unlinkSync(claim) } catch { return false }
+      return false
+    }
+  }
+  if (!take() && !take()) {
+    // Another session is running the suite right now. Report what is known and say whose run
+    // it is — a number from a run this session did not do is still a number worth having.
+    return last && last.head === head ? { ...last, cached: true, deferred: true } : { deferred: true, total: 0, pass: 0, fail: 0, skipped: 0 }
+  }
+
+  let r
+  try {
+    r = spawnSync(NODE, [tool('run-tests.mjs')], { cwd: REPO, encoding: 'utf8', timeout: 240000, windowsHide: true })
+  } finally {
+    try { fs.unlinkSync(claim) } catch { /* another session cleared a stale claim */ }
+  }
   const text = String(r.stdout || '') + String(r.stderr || '')
   const num = (k) => { const m = new RegExp(`(?:ℹ|#)\\s*${k}\\s+(\\d+)`).exec(text); return m ? Number(m[1]) : null }
   // A skipped test is one that could not run here (no browser, say), not one that failed; the
@@ -212,7 +243,13 @@ function compose(ver, u, v, t) {
   const parts = [`CGC v${ver} ${bad ? 'DEGRADED' : 'enabled'}`]
   if (v) parts.push(`${v.ok}/${v.total} checks${v.failed.length ? ` (${v.failed.length} failed: ${v.failed[0]})` : ''}${v.repaired ? ' · repaired' : ''}`)
   else parts.push('checks unavailable')
-  if (t) parts.push(t.timedOut ? 'tests timed out' : t.unread ? 'the test suite could not be read' : `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`)
+  if (t) {
+    const counts = `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`
+    parts.push(t.timedOut ? 'tests timed out'
+      : t.deferred ? (t.total ? `${counts} (another session is re-running them)` : 'tests running in another session')
+        : t.unread ? 'the test suite could not be read'
+          : counts)
+  }
   const upd = {
     'no-git': 'not a git clone — cannot auto-update',
     'no-git-cli': 'git is not on PATH — cannot update',

@@ -4,7 +4,7 @@
 // replaced by {{TOKENS}}. install.mjs substitutes them back using values detected on the
 // target machine. This is what makes the repo work on a setup that is not this one.
 
-import { homedir, platform } from 'node:os'
+import { homedir, platform, availableParallelism } from 'node:os'
 import { existsSync, readFileSync, statSync, mkdirSync, openSync, writeSync, closeSync, unlinkSync } from 'node:fs'
 import { join, resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -276,4 +276,14 @@ export function pluginServers(home = HOME) {
 /** Read JSON, or nothing. A config that is absent or malformed is not a finding here. */
 export function readJsonQuietly(p) {
   try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return null }
+}
+
+/** How many test workers to run at once. node --test defaults to one per CPU, which on a large
+ *  machine is dozens of processes and gigabytes for a suite that takes about a minute either
+ *  way — and several sessions starting at once turned that into an out-of-memory freeze. */
+export function concurrency() {
+  const asked = Number(process.env.CGC_TEST_CONCURRENCY)
+  if (Number.isFinite(asked) && asked >= 1) return Math.floor(asked)
+  const cpus = typeof availableParallelism === 'function' ? availableParallelism() : 4
+  return Math.max(2, Math.min(4, Math.floor(cpus / 4) || 2))
 }

@@ -12,6 +12,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, exist
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 
@@ -526,5 +527,37 @@ test('the test runner runs every suite this package ships, not only its own', ()
 ${out.slice(-700)}`)
     const passed = Number(/(?:ℹ|#)\s*pass\s+(\d+)/.exec(out)?.[1] || 0)
     assert.ok(passed > 0, `${name} reported no passing tests — the runner would add nothing`)
+  }
+})
+
+test('the test runner is capped, so one suite cannot take the whole machine', () => {
+  // node --test defaults to one worker per CPU. On a 24-core machine that measured 60 node
+  // processes and 5.6 GB for a suite that takes about ninety seconds either way — and a
+  // session-start hook that runs it meant every open window paid that at once.
+  const src = readFileSync(join(TOOLS, 'run-tests.mjs'), 'utf8')
+  assert.match(src, /--test-concurrency=/, 'the runner passes a concurrency cap')
+  assert.match(src, /CGC_TEST_CONCURRENCY/, 'and the cap is overridable')
+
+  // The cap is bounded whatever the machine, and an explicit request is honoured.
+  // concurrency() lives in paths.mjs, a MODULE: run-tests.mjs is a script that runs the whole
+  // suite at import, which is what this test discovered by importing it.
+  const ask = (v) => {
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e',
+      "import { concurrency } from " + JSON.stringify(pathToFileURL(join(TOOLS, 'paths.mjs')).href) + "; console.log(concurrency())"],
+    { encoding: 'utf8', env: { ...process.env, CGC_TEST_CONCURRENCY: v ?? '' }, timeout: 120000 })
+    return Number((r.stdout || '').trim())
+  }
+  assert.equal(ask('1'), 1, 'one worker is a legitimate ask')
+  assert.equal(ask('7'), 7)
+  const auto = ask(undefined)
+  assert.ok(auto >= 2 && auto <= 4, `the automatic cap stays small, got ${auto}`)
+
+  // A shipped suite obeys the same cap rather than opening its own worker-per-CPU pool.
+  for (const name of readdirSync(REPO, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules').map((e) => e.name)) {
+    const runner = join(REPO, name, 'test', 'run.js')
+    if (!existsSync(runner)) continue
+    const s = readFileSync(runner, 'utf8')
+    assert.match(s, /--test-concurrency=/, `${name}'s runner must cap its workers too`)
+    assert.match(s, /CGC_TEST_CONCURRENCY/, `${name}'s runner must honour the parent's cap`)
   }
 })
