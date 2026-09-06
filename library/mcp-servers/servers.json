@@ -36,7 +36,7 @@
       "bin": "codebase-memory-mcp",
       "install": "https://github.com/DeusData/codebase-memory-mcp/releases/latest",
       "why": "code structure the agent does not have to re-read the tree to learn: index a repo once, then search_graph / trace_path / get_architecture / detect_changes answer in milliseconds instead of a hundred thousand tokens of file-by-file exploration",
-      "note": "MIT, pure C, no language runtime, no API key and no telemetry — its README states it 'makes no network request of its own accord'. One shared coordination daemon per account rather than a process per session, which is why this one and not Graft; sources.json records that decision. `bin` rather than `entry` because this package does not vendor it: resolveServerBin() finds it on PATH or in the locations its own installer uses."
+      "note": "MIT, pure C, no language runtime, no API key and no telemetry — its README states it 'makes no network request of its own accord'. One shared coordination daemon per account rather than a process per session, which is why this one and not Graft; sources.json records that decision. `bin` rather than `entry` because this package does not vendor it: the `mcp` install step downloads the release asset for this platform from `install`, verifies it against the release's checksums.txt, and places the binary where resolveServerBin() reads (LOCALAPPDATA/Programs/<name> on Windows, ~/.local/bin elsewhere)."
     }
   }
 }

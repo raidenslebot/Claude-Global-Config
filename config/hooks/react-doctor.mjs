@@ -72,7 +72,7 @@ const editedPath = (input) => {
  *  file to the nearest package.json and read its dependencies. This costs one file read; the
  *  alternative is an npm resolution plus a full-project scan that reaches the same conclusion
  *  after ~1.2 GB and forty seconds. A project with no package.json at all is not a JS project. */
-const FRAMEWORKS = /^(react|react-dom|react-native|next|remix|@remix-run\/|preact|expo|@tanstack\/react-|gatsby|vue|nuxt|svelte|@sveltejs\/|solid-js|astro)/
+const FRAMEWORKS = /^(react|react-dom|react-native|next|remix|preact|expo|gatsby|vue|nuxt|svelte|solid-js|astro)$|^@(remix-run|sveltejs|expo|react-native|vue|nuxt|angular)\/|^@tanstack\/react-/
 const usesFramework = (from) => {
   // `from` may be a file or a directory. The first version took dirname() of whatever it was
   // given and was handed the PROJECT ROOT, so it began one level above the project and never
@@ -81,11 +81,9 @@ const usesFramework = (from) => {
   try { dir = statSync(from).isDirectory() ? resolve(from) : dirname(resolve(from)) } catch { dir = process.cwd() }
   // Every package.json up to the root, not the first one: a monorepo keeps react at the
   // workspace root with the app in packages/web, and the inverse layout exists too.
-  let sawAny = false
   for (let i = 0; i < 12; i++) {
     const pkg = join(dir, 'package.json')
     if (existsSync(pkg)) {
-      sawAny = true
       try {
         const j = JSON.parse(readFileSync(pkg, 'utf8'))
         const deps = Object.keys({ ...j.dependencies, ...j.devDependencies, ...j.peerDependencies, ...j.optionalDependencies })
@@ -96,7 +94,7 @@ const usesFramework = (from) => {
     if (up === dir) break
     dir = up
   }
-  return false && sawAny
+  return false
 }
 
 /** One scan at a time, machine-wide. A hook that fires on every write, in every session, with no

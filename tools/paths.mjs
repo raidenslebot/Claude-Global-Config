@@ -191,7 +191,13 @@ export function acquireUpdateLock() {
       napSync(250)
     }
   }
-  return () => { if (held) { held = false; try { unlinkSync(UPDATE_LOCK) } catch { /* already gone */ } } }
+  return () => {
+    if (!held) return
+    held = false
+    // Only OUR lock: a holder that outlived the stale window has had it reclaimed by another
+    // process, and removing that one would let a third in beside it.
+    try { if (JSON.parse(readFileSync(UPDATE_LOCK, 'utf8')).pid === process.pid) unlinkSync(UPDATE_LOCK) } catch { /* gone, or not ours */ }
+  }
 }
 
 export function withUpdateLock(fn) {

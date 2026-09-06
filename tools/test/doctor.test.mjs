@@ -23,7 +23,7 @@ function scratch(t) {
 }
 
 /** Run the doctor against a scratch config root and return its JSON. */
-function runDoctorJson(dir) {
+function runDoctorJson(dir, extra = {}) {
   const r = spawnSync(process.execPath, [TOOL, '--json'], {
     cwd: REPO, encoding: 'utf8', timeout: 120000,
     // APPDATA/XDG_CONFIG_HOME too: the host application's config is found through them, and a
@@ -31,6 +31,7 @@ function runDoctorJson(dir) {
     env: {
       ...process.env, CLAUDE_CONFIG_DIR: dir, HOME: dir, USERPROFILE: dir,
       APPDATA: join(dir, 'AppData', 'Roaming'), XDG_CONFIG_HOME: join(dir, '.config'),
+      ...extra,
     },
   })
   const out = r.stdout || ''
@@ -202,4 +203,28 @@ test('a remote server is reported at every scope it can hide in', (t) => {
   for (const name of ['fromHost', 'fromProjectFile', 'fromPlugin', 'fromProjectMap']) {
     assert.equal(byName.get(name), 'warn', `${name} is reported, and is not this package's to remove`)
   }
+})
+
+test('a standalone server that is not on the machine is a warning naming the install step, never a failure the repair loops on', (t) => {
+  // codebase-memory-mcp is a `bin` the package does not vendor. On every machine but the one
+  // where it had been installed by hand, the doctor failed "NOT registered" with the default
+  // repairable:true; the session-start repair runs mcp-register, which cannot download a
+  // binary; so the doctor failed again, at every start, resume, clear and compact — DEGRADED
+  // plus a full install each time, for ever, everywhere but here.
+  const d = scratch(t)
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers: {} }), 'utf8')
+  // Nothing on PATH but node's own directory and the system tools; nothing under LOCALAPPDATA.
+  const sys = process.platform === 'win32' ? join(process.env.SystemRoot || 'C:\\Windows', 'System32') : '/usr/bin:/bin'
+  const j = runDoctorJson(d, {
+    LOCALAPPDATA: join(d, 'AppData', 'Local'),
+    PATH: [dirname(process.execPath), sys].join(process.platform === 'win32' ? ';' : ':'),
+  })
+  const bin = j.results.find((r) => /"codebase-memory-mcp" is not installed/.test(r.message))
+  assert.ok(bin, 'the missing binary is reported:\n' + j.results.filter((r) => r.level !== 'ok').map((r) => r.level + ' ' + r.message).join('\n'))
+  assert.equal(bin.level, 'warn', 'mcp-register cannot put a binary on disk, so this is not a repairable failure')
+  assert.match(bin.message, /--only=mcp\b/, 'and it names the step that downloads it')
+  // A vendored server, by contrast, IS registrable by the repair and stays a failure.
+  const vendored = j.results.filter((r) => /is NOT registered/.test(r.message))
+  assert.ok(vendored.length >= 1, 'the vendored servers are still failures')
+  assert.ok(vendored.every((r) => r.level === 'fail' && r.repairable === true))
 })

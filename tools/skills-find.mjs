@@ -162,7 +162,8 @@ export async function main(argv = process.argv.slice(2)) {
         const rel = String(f.path).replace(/\\/g, '/').replace(/^\/+/, '')
         if (!rel || /\0/.test(rel)) { console.error(`skills: refusing an empty or NUL-bearing path: ${JSON.stringify(f.path)}`); return 2 }
         const p = resolve(dest, rel)
-        if (p !== dest && !p.startsWith(dest + sep)) { console.error(`skills: refusing a path that climbs out of the library: ${f.path}`); return 2 }
+        // Strictly inside: a path that resolves to the destination itself ("a/..") is not a file.
+        if (p === dest || !p.startsWith(dest + sep)) { console.error(`skills: refusing a path that climbs out of the library: ${f.path}`); return 2 }
         planned.push([p, String(f.contents ?? '')])
       }
       for (const [p, body] of planned) {

@@ -112,7 +112,11 @@ function withLock(fn) {
       sleep(250)
     }
   }
-  try { return fn() } finally { if (held) { try { fs.unlinkSync(LOCK) } catch { /* already gone */ } } }
+  try { return fn() } finally {
+    // Only OUR lock. A holder that outlived the stale window has had its lock reclaimed by
+    // another process; removing that one would let a third in beside it.
+    if (held) { try { if (JSON.parse(fs.readFileSync(LOCK, 'utf8')).pid === process.pid) fs.unlinkSync(LOCK) } catch { /* gone, or not ours */ } }
+  }
 }
 
 // ── 1. update ────────────────────────────────────────────────────────────────
@@ -262,7 +266,7 @@ function selfTest(head) {
   if (got.state !== 'taken') {
     // Never run unguarded. A broken claim means every session would run its own suite, which
     // is the failure this exists to prevent — so it is reported, not worked around.
-    const known = last && last.head === head ? { ...last, cached: true } : { total: 0, pass: 0, fail: 0, skipped: 0 }
+    const known = last && last.head === head && !last.timedOut && !last.unread ? { ...last, cached: true } : { total: 0, pass: 0, fail: 0, skipped: 0 }
     return { ...known, deferred: true, claimBroken: got.state === 'broken' ? got.why : null }
   }
 
@@ -357,8 +361,10 @@ function main() {
   const extra = details(u)
   const fix = v && v.failed.length ? `\nStill failing after repair: ${v.failed.join('; ')} — run node ${tool('doctor.mjs')} and fix what it names.` : ''
   const tests = t && t.fail
-    ? `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.`
-      + (t.failed && t.failed.length ? ` The failing case${t.failed.length === 1 ? ' is' : 's are'}: ${t.failed.join(' · ')}.` : '')
+    ? (t.background && t.forHead && t.head && t.forHead !== t.head
+      ? `\n${t.fail} of the package's tests failed at ${short(t.forHead)}; ${short(t.head)} is being tested in the background now — run npm test in ${REPO} to see it.`
+      : `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.`
+        + (t.failed && t.failed.length ? ` The failing case${t.failed.length === 1 ? ' is' : 's are'}: ${t.failed.join(' · ')}.` : ''))
     : t && t.timedOut
       ? `\nThe package's test suite did not finish within its ${Math.round((t.budgetMs || 0) / 60000) || 20}-minute budget on this machine. No test failed; the run is unfinished, and it is re-tried in the background at the next session start. To see it: npm test in ${REPO}.`
       : ''

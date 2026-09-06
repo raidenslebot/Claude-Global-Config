@@ -33,16 +33,21 @@ const registered = (cfg) => {
   return Object.values(s.hooks || {}).flat().flatMap((g) => (g.hooks || []).map((h) => String(h.command)))
 }
 
-test('a hook the manifest no longer carries is pruned — registration and file — and nothing else is', (t) => {
+test('a hook this package RETIRED is pruned — registration and file — and a hook it never shipped is not, wherever it lives', (t) => {
   const cfg = scratch(t)
   mkdirSync(join(cfg, 'hooks'), { recursive: true })
-  // A stale hook of OURS: it lives in CONFIG_ROOT/hooks and is registered, but the manifest has
-  // never heard of it. This is exactly what the four folded stack hooks were.
-  const stale = join(cfg, 'hooks', 'user-prompt-obsolete-stack.js')
+  // A stale hook of OURS: one of the folded stack hooks, named in the manifest's retired list.
+  const stale = join(cfg, 'hooks', 'user-prompt-ui-stack.js')
   writeFileSync(stale, 'process.stdout.write("{}\\n")', 'utf8')
   const cmd = `"${process.execPath}" "${stale.replace(/\\/g, '/')}"`
+  // And the USER'S OWN hook, in the same directory — the conventional place for one — which the
+  // first prune took as proof of ownership and would have deleted, file and registration, from
+  // a detached process with its output discarded.
+  const mine = join(cfg, 'hooks', 'my-guard.js')
+  writeFileSync(mine, 'process.stdout.write("{}\\n")', 'utf8')
+  const mineCmd = `"${process.execPath}" "${mine.replace(/\\/g, '/')}"`
   writeFileSync(join(cfg, 'settings.json'), JSON.stringify({
-    hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: cmd }] }] },
+    hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: cmd }, { type: 'command', command: mineCmd }] }] },
   }), 'utf8')
   // And a hook that is NOT ours — a different directory — which must be left alone whatever
   // the manifest says, because pruning somebody else's hook is a different bug.
@@ -56,10 +61,12 @@ test('a hook the manifest no longer carries is pruned — registration and file 
   const r = install(cfg)
   assert.equal(r.status, 0, r.stdout + r.stderr)
   const after = registered(cfg)
-  assert.ok(!after.some((c) => c.includes('user-prompt-obsolete-stack.js')), 'the stale hook is unregistered')
+  assert.ok(!after.some((c) => c.includes('user-prompt-ui-stack.js')), 'the retired hook is unregistered')
   assert.equal(existsSync(stale), false, 'and its file is gone, so it cannot run by accident')
+  assert.ok(after.some((c) => c.includes('my-guard.js')), "the user's own hook in CONFIG_ROOT/hooks stays registered")
+  assert.equal(existsSync(mine), true, 'and its file is untouched')
   assert.ok(after.some((c) => c.includes('their-hook.js')), 'a hook outside CONFIG_ROOT/hooks is never touched')
-  assert.equal(after.filter((c) => !c.includes('their-hook.js')).length, manifestHooks(),
+  assert.equal(after.filter((c) => !/their-hook\.js|my-guard\.js/.test(c)).length, manifestHooks(),
     'every hook the manifest carries is registered, and only those')
   assert.match(r.stdout, /pruned 1 hook/)
 })
@@ -80,6 +87,12 @@ test('the prune refuses an empty manifest, allows a real shrink, and never remov
   assert.match(src, /refusing to prune/, 'and refusal is reported, not silent')
   assert.match(src, /const shipped = new Set\(hookSources\.flatMap/, 'shipped = every hook source directory, not config/hooks alone')
   assert.match(src, /if \(shipped\.has\(b\)\)[^\n]*return true/, 'a shipped hook is kept, and said so')
+  assert.match(src, /if \(!retired\.has\(b\)\) return true/, 'ownership is the retired list, never the directory')
+  // The retired list is real and names the folded hooks, so a machine updating from before the
+  // fold still loses them; and no name in it is still shipped.
+  const manifest = JSON.parse(readFileSync(join(REPO, 'config', 'hooks.json'), 'utf8'))
+  assert.ok(Array.isArray(manifest.retired) && manifest.retired.includes('user-prompt-ui-stack.js'))
+  for (const name of manifest.retired) assert.equal(existsSync(join(REPO, 'config', 'hooks', name)), false, `${name} is retired but still ships`)
   // The one-level bug itself, so it cannot come back under a different name.
   assert.doesNotMatch(src, /Object\.values\(parsed\.hooks/, '`parsed` is already the hooks map')
 })

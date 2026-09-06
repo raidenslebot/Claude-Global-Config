@@ -126,8 +126,12 @@ if (existsSync(settingsPath)) {
       hooks: (g.hooks || []).map((h) => ({ ...h, command: normalise(h.command) })),
     }))
   }
-  const out = JSON.stringify({ hooks }, null, 2) + '\n'
   const dest = join(REPO, 'config', 'hooks.json')
+  // The manifest carries more than the live hooks: `retired` names the hooks this package once
+  // shipped, which no settings.json can know. Everything but `hooks` round-trips from the repo
+  // copy, or a sync would erase the prune's ownership list and report it as drift.
+  const kept = (() => { try { const j = JSON.parse(readFileSync(dest, 'utf8')); delete j.hooks; return j } catch { return {} } })()
+  const out = JSON.stringify({ hooks, ...kept }, null, 2) + '\n'
   const prev = existsSync(dest) ? readFileSync(dest, 'utf8') : null
   checked++
   if (prev !== out) {

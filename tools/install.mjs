@@ -19,9 +19,11 @@
 // <config>/.cgc-replaced) and replaced by the link, and a plugin known to shadow what ships
 // here is disabled in settings.json. Both are reversible in one move; neither is silent.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync, realpathSync, renameSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, rmSync, lstatSync, symlinkSync, cpSync, realpathSync, renameSync, chmodSync } from 'node:fs'
 import { join, dirname, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
+import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock, hostConfigs, pluginServers, resolveServerBin } from './paths.mjs'
 
@@ -295,6 +297,13 @@ if (wants('hooks')) {
         }
       }
       const ourHooksDir = join(CONFIG_ROOT, 'hooks').replace(/\\/g, '/').toLowerCase()
+      // OWNERSHIP. "Registered from CONFIG_ROOT/hooks" is where this package installs, and it
+      // is also where a user keeps their own hooks, by convention — and the first prune took
+      // the directory as proof of ownership and would have removed a user's my-guard.js,
+      // registration and file, from a detached process with its output discarded. A hook is
+      // this package's to prune only if this package once SHIPPED it: config/hooks.json names
+      // every hook it retired. Anything else in that directory is somebody else's.
+      const retired = new Set((() => { try { return JSON.parse(readFileSync(hooksManifest, 'utf8')).retired || [] } catch { return [] } })())
       const pruned = []
       // THE INVARIANT. An empty wanted-set is a manifest that could not be read — a failure, not
       // a plan. The first version of this prune read one level too deep, got nothing, and removed
@@ -306,7 +315,7 @@ if (wants('hooks')) {
         for (const g of settings.hooks[event]) for (const h of g.hooks || []) {
           const cmd = String(h.command).replace(/\\/g, '/').toLowerCase()
           const b = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
-          if (cmd.includes(ourHooksDir) && b && !wantedBases.has(b)) candidates.push(b)
+          if (cmd.includes(ourHooksDir) && b && !wantedBases.has(b) && retired.has(b)) candidates.push(b)
         }
       }
       // "Never more removed than kept" was wrong: a manifest that legitimately shrinks from 19 to
@@ -331,6 +340,7 @@ if (wants('hooks')) {
             if (!cmd.includes(ourHooksDir)) return true          // not ours: leave it alone
             const b = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
             if (!b || wantedBases.has(b)) return true
+            if (!retired.has(b)) return true                     // not one this package ever shipped: not ours
             if (shipped.has(b)) { warn(`${b} still ships with this package but is missing from config/hooks.json — kept registered. A shipped hook is never pruned; to remove it, delete its source file and the manifest entry together`); return true }
             pruned.push(b)
             // The installed file too, or a stale script sits on disk looking like a hook.
@@ -482,6 +492,64 @@ if (wants('npm') && !SKIP.has('npm')) {
 // second — which is what the session hook's repair can afford to run when the doctor reports a
 // server missing from the registrations.
 const REGISTER_ONLY = wants('mcp-register') && !wants('mcp')
+/**
+ * Download a standalone MCP server from its GitHub release for this platform, verify it against
+ * the release's own checksums.txt, and place the binary where resolveServerBin() reads. Returns
+ * the installed path, or null after saying why.
+ *
+ * codebase-memory-mcp was in the manifest as a `bin` this package "finds" — and found only on
+ * the machine where it had been installed by hand. Everywhere else the doctor named it at every
+ * session start. A server the package requires is a server the package installs.
+ */
+async function fetchStandaloneServer(name, spec) {
+  const m = /github\.com\/([^/]+)\/([^/]+)\/releases/.exec(String(spec.install || ''))
+  if (!m || typeof fetch !== 'function') return null
+  const os = { win32: 'windows', darwin: 'darwin', linux: 'linux' }[process.platform]
+  const arch = { x64: 'amd64', arm64: 'arm64' }[process.arch]
+  if (!os || !arch) { warn(`${name}: no release asset for ${process.platform}/${process.arch}`); return null }
+  const wantName = `${spec.bin}-${os}-${arch}${os === 'windows' ? '.zip' : '.tar.gz'}`
+  const get = async (url, as) => {
+    const r = await fetch(url, {
+      headers: { 'user-agent': 'claude-global-config', accept: as === 'json' ? 'application/vnd.github+json' : '*/*' },
+      redirect: 'follow', signal: AbortSignal.timeout(as === 'buffer' ? 300000 : 20000),
+    })
+    if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`)
+    return as === 'json' ? r.json() : as === 'text' ? r.text() : Buffer.from(await r.arrayBuffer())
+  }
+  try {
+    const rel = await get(`https://api.github.com/repos/${m[1]}/${m[2]}/releases/latest`, 'json')
+    const assets = rel.assets || []
+    const asset = assets.find((a) => a.name === wantName)
+    const sums = assets.find((a) => a.name === 'checksums.txt')
+    if (!asset || !sums) { warn(`${name}: release ${rel.tag_name || '?'} has no ${wantName}${sums ? '' : ' or checksums.txt'}`); return null }
+    const expected = (await get(sums.browser_download_url, 'text')).split('\n')
+      .map((l) => l.trim().split(/\s+/)).find((p) => p[1] === wantName)?.[0]
+    if (!expected) { warn(`${name}: checksums.txt does not name ${wantName}`); return null }
+    const body = await get(asset.browser_download_url, 'buffer')
+    const actual = createHash('sha256').update(body).digest('hex')
+    if (actual !== expected) { warn(`${name}: checksum mismatch for ${wantName} (expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…) — NOT installed`); return null }
+    const exe = IS_WIN ? `${spec.bin}.exe` : spec.bin
+    const destDir = IS_WIN
+      ? join(process.env.LOCALAPPDATA || join(HOME, 'AppData', 'Local'), 'Programs', spec.bin)
+      : join(HOME, '.local', 'bin')
+    mkdirSync(destDir, { recursive: true })
+    const tmp = join(tmpdir(), `cgc-${spec.bin}-${process.pid}${IS_WIN ? '.zip' : '.tar.gz'}`)
+    writeFileSync(tmp, body)
+    try {
+      // Only the binary leaves the archive. Windows 10+ ships bsdtar in System32, which reads zip.
+      const tar = IS_WIN ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+      const x = spawnSync(tar, ['-xf', tmp, '-C', destDir, exe], { encoding: 'utf8', timeout: 120000, windowsHide: true })
+      if (x.status !== 0) { warn(`${name}: could not extract ${exe} from ${wantName}: ${String(x.stderr || (x.error && x.error.message) || '').trim().slice(0, 120)}`); return null }
+    } finally { try { rmSync(tmp, { force: true }) } catch { /* temp file */ } }
+    const placed = join(destDir, exe)
+    if (!IS_WIN) { try { chmodSync(placed, 0o755) } catch { /* a filesystem without modes */ } }
+    return existsSync(placed) ? placed : null
+  } catch (e) {
+    warn(`${name}: download failed — ${String(e && e.message || e).slice(0, 120)}`)
+    return null
+  }
+}
+
 if (wants('mcp') || wants('mcp-register')) {
   phase(REGISTER_ONLY ? 'MCP servers — registration only' : 'MCP servers — local only')
   const mcpRoot = join(REPO, 'library', 'mcp-servers')
@@ -494,6 +562,21 @@ if (wants('mcp') || wants('mcp-register')) {
     const r = run('npm', ['i', '--no-audit', '--no-fund', ...servers], { cwd: mcpRoot, timeout: 420000 })
     if (r.status === 0 || DRY) ok(`installed ${servers.join(', ')}`)
     else warn('MCP server install failed — run npm i in library/mcp-servers')
+  }
+
+  // Standalone servers the manifest names as `bin`: downloaded for this platform and verified
+  // against the release's checksums, into the place resolveServerBin() reads. Network step only
+  // (`mcp`), never the per-session re-apply — a session start does not download 40 MB.
+  if (!DRY && !REGISTER_ONLY) {
+    const named = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+    for (const [name, spec] of Object.entries(named)) {
+      if (!spec.bin) continue
+      const have = resolveServerBin(spec.bin)
+      if (have) { skip(`${name} already installed at ${have}`); continue }
+      const got = await fetchStandaloneServer(name, spec)
+      if (got) ok(`${name} downloaded and checksum-verified → ${got}`)
+      else warn(`${name} is not installed — ${spec.why}. Get it from ${spec.install}, then re-run: node tools/install.mjs --only=mcp-register`)
+    }
   }
 
   // playwright-core ships NO BROWSER. Installing the package and stopping leaves every render,

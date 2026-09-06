@@ -10,7 +10,7 @@
 import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly, hostManagedPlugins } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly, hostManagedPlugins, resolveServerBin } from './paths.mjs'
 import { buildVars } from './paths.mjs'
 
 const { LIBRARY_ROOT } = buildVars()
@@ -318,7 +318,18 @@ phase('MCP servers')
         const have = new Set(servers.map((x) => x.name))
         const gone = Object.keys(want).filter((n) => !have.has(n))
         if (gone.length) {
-          for (const n of gone) fail(`MCP server "${n}" is NOT registered — ${want[n].why}. Re-register with: node tools/install.mjs --only=mcp`)
+          for (const n of gone) {
+            const spec = want[n] || {}
+            // A standalone binary that is not on this machine is not something the session-start
+            // repair can register: it runs mcp-register, which is a JSON write. Failing it with
+            // repairable:true put every machine but the author's into DEGRADED plus a full
+            // install at every start, for ever. It is a warning that names the install step.
+            if (spec.bin && !resolveServerBin(spec.bin)) {
+              warn(`MCP server "${n}" is not installed — ${spec.why}. Download it for this platform (checksum-verified) with: node tools/install.mjs --only=mcp`)
+            } else {
+              fail(`MCP server "${n}" is NOT registered — ${spec.why}. Re-register with: node tools/install.mjs --only=mcp-register`, { repairable: true })
+            }
+          }
         } else ok(`all ${Object.keys(want).length} MCP servers this package requires are registered`)
       }
     }

@@ -150,5 +150,11 @@
         ]
       }
     ]
-  }
+  },
+  "retired": [
+    "user-prompt-ui-stack.js",
+    "user-prompt-react-stack.js",
+    "user-prompt-security-stack.js",
+    "user-prompt-python-stack.js"
+  ]
 }

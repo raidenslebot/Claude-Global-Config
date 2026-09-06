@@ -5,6 +5,67 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.62.0 — 2026-09-05
+
+An adversarial review of 1.61.x, run as a subagent on the review model, found eight defects.
+Two of them would have hit every machine but the author's.
+
+**Every other machine was one session start away from a permanent DEGRADED line.**
+`codebase-memory-mcp` is a standalone binary the package "finds" — and it was only ever found
+on the machine where it had been installed by hand. Everywhere else the doctor failed
+`NOT registered` with the default `repairable: true`; the session-start repair runs
+`mcp-register`, which is a JSON write and cannot download a binary; so the doctor failed
+again, at every start, resume, clear and compact — DEGRADED plus a full install each time, for
+ever. Two fixes. The installer's `mcp` step now downloads the release asset for this platform
+from the manifest's `install` URL, verifies it against the release's own `checksums.txt`, and
+places the binary where `resolveServerBin()` reads (verified live: 39 MB fetched, checksum
+matched, extracted, `codebase-memory-mcp 0.10.8` runs). And a standalone server that is not on
+the machine is a **warning** naming that step, never a failure the repair loops on; a vendored
+server that is merely unregistered stays the failure it was, because `mcp-register` can clear it.
+
+**The hook prune would have deleted a user's own hook.** It took "registered from
+`~/.claude/hooks`" as proof of ownership — and that directory is where users keep their own
+hooks, by convention. A `my-guard.js` there, registered in `settings.json` and unknown to this
+package's manifest, was a candidate: unregistered, and its file removed, from a detached process
+with its output discarded. Its own test asserted exactly that on a file the installer never wrote.
+Ownership is a list now: `config/hooks.json` carries `retired`, the hooks this package once
+shipped and no longer does, and the prune may remove those and nothing else. The test keeps a
+user's hook in the same directory and checks it survives, file and registration.
+
+**The per-prompt updater followed the wrong branch.** It fast-forwarded `origin/<whatever is
+checked out>` — a pushed feature branch included, re-applying that branch's config — while the
+session-start hook, on the same clone, said "on feature, main not followed" and left it alone.
+One rule now, the session-start hook's: the origin's default branch, or the current branch only
+when origin/HEAD is unset and origin carries it; another branch is deliberate work. The two hooks
+are asserted to agree on the same clone.
+
+**Its budget could be exceeded by its own timeouts.** A fetch at 4 s and a merge at 5 s left
+under a second of the host's 10 s for everything else, and a kill inside the lock leaves the lock
+on disk for five minutes — during which every prompt's updater exits silently and every session
+start waits thirty seconds for it, twice. The hook ends itself now: each wait gets what is left
+of 8.5 s when it would start, a step that would not fit is skipped for that prompt, and the
+merge is spawned and tree-killed like the fetch rather than through `spawnSync`, which on Git
+for Windows kills only the launcher. Every lock holder — both hooks and `paths.mjs` — releases
+only a lock that still carries its own pid: a holder that outlived the stale window has had its
+lock reclaimed, and removing that one let a third process in beside the second.
+
+**Once-per-window reporting was machine-wide, so a live session could never hear its own
+status.** The session that fetched said "updated itself"; every other session's next prompt read
+"current" from the local ref comparison, with its hooks, config and mandates changed under it
+and nothing said. Each session now records the head it was last told about, and a head it has
+not seen is announced to it once: "moved from a1b2c3d since this session last checked — another
+session applied the update".
+
+Smaller: a time-out recorded for THIS commit, while another session was already re-running it,
+read "DEGRADED · tests did not finish in 20 min" for the whole re-run, and told the user it would
+be re-tried at the next start — it now reads "tests running in another session"; a failure
+carried from the previous commit while the current one is being tested names both commits
+instead of "tests fail on this machine"; the framework gate matched bare prefixes, so
+`exponential-backoff` was Expo, `astronomia` was Astro, `remixicon` was Remix and
+`nextcloud-node-client` was Next — bare names match whole now, only scopes are prefixes; and
+`cgc skills --get` validated every path before writing any except one that resolved to the
+destination directory itself (`a/..`), which it wrote as a file where the directory belongs.
+
 ## 1.61.1 — 2026-09-05
 
 Two things the per-prompt updater said too often, found by using 1.61.0 for an hour. An

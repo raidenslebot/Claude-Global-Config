@@ -489,7 +489,7 @@ test('the per-prompt updater refuses a detached checkout, names a local-only bra
 
   git('checkout', '-q', '-b', 'wip')
   const wip = prompt()
-  assert.match(String(wip), /origin has no branch of/, wip)
+  assert.match(String(wip), /on branch "wip"; main is not followed/, wip)
   assert.doesNotMatch(String(wip), /offline/, 'a local-only branch is not an outage')
 
   // The author's shape: origin/main exists, nothing is configured as upstream. It updates.
