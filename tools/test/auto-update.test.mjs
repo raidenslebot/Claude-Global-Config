@@ -1174,3 +1174,28 @@ test('the installer treats only "1" as the lock being held', () => {
   const src = readFileSync(join(REPO, 'tools', 'paths.mjs'), 'utf8')
   assert.match(src, /process\.env\.CGC_UPDATE_LOCK_HELD === '1'/, 'held is an explicit "1", never "anything but 0"')
 })
+
+test('an install that failed while the doctor saw nothing wrong is NOT recorded as applied', (t) => {
+  // The correction has to be evidence of a repair that RAN. verify() re-installs only when the
+  // doctor's first pass fails, so a clean first pass means nothing was repaired — and the
+  // doctor's checks are not a superset of what the install writes (it has no opinion at all
+  // about workflows/, which the install copies), so it can be clean while the failed install
+  // left something out. Gating on "the doctor is clean" alone stamped applied:true, with a flag
+  // literally named repairedAfterInstallFailure, on a machine where nothing was repaired.
+  const w = world(t, {})
+  writeFileSync(join(w.author, 'tools', 'install.mjs'), 'process.exit(3)\n', 'utf8')
+  writeFileSync(join(w.author, 'tools', 'doctor.mjs'),
+    'console.log(JSON.stringify({ healthy: true, counts: { ok: 5 }, results: [] }))\n', 'utf8')
+  git(w.author, 'add', '-A')
+  git(w.author, 'commit', '-q', '-m', 'a doctor that sees nothing and an install that fails')
+  git(w.author, 'push', '-q', 'origin', 'main')
+  w.release('1.1.0', 'a release')
+
+  const { line, ctx } = fire(w, w.friend, 'startup')
+  assert.match(line, /updated 1\.0\.0 → 1\.1\.0/, line)
+  assert.doesNotMatch(line, /repaired/, 'precondition: nothing was repaired, because nothing failed')
+  const rec = JSON.parse(readFileSync(join(w.config, '.cgc', 'last-applied'), 'utf8'))
+  assert.equal(rec.applied, false, 'an install that failed is not "applied" because the doctor happens to be quiet')
+  assert.equal(rec.repairedAfterInstallFailure, undefined, 'and nothing claims a repair that never ran')
+  assert.match(ctx, /install step failed/, 'the session is told, rather than reassured')
+})

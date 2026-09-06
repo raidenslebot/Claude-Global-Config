@@ -5,6 +5,62 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.67.0 — 2026-09-05
+
+A sixth review, and most of what it found was in the GATE this package added last release rather
+than in the package. That is worth stating plainly, because 1.66.0's notes claimed the new matrix
+"found a defect on its first run" — true, but it found it by luck.
+
+**The test suite was writing to the real machine.** `hook-fuzz.test.mjs` spawns every hook this
+package ships against seventeen malformed payloads, and it passed them no environment of their
+own — so `session-start-cgc.js`, a hook whose job is to fetch, pull and re-install, ran seventeen
+times against the REAL repository and the REAL `~/.claude` of whoever ran `npm test`. Measured
+by mtime: `~/.claude/.cgc/update.json` was rewritten by a test run, every run, for as long as
+that gate has existed. A clone that happened to be behind would have been pulled and re-installed
+in the middle of the suite. Every other test here isolates `HOME` and `CLAUDE_CONFIG_DIR`; the
+one that most needed to did not. It now runs against a scratch home and a scratch git repository,
+and asserts afterwards that the real config root was untouched.
+
+**The same gate now holds every hook to the budget its manifest gives it.** A hook the host kills
+at its timeout has done nothing except delay the session, and it is killed silently — so the
+fuzzer measures each run against the `timeout` in `config/hooks.json` and fails the ones that
+overrun.
+
+**The matrix was weaker than its own description.** Its corrupt-record fixture wrote two files
+back to back, which on a 15.6 ms clock gives them the same mtime — and the ordering of those two
+mtimes is exactly what decides whether the path under test is reached at all. Measured: ten runs
+in twelve never got there, so the defect it was credited with catching would have slipped through
+most of the time. Every fixture back-dates now. A second invariant — "never announce an update to
+a session with no record of its own" — could not fail as written, because no fixture produced the
+state it describes: an applied update AND a session with no record. Three states were added
+(that one, and a blocked attempt whose recorded digest does and does not still match), and the
+whole state-digest mechanism, which had zero coverage, now has some. **Both guards are verified
+by mutation**: removing either one makes the matrix fail in six of a hundred states,
+deterministically, where the corrupt-record case used to be a coin flip.
+
+**And a real defect, from the fix in 1.66.0.** The record correction was written AFTER the file
+that records what a session has been told, and the per-prompt hook compares those two mtimes — so
+the session that had just done the update was told, on its next prompt, that it had updated
+itself, "up from" its own head. The seen file is written last now. The same correction also left
+the updating session's own line reading "install step failed; run install.mjs" — the exact
+complaint 1.66.0 said it removed, still in front of the person most likely to act on it.
+
+**The evidence for that correction was also wrong.** It fired whenever the doctor was clean, but
+`verify()` re-installs only when the doctor's first pass FAILS — so a clean first pass means
+nothing was repaired, and the record was being stamped `applied: true` with a flag named
+`repairedAfterInstallFailure` on machines where no repair had run. The doctor is not a superset
+of what the install writes; it has no opinion about `workflows/` at all. It now requires a repair
+that actually ran and left nothing an install could still fix — which also fixes the opposite
+error, where one standing unrepairable failure meant a machine was never corrected and was told
+for ever that its gates were not in force.
+
+Smaller: the right to start a background attempt is claimed atomically by a rename, so prompts
+arriving together cannot both spawn an updater (the read-modify-write window measured about fifty
+milliseconds, and losing the claim no longer silences that prompt); a stamp dated in the future —
+a clock moved backwards — is treated as very old rather than suppressing every attempt until real
+time catches up; and a state digest that could not be computed is cleared rather than left
+pointing at a state already acted on.
+
 ## 1.66.0 — 2026-09-05
 
 A fifth adversarial review, and a change of method: this release adds a gate that tests the

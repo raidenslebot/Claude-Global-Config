@@ -19,10 +19,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, spawn } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
@@ -121,8 +121,43 @@ const MEMORIES = {
   'a corrupt state directory': (w, state) => {
     mkdirSync(join(state, 'seen'), { recursive: true })
     writeFileSync(join(state, 'seen', 's'), 'a'.repeat(40))
+    // BACK-DATED, like every other fixture. Written back to back these two files land on the
+    // same 15.6 ms clock tick, "is the record newer than what this session was told" is a coin
+    // flip, and the corrupt-record path — the only thing this fixture exists to reach — is
+    // skipped most of the time. Measured before this line: ten of twelve runs never got there.
+    const old = new Date(Date.now() - 5 * 60 * 1000)
+    utimesSync(join(state, 'seen', 's'), old, old)
     writeFileSync(join(state, 'last-applied'), 'not json at all')
     writeFileSync(join(state, 'update.json'), '{{{')
+  },
+  // The state invariant 6 is about, which nothing produced: a machine that has applied an update
+  // and a session that has no record of its own. With both absent, 0 > 0 is false either way and
+  // the invariant could not fail whether the guard was there or not.
+  'an applied update and a session with no record at all': (w, state) => {
+    mkdirSync(state, { recursive: true })
+    writeFileSync(join(state, 'last-applied'), JSON.stringify({ at: Date.now(), head: head(w.friend), before: '1.0.0', after: '1.1.0', applied: true }))
+  },
+  // A blocked attempt WITH the digest it was made against, so the staleness comparison runs at
+  // all: with no digest on disk `then` is null in every cell and the whole mechanism is dead
+  // code as far as this matrix is concerned.
+  'a blocked attempt whose recorded state still matches': (w, state) => {
+    mkdirSync(state, { recursive: true })
+    writeFileSync(join(state, 'update-bg'), '1')
+    const old = new Date(Date.now() - 60 * 1000)
+    utimesSync(join(state, 'update-bg'), old, old)
+    writeFileSync(join(state, 'update.json'), JSON.stringify({ at: Date.now(), status: 'dirty', error: 'error: Your local changes would be overwritten by merge: package.json' }))
+    const st = spawnSync('git', ['-C', w.friend, 'status', '--porcelain'], { encoding: 'utf8' })
+    const at = existsSync(join(w.friend, '.git')) ? `${head(w.friend)}\n${String(st.stdout || '')}` : ''
+    writeFileSync(join(state, 'update-blocked-state'), at)
+  },
+  // The same, but the state has moved on since — the user did something, whatever it was.
+  'a blocked attempt whose recorded state is out of date': (w, state) => {
+    mkdirSync(state, { recursive: true })
+    writeFileSync(join(state, 'update-bg'), '1')
+    const old = new Date(Date.now() - 60 * 1000)
+    utimesSync(join(state, 'update-bg'), old, old)
+    writeFileSync(join(state, 'update.json'), JSON.stringify({ at: Date.now(), status: 'dirty', error: 'error: Your local changes would be overwritten by merge: package.json' }))
+    writeFileSync(join(state, 'update-blocked-state'), 'a state this clone has never been in')
   },
 }
 
@@ -185,7 +220,7 @@ test('every state the updater can meet keeps every invariant', (t) => {
       }
       // 6. It never announces an update to a session that has no record of its own: there is no
       //    stale belief to correct, and the update may pre-date the session entirely.
-      if (memoryName === 'a session that has never been seen' && got.said && /updated itself|re-apply FAILED/.test(got.said)) {
+      if (/never been seen|no record at all/.test(memoryName) && got.said && /updated itself|re-apply FAILED|record of its last update is unreadable/.test(got.said)) {
         bad('announced an update to a session that had never been seen before')
       }
       // 7. A clone that is current and has nothing to report says nothing at all. A hook that
@@ -201,7 +236,7 @@ test('every state the updater can meet keeps every invariant', (t) => {
     }
   }
   assert.equal(failures.length, 0, `${failures.length} of ${ran} states broke an invariant:\n\n${failures.join('\n\n')}`)
-  assert.ok(ran >= 60, `the matrix must actually be a matrix, ran ${ran}`)
+  assert.ok(ran >= 90, `the matrix must actually be a matrix, ran ${ran}`)
 })
 
 test('the session-start hook keeps its own invariants in every clone state', (t) => {
@@ -233,4 +268,152 @@ test('the session-start hook keeps its own invariants in every clone state', (t)
     quiesce(w)
   }
   assert.equal(failures.length, 0, `${failures.length} clone states broke an invariant:\n\n${failures.join('\n')}`)
+})
+
+// ── TRACES ───────────────────────────────────────────────────────────────────────────────────
+//
+// The matrix above runs ONE prompt against a static state. Every defect of the last three
+// rounds was a property of a SEQUENCE instead: a digest that froze after the first change, a
+// stamp cleared mid-install, a reason repeated for half an hour, an announcement made twice or
+// never. None of those is visible in a single run, however many states you enumerate — you have
+// to watch what the hook does over a run of prompts while the world changes underneath it.
+//
+// So these drive a scripted sequence and assert properties of the whole TRACE. The one that
+// matters most is the spawn rate: "an updater is never started more often than the floor
+// allows" is a single line here and would have caught, immediately, the defect that span a
+// fresh detached updater on every prompt for ever.
+
+/** Run a scripted sequence of prompts, recording what the hook said and did at each step. */
+function trace(w, steps) {
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  const stamp = join(state, 'update-bg')
+  const out = []
+  for (const step of steps) {
+    if (typeof step === 'function') { step(w, state); continue }
+    const before = existsSync(join(w.friend, '.git')) ? head(w.friend) : null
+    const askedBefore = (() => { try { return statSync(stamp).mtimeMs } catch { return 0 } })()
+    const r = spawnSync(process.execPath, [HOOK], {
+      input: JSON.stringify({ session_id: step }), encoding: 'utf8', timeout: 60000,
+      env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
+    })
+    const askedAfter = (() => { try { return statSync(stamp).mtimeMs } catch { return 0 } })()
+    let said = null
+    if (r.stdout.trim()) { try { said = JSON.parse(r.stdout).hookSpecificOutput.additionalContext } catch { said = '<unparseable>' } }
+    out.push({
+      session: step, said, status: r.status,
+      spawned: askedAfter > askedBefore,             // cleared is not started: the stamp goes to 0
+      askedAt: askedAfter,
+      movedHead: before !== (existsSync(join(w.friend, '.git')) ? head(w.friend) : null),
+      headAfter: existsSync(join(w.friend, '.git')) ? head(w.friend) : null,
+    })
+  }
+  return out
+}
+
+/**
+ * The properties that must hold of any trace, whatever the script was.
+ *
+ * `mayUpdate` says whether the clone is one the updater is allowed to move at all. When it is
+ * false — a dirty tree, an untracked collision, a branch that is not followed — HEAD must never
+ * move, by anyone. When it is true, HEAD may move, but only ever to the head the origin is on:
+ * the prompt hook does not merge, and the detached updater only fast-forwards. Watching for "did
+ * HEAD change during this step" cannot tell the two apart, because the updater from an earlier
+ * step lands asynchronously — which is the hand-off working, not a defect.
+ */
+function checkTrace(t, steps, what, { mayUpdate = true, target = null } = {}) {
+  const bad = []
+  for (const [i, step] of steps.entries()) {
+    if (step.status !== 0) bad.push(`step ${i}: exited ${step.status}`)
+    if (step.said === '<unparseable>') bad.push(`step ${i}: emitted something the host cannot read`)
+    if (!mayUpdate && step.movedHead) bad.push(`step ${i}: HEAD moved on a clone nothing may move`)
+    if (mayUpdate && step.movedHead && target && step.headAfter !== target) {
+      bad.push(`step ${i}: HEAD moved to ${step.headAfter}, which is not the origin's head ${target}`)
+    }
+    if (step.said && /is \d+ commit\(s\) behind/.test(step.said) && /in force from this message on/.test(step.said)) {
+      bad.push(`step ${i}: said it is behind and that the gates are in force`)
+    }
+  }
+  // THE RATE. Consecutive attempts are never closer together than the floor allows. This is the
+  // property whose absence span an updater on every prompt, for ever.
+  const asks = steps.filter((x) => x.spawned && x.askedAt > 0).map((x) => x.askedAt)
+  for (let i = 1; i < asks.length; i++) {
+    if (asks[i] - asks[i - 1] < 25000) bad.push(`two attempts ${asks[i] - asks[i - 1]} ms apart, inside the thirty-second floor`)
+  }
+  assert.equal(bad.length, 0, `${what}:\n  ${bad.join('\n  ')}\n\ntrace:\n${steps.map((x, i) => `  ${i} ${x.session} spawned=${x.spawned} ${JSON.stringify(x.said)}`).join('\n')}`)
+  return steps
+}
+
+test('a blocked clone under a stream of prompts and unrelated edits never runs away', (t) => {
+  // The shape of the worst defect this hook has had: a repository that keeps changing, a reason
+  // that keeps standing, and a hook that must neither go silent nor spawn on every prompt.
+  const w = world(t)
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  release(w, '1.1.0', 'a release that adds newthing.txt')
+
+  const noise = (n) => (ww) => writeFileSync(join(ww.friend, `noise-${n}.log`), String(n), 'utf8')
+  const steps = trace(w, ['s', 's', noise(1), 's', 's', noise(2), 's', 's', noise(3), 's', 's', 's'])
+  // Nothing may move this clone: the fast-forward cannot land while the collision stands.
+  checkTrace(t, steps, 'a blocked clone with a changing tree', { mayUpdate: false })
+  // And it did not go silent about being behind.
+  assert.ok(steps.some((x) => x.said && /behind origin\/main/.test(x.said)), 'it keeps saying the clone is behind')
+  quiesce(w)
+})
+
+test('a clone that goes from behind to current tells each session once and then stops', (t) => {
+  // The announcement properties, over a trace: never twice to one session, never to a session
+  // that has no record, and never after the first time.
+  const w = world(t)
+  release(w, '1.1.0', 'a release')
+  const steps = trace(w, ['a', 'b'])
+  // Let the update land, then keep prompting both sessions.
+  const until = Date.now() + 25000
+  while (head(w.friend) !== head(w.author) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
+  quiesce(w)
+  const after = trace(w, ['a', 'a', 'b', 'b', 'c'])
+  checkTrace(t, [...steps, ...after], 'behind → current', { target: head(w.author) })
+
+  const told = (id) => after.filter((x) => x.session === id && x.said && /updated itself/.test(x.said)).length
+  assert.equal(told('a'), 1, 'the session that started it is told exactly once')
+  assert.equal(told('b'), 1, 'a session that was open beside it is told exactly once')
+  assert.equal(told('c'), 0, 'a session with no record of its own is told nothing')
+  quiesce(w)
+})
+
+test('prompts that arrive together start at most one updater', (t) => {
+  // Reading the stamp and then writing it is a read-modify-write, and prompts from several
+  // sessions arrive together. Two updaters mean two installers doing read-modify-write on
+  // settings.json — the hazard the update lock exists for, and not one to leave to a window
+  // being narrow.
+  const w = world(t)
+  release(w, '1.1.0', 'a release')
+  const runs = []
+  for (let i = 0; i < 5; i++) {
+    runs.push(new Promise((res) => {
+      const c = spawn(process.execPath, [HOOK], {
+        env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
+        stdio: ['pipe', 'pipe', 'ignore'],
+      })
+      let out = ''
+      c.stdout.on('data', (d) => { out += d })
+      c.stdin.end(JSON.stringify({ session_id: `p${i}` }))
+      c.on('close', (code) => res({ code, out }))
+    }))
+  }
+  const done = spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 1)'])   // keep the shape sync-friendly
+  assert.equal(done.status, 0)
+  return Promise.all(runs).then((got) => {
+    for (const g of got) assert.equal(g.code, 0, 'every concurrent prompt still exits 0')
+    // Exactly one of them may hold the claim; the rest must not have started anything. The
+    // observable is the marker the stub install writes, one per updater that got that far.
+    const until = Date.now() + 30000
+    while (head(w.friend) !== head(w.author) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
+    quiesce(w)
+    const marker = join(w.friend, 'installed.txt')
+    assert.ok(existsSync(marker), 'the update did happen')
+    // Every prompt spoke, so no session was left uninformed by losing the race.
+    assert.ok(got.every((g) => g.out.trim().length > 0), 'a prompt that loses the claim still reports that the clone is behind')
+  })
 })

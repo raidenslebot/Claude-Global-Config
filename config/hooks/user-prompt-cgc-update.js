@@ -79,6 +79,36 @@ const BG_FLOOR_MS = 30 * 1000
 
 const mtime = (p) => { try { return fs.statSync(p).mtimeMs } catch { return 0 } }
 
+/**
+ * Claim the right to start ONE background attempt, atomically.
+ *
+ * The gates below decide WHETHER an attempt is due; this decides WHO makes it. Reading the
+ * stamp's mtime and then writing it is a read-modify-write, and prompts from several sessions
+ * arrive together — so two of them could both see a due attempt and both spawn an updater, and
+ * two updaters mean two installers doing read-modify-write on settings.json and ~/.claude.json.
+ * That is the hazard the update lock exists for, and it is not one to leave to a window being
+ * narrow: measured at about fifty milliseconds, which is small until the machine is loaded.
+ *
+ * The claim is a rename, which is atomic and has exactly one winner: whoever moves the stamp
+ * aside owns the attempt, and everyone else fails with ENOENT and stands down. A machine with no
+ * stamp at all is the same race, resolved by an exclusive create.
+ */
+function claimAttempt() {
+  const aside = `${BG_STAMP}.claim`
+  try { fs.mkdirSync(STATE, { recursive: true }) } catch { return false }
+  const mark = () => {
+    try { const fd = fs.openSync(BG_STAMP, 'w'); fs.writeSync(fd, String(process.pid)); fs.closeSync(fd); return true } catch { return false }
+  }
+  if (!fs.existsSync(BG_STAMP)) {
+    // No stamp: the first to create it exclusively wins, the rest see EEXIST.
+    try { const fd = fs.openSync(BG_STAMP, 'wx'); fs.writeSync(fd, String(process.pid)); fs.closeSync(fd); return true } catch { return false }
+  }
+  try { fs.renameSync(BG_STAMP, aside) } catch { return false }   // somebody else claimed it
+  const ok = mark()
+  try { fs.rmSync(aside, { force: true }) } catch { /* the next claim overwrites it */ }
+  return ok
+}
+
 // Sixty seconds. The local ref comparison below runs on EVERY prompt and costs no network; this
 // bounds only how old the remote knowledge may be. A burst of prompts is one fetch, and a release
 // reaches a live session within a minute of being pushed.
@@ -359,7 +389,11 @@ try {
     stale = Boolean(now && then && now !== then)
   }
   const blocking = stale ? null : recorded
-  const since = Date.now() - asked
+  // A stamp dated in the future is a clock that moved backwards — an NTP correction, a VM
+  // restored. Read literally it makes every interval negative and suppresses attempts until real
+  // time catches up, which can be hours. A nonsensical stamp is treated as a very old one.
+  const elapsed = Date.now() - asked
+  const since = elapsed < 0 ? BG_RETRY_MS + 1 : elapsed
   let started = false
   // TWO GATES, and the first one is unconditional. However interesting the state change, an
   // update is never asked for more often than once every BG_RUNNING_MS: a repository with a
@@ -370,13 +404,16 @@ try {
     if (!fs.existsSync(UPDATER)) {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and cannot update: its updater is missing at ${UPDATER}. Re-install: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
     }
-    try {
-      fs.mkdirSync(STATE, { recursive: true })
-      fs.writeFileSync(BG_STAMP, String(process.pid))
+    // Losing the claim is not a reason to go quiet: an attempt IS being made, by whichever
+    // prompt won it, and this session still needs to hear that it is behind and why.
+    if (claimAttempt()) try {
       // The state this attempt is being made against. Every attempt refreshes it, so a change
       // is measured from the last ASK rather than from the last report.
+      // A digest we could not compute must not leave the PREVIOUS one in place: the next prompt
+      // would compare against a state already acted on and read it as a fresh change.
       const at = stateNow()
       if (at !== null) fs.writeFileSync(BLOCKED_AT, at)
+      else fs.rmSync(BLOCKED_AT, { force: true })
       const bg = spawn(process.execPath, [UPDATER], { cwd: REPO, detached: true, stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true, env: { ...process.env } })
       // No session_id: this run belongs to no session. Passing one would record THIS session as
       // having been told the new head by a start line it never saw, and it would never hear

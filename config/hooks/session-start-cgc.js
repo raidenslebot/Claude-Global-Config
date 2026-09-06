@@ -383,21 +383,37 @@ function main() {
   let u
   // The pull and the install it triggers are the only writers here; both run under the lock.
   try { u = withLock(update) } catch (e) { u = { status: 'failed', error: e.message } }
-  if (session) {
-    // What this session was told, so the per-prompt hook can tell it once about anything later.
-    const nowAt = u.head || out(git(['rev-parse', 'HEAD']))
-    if (nowAt) { try { fs.mkdirSync(path.join(STATE, 'seen'), { recursive: true }); fs.writeFileSync(path.join(STATE, 'seen', session), nowAt) } catch { /* a convenience */ } }
-  }
   let v = null
   try { v = withLock(verify) } catch { v = null }
   // THE RECORD SAYS WHAT THE FIRST INSTALL RETURNED; the doctor says what is actually on disk.
   // update() writes applied:false the moment the post-pull install exits non-zero — and verify()
   // then repairs it, in this same process, and nothing wrote that back. Every open session was
   // told, as fact, that its hooks were stale and its gates not in force, and to run a command
-  // that had already succeeded. A clean doctor after the repair IS the evidence.
-  if (u && u.status === 'updated' && !u.applied && v && !v.failed.length) {
+  // that had already succeeded.
+  //
+  // The evidence has to be a repair that actually RAN and left nothing an install could still
+  // fix. "The doctor is clean" alone is not that: verify() re-installs only when the first pass
+  // FAILS, so a clean first pass means nothing was repaired — and the doctor's checks are not a
+  // superset of what the install writes, so it can be clean while the failed install left
+  // something out. And "no failures at all" is the wrong bar in the other direction: a machine
+  // carrying one standing failure no install can clear would never be corrected, and would be
+  // told for ever that its gates are not in force.
+  if (u && u.status === 'updated' && !u.applied && v && v.repaired && v.repairable === false) {
     const rec = readJson(path.join(STATE, 'last-applied'))
     if (rec && rec.head === u.head) writeJson(path.join(STATE, 'last-applied'), { ...rec, applied: true, repairedAfterInstallFailure: true })
+    // The line this session prints is composed below from `u`. Correcting the record on disk
+    // for everybody else while still telling THIS session "the install step failed; run
+    // install.mjs" leaves the complaint in front of the one person most likely to act on it.
+    u = { ...u, applied: true, repairedAfterInstallFailure: true }
+  }
+  // AFTER the record, not before. appliedSinceSeen() in the per-prompt hook compares this file's
+  // mtime against last-applied's, so writing it first made the rewrite above look like news to
+  // the very session that had just done the update: its next prompt announced its own update,
+  // "up from" its own head.
+  if (session) {
+    // What this session was told, so the per-prompt hook can tell it once about anything later.
+    const nowAt = u.head || out(git(['rev-parse', 'HEAD']))
+    if (nowAt) { try { fs.mkdirSync(path.join(STATE, 'seen'), { recursive: true }); fs.writeFileSync(path.join(STATE, 'seen', session), nowAt) } catch { /* a convenience */ } }
   }
   let t = null
   try { t = selfTest(u.head || out(git(['rev-parse', 'HEAD']))) } catch { t = null }
