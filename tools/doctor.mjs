@@ -28,7 +28,10 @@ const say = (m) => { if (!JSON_OUT) console.log(m) }
 const phase = (n) => { current = n; say(`\n\x1b[1m── ${n} ${'─'.repeat(Math.max(0, 58 - n.length))}\x1b[0m`) }
 // `repairable` says whether re-running the install could fix this. Default true, because that
 // was the behaviour before any check could report something an install has no power over.
-const push = (level, m, opts) => results.push({ phase: current, level, message: m, repairable: opts?.repairable !== false })
+// `repairable` says whether re-running the install could fix this; `fix` names the extra flag
+// that repair needs. A finding that knows its own remedy is what lets the session hook clear
+// it automatically instead of printing the same instruction for ever.
+const push = (level, m, opts) => results.push({ phase: current, level, message: m, repairable: opts?.repairable !== false, ...(opts?.fix ? { fix: opts.fix } : {}) })
 const ok = (m) => { say(`  \x1b[32mok\x1b[0m    ${m}`); push('ok', m) }
 const warn = (m) => { say(`  \x1b[33mwarn\x1b[0m  ${m}`); push('warn', m) }
 const fail = (m, opts) => { say(`  \x1b[31mFAIL\x1b[0m  ${m}`); push('fail', m, opts); failures++ }
@@ -221,7 +224,9 @@ phase('MCP servers')
         const fixable = xs.some((x) => x.kind === 'host') && ourNames.has(name)
         // Not repairable by the install the session hook runs: that one never passes --dedupe,
         // and a failure it cannot clear means a full install at every session start, for ever.
-        if (fixable) fail(`${msg} Keep the one this package registers (a direct node command) and remove the other: node tools/install.mjs --only=mcp --dedupe`, { repairable: false })
+        // Repairable, and it names the flag that repairs it. The host application rewrites this
+        // file and restores its own defaults, so a one-shot removal does not hold.
+        if (fixable) fail(`${msg} Keep the one this package registers (a direct node command) and remove the other: node tools/install.mjs --only=mcp --dedupe`, { fix: 'dedupe' })
         else warn(`${msg} None of these is this package's to edit — disable one of them, or remove the name from the config that should not carry it.`)
       }
     }
@@ -280,19 +285,23 @@ phase('MCP servers')
         continue
       }
       const entry = (s.args || [])[0]
-      if (!resolveExe(String(s.command || ''))) {
+      const command = String(s.command || '')
+      if (!resolveExe(command)) {
         // Same rule: a broken command in somebody else's config is a real problem and a real
         // report, but not one re-running this install can fix.
         fail(`${name}${where}: command not found — ${s.command}`, { repairable: !where.trim() })
       }
-      else if (!entry) warn(`${name}${where}: no entry point in args`)
+      // Only a RUNTIME needs a script named in args. A standalone binary — codebase-memory-mcp
+      // is one — is the server itself, and warning "no entry point" on it at every session
+      // start was a warning about the correct shape.
+      else if (!entry && /(^|[\\/])(node|python3?|uv|uvx|npx|bun|deno|dotnet|java)(\.exe|\.cmd)?$/i.test(command)) warn(`${name}${where}: no entry point in args`)
       // Same rule as the command above: a missing entry in a config this package does not own
       // is a real failure and a real report, but re-running this install cannot put it back —
       // and a failure it cannot clear means a full install at every session start, for ever.
       else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) {
         fail(`${name}${where}: server entry missing — ${entry}`, { repairable: !where.trim() })
       }
-      else ok(`${name}${where} · ${basename(entry)}`)
+      else ok(`${name}${where} · ${basename(entry || command)}`)
     }
 
     // Every server this package REQUIRES, whether or not it is registered. The loop above walks
@@ -426,6 +435,50 @@ phase('Tier-2 skills')
 }
 
 // ── 6. argo CLI ─────────────────────────────────────────────────────────────
+phase('Python toolchain')
+{
+  // uv replaces pip, pip-tools, pipx, pyenv, virtualenv, build and twine, and on Windows it is
+  // the only one of those that manages interpreters at all. The mandate is in
+  // config/python-tooling-stack.md; this checks the mandate can actually be followed.
+  // `where` lists every hit; on Windows a .cmd or .ps1 shim can precede the .exe and cannot
+  // be spawned directly. Prefer a real executable, then fall back to the first hit.
+  const uvHits = resolveExe('uv') || []
+  const uv = uvHits.find((p) => /\.exe$/i.test(p)) || uvHits.find((p) => !/\.(cmd|bat|ps1)$/i.test(p)) || uvHits[0]
+  if (!uv) {
+    warn('uv is not installed — the Python mandate cannot be followed. Install it: '
+      + (IS_WIN ? 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"'
+        : 'curl -LsSf https://astral.sh/uv/install.sh | sh'), { repairable: false })
+  } else {
+    // `uv --version`, never `uv version` — the latter reads the PROJECT's version and fails
+    // outside a project, which is a doctor check that breaks the first time it runs anywhere.
+    const r = spawnSync(uv, ['--version'], { encoding: 'utf8', timeout: 15000, windowsHide: true })
+    const v = (String(r.stdout || '').match(/uv (\d+\.\d+\.\d+)/) || [])[1]
+    if (v) ok(`uv ${v}`)
+    else warn(`uv is on PATH at ${uv} but did not report a version`)
+  }
+
+  // A dangling interpreter trampoline in uv's bin directory. uv writes python<version> shims
+  // there; if the interpreter they point at is moved or removed the shim stays, and anything
+  // that finds it on PATH before a real interpreter gets "failed to spawn Python child process"
+  // from a file that exists and is executable. Found live on the machine this was written on.
+  const binDir = join(HOME, '.local', 'bin')
+  let shims = []
+  try { shims = readdirSync(binDir).filter((f) => /^python[\d.]*(\.exe)?$/i.test(f)) } catch { shims = [] }
+  const dead = []
+  for (const f of shims) {
+    const r = spawnSync(join(binDir, f), ['--version'], { encoding: 'utf8', timeout: 15000, windowsHide: true })
+    const said = String(r.stdout || '') + String(r.stderr || '')
+    if (/trampoline failed|entity not found|No such file/i.test(said) || !/Python \d/.test(said)) dead.push(f)
+  }
+  if (dead.length) {
+    // A warning, not a failure: this is a condition of the machine, not of this install, and
+    // nothing here can repair it. A FAIL nothing can clear is a permanent DEGRADED line.
+    warn(`${dead.length} dangling Python shim(s) in ${binDir} (${dead.join(', ')}) — the interpreter each points at is gone, `
+      + `so anything that finds one on PATH first fails with "failed to spawn Python child process" from a file that exists. `
+      + `Remove them, or re-create them: uv python install --reinstall`)
+  } else if (shims.length) ok(`${shims.length} Python shim(s) in ${basename(binDir)} all resolve`)
+}
+
 phase('argo CLI')
 {
   const hits = resolveExe('argo')

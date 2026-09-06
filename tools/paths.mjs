@@ -491,3 +491,20 @@ export function applicableCss(css, markup) {
   // visibility, and the measurement is still on the page for a human to see.
   return { css: out + css.slice(selStart), setAside, ranges }
 }
+
+/** Where a standalone MCP executable actually is: PATH first, then the locations its own
+ *  installer uses. A manifest that could only describe a vendored node entry point excluded
+ *  every server that ships as a binary, which is most of the fast ones. */
+export function resolveServerBin(name) {
+  const exe = IS_WIN ? `${name}.exe` : name
+  const candidates = [
+    ...(process.env.PATH || '').split(IS_WIN ? ';' : ':').filter(Boolean).map((d) => join(d, exe)),
+    join(process.env.LOCALAPPDATA || join(HOME, 'AppData', 'Local'), 'Programs', name, exe),
+    join(HOME, '.local', 'bin', exe),
+    join(HOME, '.local', 'share', name, exe),
+  ]
+  for (const p of candidates) {
+    try { if (statSync(p).isFile()) return p } catch { /* next */ }
+  }
+  return null
+}

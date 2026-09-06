@@ -67,7 +67,7 @@ Physical media are not screens, and have their own technique layer and a real ou
 
 ## Tier-3 library — 815 skills on disk, none in context
 
-`{{LIBRARY_ROOT}}\` holds 12 cloned repos. Only the 13 skills above are resident (~1,508 tokens);
+`{{LIBRARY_ROOT}}\` holds 15 cloned repos. Only the 13 skills above are resident (~1,508 tokens);
 installing all 815 would cost **~57,674 tokens every session** and thrash skill dispatch, so the
 rest is kept as a **searchable library** of 814 indexed entries (`build-index.mjs` holds an
 `EXCLUDE` list for what this repo chooses not to surface):

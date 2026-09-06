@@ -5,6 +5,134 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.61.0 — 2026-09-05
+
+Seven external resources absorbed, a per-prompt update guarantee, and the resource discipline the
+hooks never had — found by freezing the machine they were installed on.
+
+**This package maxed the CPU and the memory of a 24-core, 32 GB machine, and the cause was its
+own `react-doctor` hook.** It ran `npx react-doctor@latest` on every Edit and Write, in every
+session, with no mutual exclusion — in a repository containing no React at all, where the tool's
+own verdict was "No supported framework or library detected". Sixteen concurrent scans were
+measured holding 16.3 GB and every core. Two guards now sit in front of it: a one-file read of
+the nearest `package.json` for a framework it knows (0.09 s, against ~1.2 GB and forty seconds
+to reach the same conclusion), and one scan slot per machine — skipped rather than queued,
+because the next write starts another anyway. Not everyone who installs this has that machine;
+on a laptop the same hook stack is the difference between tolerated and deleted.
+
+**Nine node processes per prompt were four too many.** Four UserPromptSubmit hooks — the UI,
+React, security and Python mandates — read no stdin, spawned nothing and branched nowhere; each
+was ~110 ms of runtime startup to print one constant string. They are one hook now,
+`user-prompt-mandates.js`, generated from `config/mandates/*.js` by `tools/merge-mandates.mjs`
+with a test that the generated file matches its sources. Per-prompt hooks: 9 → 6.
+
+**And the installer could not remove a hook it had stopped shipping.** The merge updated a
+listed hook and moved one that changed event; it never *removed* one, so the fold above left all
+five registered and every prompt got the mandates twice from ten processes. The prune that fixes
+this shipped with an invariant, because its first version read one level too deep, got an empty
+wanted-set, and deleted all twenty-three hooks and their files — twice, the second time because
+the fix was applied against the wrong anchor and install was run anyway. The doctor caught it both
+times. The invariant's first wording — "never more removed than kept" — was itself wrong: a
+manifest that legitimately shrinks from nineteen hooks to three must prune sixteen, and that rule
+refused it for ever while calling the manifest misread. What it guards against is an *empty*
+wanted-set, a manifest that could not be read; and a hook the manifest omits but the package
+still ships — from any of the three directories the install copies from, not `config/hooks`
+alone, which would have pruned `user-prompt-visual.js` out of a skill's `hooks/` — is a manifest
+bug, kept registered and said so, never removed.
+
+**Currency is verified on every interaction, not only at session start.** A session opened in the
+morning and still going at midnight had not checked since morning, so a machine could sit all day
+on a superseded version with every mandate and fix released since then absent. The per-prompt
+hook does a local ref comparison every time, a fetch at most once a minute, and a fast-forward
+plus config re-apply when the refs differ, under the session-start hook's own lock. Silent when
+current; refuses rather than destroys when dirty or diverged; never fails a prompt. Its first
+shipped copy resolved `../..` from `~/.claude/hooks` — the home directory — and reported "not a
+git clone" on every prompt while passing every test from the repo. It resolves through the same
+`{{REPO_ROOT}}` token the session-start hook uses now.
+
+**uv is the mandated Python toolchain**, with `config/python-tooling-stack.md`, a mandate in the
+merged hook, and a doctor phase. Its traps were reproduced, not read: `uv version` is the
+*project's* version and fails outside a project, so the doctor uses `uv --version`; `uv sync`
+deletes anything `uv pip install` put in the venv; `uv run` auto-syncs and can rewrite `uv.lock`,
+so CI needs `--locked`; project commands ignore `VIRTUAL_ENV` while `uv pip` honours it silently.
+The doctor also catches a dangling uv trampoline — a `python*.exe` shim whose interpreter has
+moved, failing with "failed to spawn Python child process" from a file that exists. One was live
+here.
+
+**`codebase-memory-mcp` is registered.** MIT, pure C, no runtime, no API key, no telemetry, one
+shared daemon per account — which, days after a machine froze from per-session process
+multiplication, was the deciding property. The manifest learned a second shape to hold it: a
+server may be a vendored node `entry` or a standalone `bin` this package finds. **Graft is
+rejected on the record**: zero releases, a tree-sitter grammar with no Windows prebuild that
+needs MSVC and Python 3 to compile, telemetry on by default, and an `npx -y` registration that
+spawns a fresh Node process per session start.
+
+**`cgc skills <query>`** searches skills.sh over plain HTTPS — no account, no npm package, no
+telemetry ping — and shows each hit's third-party audit verdict. `--get` fetches into the indexed
+library, never into `~/.claude/skills`, where the official CLI installs by default and where every
+file costs session context in every session and a colliding name shadows one of this package's.
+The registry lists automatically and unreviewed; `--print` reads one before it is trusted.
+
+**Three corpora, cloned and indexed, none resident:** `build-your-own-x` (359 from-scratch
+tutorials, CC0); `agency-agents` (273 subagent definitions — read for structure, never installed:
+~17,700 tokens of frontmatter per session, no `name:` in the documented format, no description
+that says when *not* to use it); `OpenMontage` (the video field; portable craft in `skills/core`
+and `skills/creative`; AGPL, so cited and never vendored). The index builder listed only repos
+that yielded a `SKILL.md`, so a cloned corpus appeared nowhere in the one file anybody greps —
+indistinguishable from a clone that never happened. It names them now.
+
+Smaller, and all of them found by their consequences: a Windows path written as `\repos\build`
+reached the model as a carriage return and a backspace, so mandate files are gated against bare
+control characters (CRLF is a line ending, not a defect, and `security-stack.md` was normalised
+to LF per `.gitattributes`); `config/CLAUDE.md` uses forward slashes for every library path.
+
+**An adversarial review of the above found seven defects in the fixes themselves, each now
+reproduced and pinned by a test.** The framework gate took `dirname()` of the project root and
+began its walk one level *above* the project, so it never scanned any top-level React project —
+the fix had "worked" by never scanning at all. The tree-kill waited with `Atomics.wait`, which
+blocks the event loop, so the child's close event could never be delivered and every scan ran the
+full forty-five seconds however fast the scanner finished; it is a Promise now and the hook
+awaits it. The per-prompt updater fetched for thirty seconds and installed for a hundred and
+twenty inside a ten-second hook, so an unreachable remote stalled every prompt for the full ten
+and each kill orphaned a git process; it also stamped *after* the fetch, so a killed fetch never
+rate-limited; it merged `origin/HEAD` into a detached checkout the session-start hook refuses to
+touch; and it reported a branch that tracks nothing as "offline" once a minute. Now: four-second
+fetch, stamp before it, detached and tracking-less checkouts named and left alone, and the
+re-apply after a fast-forward handed to a detached process that owns the lock — inside the hook
+it was killed mid-install, leaving the merge landed, the config stale and the lock on disk. And
+`cgc skills --get ../../../../escape/repo/slug` wrote a `SKILL.md` four levels above the library:
+the registry's file paths were validated, the id from the command line was not.
+
+**Then one layer down: the timed-out fetch still left `git.exe` and `git-remote-http.exe`
+running.** `spawnSync`'s timeout kills only the process it started, and on Git for Windows that
+is a launcher; the real git and its helper were measured alive nine seconds after the hook had
+returned, one orphan pair per minute for as long as the remote stayed dark. The fetch is spawned
+asynchronously and killed as a tree while its parent is still alive to be the root of it, and a
+test counts the git processes left against the clone afterwards: zero.
+
+**The self-test no longer blocks a session start, and a run that did not finish is no longer a
+failure.** The suite ran inline with a 240 s budget. Measured: 130 s idle on a 24-core machine,
+and it blew the budget on the same machine while sixteen react-doctor scans were thrashing it —
+which means it blows it every time on a laptop. Worse, the blown run was cached for a *day* as
+"tests timed out" with a failure count of 1 that no test had earned, and every session on that
+commit repeated it until the next commit. Now the hook claims the run, hands it to a detached
+`tools/selftest.mjs` at below-normal priority with a twenty-minute budget and a tree-kill, and
+returns at once with the last *finished* result, named by its commit; the next start reads the
+new one. A run that times out is recorded as unfinished with zero failures, said as "did not
+finish in 20 min", and re-tried after ten minutes instead of tomorrow.
+
+**Model routing is visible now.** The PreToolUse hook rewrote the Agent tool's `model` silently,
+and the transcript shows the input as the caller wrote it — so five agents dispatched on `haiku`
+looked like five on the session model, and nobody could tell whether routing had happened at all.
+Every change is a line the user sees, naming the agent, the model chosen, the one it replaced and
+the rule that decided: `CGC model routing: "scan imports" → haiku (was opus) — pure retrieval or
+a mechanical transform, nothing to decide`. The decision itself is unchanged and the corpus gate
+still reads zero under-assignments.
+
+The doctor also stops warning "no entry point in args" on a standalone-binary server —
+`codebase-memory-mcp` is one — which was a warning about the correct shape at every session
+start; only a runtime command needs a script named in `args`.
+
 ## 1.60.0 — 2026-09-03
 
 A fifth review, aimed squarely at the claim 1.58.0 made. Its verdict: **the mechanism holds for

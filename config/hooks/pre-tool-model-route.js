@@ -153,34 +153,44 @@ const TYPE_SEARCH = rx(SIGNAL_SOURCES.TYPE_SEARCH)
  * @returns {'haiku'|'sonnet'|'opus'|null} null means INHERIT (strip the option).
  */
 function decide(input) {
+  return decideWhy(input).model
+}
+
+/**
+ * The same decision, with the rule that made it — shown to the user on every dispatch, so
+ * routing is visible rather than a silent rewrite of an argument nobody can see.
+ *
+ * @returns {{ model: 'haiku'|'sonnet'|'opus'|null, why: string }}
+ */
+function decideWhy(input) {
   const type = String((input && (input.subagent_type || input.subagentType)) || '')
   const text = `${(input && input.description) || ''}\n${(input && input.prompt) || ''}`
 
   // 1. Agent TYPE is the strongest signal: it is chosen deliberately and names the job.
   //    A verifier type stays high even if its prompt reads mechanically.
-  if (TYPE_VERIFY.test(type)) return 'opus'
+  if (TYPE_VERIFY.test(type)) return { model: 'opus', why: `a verifier agent type (${type}) — the gate must out-reason what it reviews` }
 
   const judgment = JUDGMENT.test(text)
 
   // 2. A read-only search agent may still be handed a judgment question. The type only
   //    downgrades when nothing in the prompt asks it to decide something.
-  if (TYPE_SEARCH.test(type) && !judgment) return 'haiku'
+  if (TYPE_SEARCH.test(type) && !judgment) return { model: 'haiku', why: `a read-only search type (${type}) with nothing to decide` }
 
   // 3. Judgment vetoes EVERY downgrade. This is the invariant: anything that has to decide
   //    for itself runs on the session model, whatever else the text looks like.
-  if (judgment) return INHERIT
+  if (judgment) return { model: INHERIT, why: 'the task asks the agent to decide something — it inherits the session model' }
 
   // 4. Verification: named explicitly so a weaker session model never becomes the gate.
-  if (VERIFY.test(text)) return 'opus'
+  if (VERIFY.test(text)) return { model: 'opus', why: 'verification or review — the gate must out-reason what it reviews' }
 
   // 5. Specified work — the thinking is already in the prompt.
-  if (SPECIFIED.test(text)) return 'sonnet'
+  if (SPECIFIED.test(text)) return { model: 'sonnet', why: 'specified work — the thinking is already in the prompt' }
 
   // 6. Pure retrieval and mechanical transformation.
-  if (MECHANICAL.test(text) && !MUTATE.test(text)) return 'haiku'
+  if (MECHANICAL.test(text) && !MUTATE.test(text)) return { model: 'haiku', why: 'pure retrieval or a mechanical transform — nothing to decide' }
 
   // 7. Unrecognised. Inherit: the safe direction, by construction.
-  return INHERIT
+  return { model: INHERIT, why: 'no unambiguous signal — inherits, the safe direction' }
 }
 
 // ── Session model ───────────────────────────────────────────────────────────────────────────
@@ -246,12 +256,16 @@ function main() {
   const input = payload.tool_input || payload.toolInput || payload.input
   if (!input || typeof input !== 'object' || Array.isArray(input)) return
 
-  const mode = classify(currentModel(payload.transcript_path))
+  const sessionModel = currentModel(payload.transcript_path)
+  const mode = classify(sessionModel)
   if (!mode) return // session model unknown: change nothing rather than guess
 
   // AUTHORITATIVE. Whatever the caller passed, the decision is recomputed here. On a pinned
-  // session the answer is always INHERIT; otherwise it is whatever decide() returns.
-  const chosen = mode === 'pinned' ? INHERIT : decide(input)
+  // session the answer is always INHERIT; otherwise it is whatever decideWhy() returns.
+  const d = mode === 'pinned'
+    ? { model: INHERIT, why: `pinned session (${sessionModel}) — every agent inherits, so the exact version is reproduced` }
+    : decideWhy(input)
+  const chosen = d.model
 
   const updated = { ...input }
   if (chosen === INHERIT) delete updated.model
@@ -262,7 +276,17 @@ function main() {
   const now = 'model' in updated ? updated.model : undefined
   if (had === now) return
 
+  // The rewrite was invisible: the transcript shows the input as the caller wrote it, so a
+  // session that dispatched five agents on haiku looked like five on the session model, and
+  // nobody could tell whether routing had happened at all. Every change is now a line the
+  // user sees, naming the model and the rule.
+  const label = String(input.description || input.subagent_type || input.subagentType || 'agent').slice(0, 60)
+  const note = chosen === INHERIT
+    ? `CGC model routing: "${label}" — model "${had}" removed, ${d.why}`
+    : `CGC model routing: "${label}" → ${chosen}${had ? ` (was ${had})` : ''} — ${d.why}`
+
   process.stdout.write(JSON.stringify({
+    systemMessage: note,
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       updatedInput: updated,

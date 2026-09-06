@@ -21,7 +21,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { spawnSync } = require('node:child_process')
+const { spawnSync, spawn } = require('node:child_process')
 
 // Templated by install.mjs. Run straight from the repo (the tests do) the tokens are
 // unresolved: the repo is two directories up from this file, the config root is ~/.claude.
@@ -35,11 +35,13 @@ const NODE = NODE_TOKEN.includes('{{') ? process.execPath : NODE_TOKEN
 const CONFIG_ROOT = process.env.CLAUDE_CONFIG_DIR || (CONFIG_TOKEN.includes('{{') ? path.join(os.homedir(), '.claude') : CONFIG_TOKEN)
 const STATE = path.join(CONFIG_ROOT, '.cgc')
 const TEST_TTL_MS = 24 * 60 * 60 * 1000
-// A claim older than this belongs to a run that died. The run is capped at 240s, but the mtime
-// is set once and never refreshed, and the machine this protects is by definition the loaded
-// one — a suspended or thrashing session must not have its LIVE claim reaped and a second suite
-// started beside it. Well past the timeout, not merely past it.
-const TEST_CLAIM_STALE_MS = 20 * 60 * 1000
+// A run that timed out or could not be read is re-tried after this, not cached for the day.
+const TEST_RETRY_MS = 10 * 60 * 1000
+// A claim older than this belongs to a run that died. The background runner caps itself at
+// 20 minutes (tools/selftest.mjs), but the mtime is set once and never refreshed, and the
+// machine this protects is by definition the loaded one — a suspended or thrashing run must not
+// have its LIVE claim reaped and a second suite started beside it. Well past the cap.
+const TEST_CLAIM_STALE_MS = 30 * 60 * 1000
 
 function git(args, timeout = 15000) {
   return spawnSync('git', args, {
@@ -55,13 +57,18 @@ const writeJson = (p, v) => { try { fs.mkdirSync(path.dirname(p), { recursive: t
 const tool = (name) => path.join(REPO, 'tools', name)
 const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
-function runInstall() {
+function runInstall(fixes = []) {
   // This runs inside withLock, so the installer must not queue behind its own parent.
   // mcp-register is in the list and `mcp` is not: registering the servers is a JSON write that
   // takes a tenth of a second, while `mcp` fetches packages and a browser over the network. A
   // machine where CGC was installed before Claude Code had ever run had no ~/.claude.json to
   // write into, so its MCP servers were never registered and no later session put that right.
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register'],
+  // Flags the doctor's own findings asked for. --dedupe removes a duplicate MCP registration
+  // from the host application's config; it only ever touches names this package registers, and
+  // it writes a backup first. Without it the app restoring its defaults meant a permanent
+  // DEGRADED line and an instruction to type by hand after every rewrite.
+  const extra = fixes.includes('dedupe') ? ['--dedupe'] : []
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register', ...extra],
     { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, CGC_UPDATE_LOCK_HELD: '1' } })
   return r.status === 0
 }
@@ -180,7 +187,9 @@ function doctor() {
   // one unfixable finding makes EVERY session start run a full install and report DEGRADED
   // for ever — the same per-session multiplication these checks exist to prevent.
   const repairable = fails.some((x) => x.repairable !== false)
-  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed, repairable }
+  // The extra install flags those failures asked for, deduplicated.
+  const fixes = [...new Set(fails.flatMap((x) => (x.fix ? [x.fix] : [])))]
+  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed, repairable, fixes }
 }
 function readJsonText(s) { try { return JSON.parse(String(s || '')) } catch { return null } }
 
@@ -190,18 +199,28 @@ function verify() {
   let repaired = false
   if (d.failed.length && d.repairable !== false) {
     // Something a session relies on is missing. Put it back, then look again.
-    repaired = runInstall()
+    repaired = runInstall(d.fixes || [])
     d = doctor() || d
   }
   return { ...d, repaired }
 }
 
-// ── 3. the package's own tests, once per commit and at most daily ─────────────
+// ── 3. the package's own tests, once per commit and at most daily — in the background ─────
+//
+// The suite ran INLINE here once, inside a 240 s budget. A session start blocked for as long
+// as the suite took — four minutes of nothing on a machine where it takes four minutes — and
+// when it did not finish, "tests timed out" with a failure count of 1 that no test had earned
+// was cached for a DAY and repeated by every session on that commit. Now this claims the run,
+// hands it to a detached process (tools/selftest.mjs) at reduced priority, and returns at once
+// with the last completed result; the next start reads the new one.
 function selfTest(head) {
-  if (!fs.existsSync(tool('run-tests.mjs'))) return null
+  if (!fs.existsSync(tool('run-tests.mjs')) || !fs.existsSync(tool('selftest.mjs'))) return null
   const cache = path.join(STATE, 'selftest.json')
   const last = readJson(cache)
-  if (last && last.head === head && Date.now() - (last.at || 0) < TEST_TTL_MS) return { ...last, cached: true }
+  if (last && last.head === head) {
+    const ttl = last.timedOut || last.unread ? TEST_RETRY_MS : TEST_TTL_MS
+    if (Date.now() - (last.at || 0) < ttl) return { ...last, cached: true }
+  }
   // Claim the run before starting it. Written before, not after, because the gap between
   // "started" and "finished" is the whole problem.
   //
@@ -247,24 +266,19 @@ function selfTest(head) {
     return { ...known, deferred: true, claimBroken: got.state === 'broken' ? got.why : null }
   }
 
-  let r
+  // The runner owns the claim from here: it releases it when the suite ends or is killed.
   try {
-    r = spawnSync(NODE, [tool('run-tests.mjs')], { cwd: REPO, encoding: 'utf8', timeout: 240000, windowsHide: true })
-  } finally {
-    // Only ours to release — this session took it, or it would not have got here.
-    try { fs.rmSync(claim, { force: true }) } catch { /* another session cleared a stale claim */ }
+    const bg = spawn(NODE, [tool('selftest.mjs'), '--head', head, '--state', STATE],
+      { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env } })
+    bg.unref()
+  } catch (e) {
+    try { fs.rmSync(claim, { force: true }) } catch { /* nothing to release */ }
+    return { total: 0, pass: 0, fail: 0, skipped: 0, claimBroken: `the test run could not be started (${e.code || e.message})` }
   }
-  const text = String(r.stdout || '') + String(r.stderr || '')
-  const num = (k) => { const m = new RegExp(`(?:ℹ|#)\\s*${k}\\s+(\\d+)`).exec(text); return m ? Number(m[1]) : null }
-  // A skipped test is one that could not run here (no browser, say), not one that failed; the
-  // line counts passes against the tests that ran, so 215/215 rather than a false 215/216.
-  // A run that produced no counts is a run that did not happen — a crashed runner, a syntax
-  // error mid-edit, a suite that never started. Recording it as 0 of 0 and printing "0/0 tests"
-  // says the package has no tests, which is a confident answer to a question nothing answered.
-  const unread = num('tests') === null && num('pass') === null
-  const res = { head, at: Date.now(), total: num('tests') ?? 0, pass: num('pass') ?? 0, fail: num('fail') ?? (r.status === 0 ? 0 : 1), skipped: num('skipped') ?? 0, timedOut: Boolean(r.error), unread }
-  writeJson(cache, res)
-  return res
+  // What is known meanwhile: the last FINISHED result, for whichever commit it was. A timed-out
+  // or unread record is not a result and is not carried — it is the thing being re-tried.
+  const known = last && !last.timedOut && !last.unread ? { ...last, forHead: last.head } : { total: 0, pass: 0, fail: 0, skipped: 0 }
+  return { ...known, head, background: true }
 }
 
 // ── 4. the line ──────────────────────────────────────────────────────────────
@@ -275,8 +289,9 @@ function compose(ver, u, v, t) {
   else parts.push('checks unavailable')
   if (t) {
     const counts = `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`
-    parts.push(t.timedOut ? 'tests timed out'
+    parts.push(t.timedOut ? `tests did not finish in ${Math.round((t.budgetMs || 0) / 60000) || 20} min`
       : t.claimBroken ? `tests not run — ${t.claimBroken}`
+        : t.background ? (t.total ? `${counts} at ${short(t.forHead)} · re-running in background` : 'tests running in background')
         : t.deferred ? (t.total ? `${counts} (another session is re-running them)` : 'tests running in another session')
         : t.unread ? 'the test suite could not be read'
           : counts)
@@ -341,7 +356,9 @@ function main() {
   const tests = t && t.fail
     ? `\n${t.fail} of the package's tests fail on this machine — run npm test in ${REPO}.`
       + (t.failed && t.failed.length ? ` The failing case${t.failed.length === 1 ? ' is' : 's are'}: ${t.failed.join(' · ')}.` : '')
-    : ''
+    : t && t.timedOut
+      ? `\nThe package's test suite did not finish within its ${Math.round((t.budgetMs || 0) / 60000) || 20}-minute budget on this machine. No test failed; the run is unfinished, and it is re-tried in the background at the next session start. To see it: npm test in ${REPO}.`
+      : ''
   const say = announce
     ? 'The user sees this line too. Open your first reply with it, verbatim, on its own line, then answer the user; say nothing more about it unless it is DEGRADED or blocked, in which case add the fix in one sentence.'
     : 'Do not mention it unless it is DEGRADED or blocked.'

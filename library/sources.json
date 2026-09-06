@@ -92,6 +92,32 @@
       "url": "https://github.com/danyuchn/asd-ste100-skill.git",
       "tier": 2,
       "note": "Simplified Technical English (ASD-STE100) scoped to text a MACHINE parses without a human to resolve ambiguity: tool descriptions, error messages, inter-agent instructions, status reports. ~125 tokens resident. Directly relevant here — a skill description is English a model parses to decide dispatch, so this is the discipline that reduces trigger contention. Correctly refuses to reproduce the standard's copyrighted ~900-word dictionary from memory and points at the official free download instead."
+    },
+    {
+      "name": "build-your-own-x",
+      "url": "https://github.com/codecrafters-io/build-your-own-x.git",
+      "tier": 3,
+      "note": "359 step-by-step tutorials across 31 categories (3D renderer, database, docker, git, interpreter, neural network, operating system, shell, text editor, web server...), each tagged with its language. CC0, so quoting from it carries no obligation. Not skills and never resident: this is the corpus to consult when the task is 'implement X from scratch' and the right move is to follow somebody who has already done it well. Format is uniform — `* [**Language**: _Title_](url)` — so it greps cleanly by language or by topic."
+    },
+    {
+      "name": "agency-agents",
+      "url": "https://github.com/msitarzewski/agency-agents.git",
+      "tier": 3,
+      "note": "273 subagent definitions (the README says 230+) across 18 divisions — engineering 59, specialized 58, marketing 36, game-development 21, gis 13, security 12, design 10. MIT. Read them for their WORKFLOW sections, which are genuinely detailed, and lift the structure rather than the file.",
+      "caveat": "Never install these. Three independent grounds. (1) COST: the frontmatter of all 273 is ~17,700 tokens of session context in EVERY session — twelve times this package's entire resident skill load, before any agent is dispatched. (2) FORMAT: 0 of 273 `name:` values match Claude Code's documented `^[a-z0-9-]+$` — 267 contain a space ('name: Frontend Developer'). Their own scripts/lint-agents.sh never checks the name format, so upstream CI cannot catch it. (3) DISPATCH: every description is a bare resume line with no quoted-phrase trigger, no <example> block and no negative scoping — 0 of 273 say when NOT to use them — so 59 engineering agents all match on 'code', 'build' and 'implement'. Their installer is a bare `cp` into ~/.claude/agents/ with no backup and no existence check, and 70 files carry no division prefix (product-manager.md, game-designer.md, customer-service.md), which is the collision surface."
+    },
+    {
+      "name": "OpenMontage",
+      "url": "https://github.com/calesthio/OpenMontage.git",
+      "tier": 3,
+      "note": "An agentic video production system, and the one field this package's design-fields skill does not cover. The value here is the CRAFT, which reads independently of the runtime: skills/core (ffmpeg, colour grading, subtitle sync, whisperx) and skills/creative (storytelling, typography, sound design, short-form vs long-form, b-roll planning) are 1.5MB of markdown with real citations and real numbers — the explainer-arc template is timecoded to the second. skills/pipelines (103 files) is glue bound to their runtime and is not portable. No MCP server; it is driven by markdown its agent reads.",
+      "caveat": "AGPL-3.0, including the markdown — a network-copyleft licence. Quote it and cite it; do not vendor it into anything distributed. Two practical traps: opening the clone as a project in Claude Code registers the 49 SKILL.md files in its .claude/skills/ automatically (~2,090 tokens resident), so read it by path rather than opening it; and `make setup` needs Python 3.10+, Node 18+ (22 for HyperFrames) and FFmpeg you install yourself, landing around 1-1.5GB before any optional model weights."
+    },
+    {
+      "name": "Graft",
+      "url": "https://github.com/trailhq/Graft.git",
+      "rejected": true,
+      "reason": "A codebase knowledge graph with an MCP server, and the right idea — but codebase-memory-mcp does the same job and is the one this package points at. Three decisive facts on a Windows machine. (1) It ships ZERO GitHub releases and no binary for any platform; installation is `npm install -g @nanonets/graft`, which pulls tree-sitter-kotlin@0.3.8 — the one grammar with no prebuilds/ directory at all — so node-gyp-build falls back to compiling C from source, requiring MSVC C++ Build Tools and Python 3 on the target box. (2) Telemetry is ON by default and must be actively turned off (`graft telemetry disable`, or DO_NOT_TRACK=1). (3) It registers as `npx -y @nanonets/graft mcp`, so every session start spawns a fresh Node process through the npx resolver, and its Claude Code wiring adds hooks that spawn more per turn — which is precisely the per-session process multiplication that took this machine down. Its keyless mode is real (`graft build` without --deep is deterministic tree-sitter), so this is not a policy rejection; it is a Windows-installability and process-count one."
     }
   ],
   "tier2": [

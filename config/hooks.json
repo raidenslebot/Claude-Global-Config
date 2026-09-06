@@ -40,17 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-ui-stack.js\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-react-stack.js\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-security-stack.js\"",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-mandates.js\"",
             "timeout": 10
           },
           {
@@ -73,6 +63,11 @@
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-model-policy.js\"",
             "timeout": 10,
             "statusMessage": "Resolving model policy for spawned agents"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/user-prompt-cgc-update.js\"",
+            "timeout": 10
           }
         ]
       }

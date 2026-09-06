@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock, hostConfigs, pluginServers } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, buildVars, realize, unresolved, askedForHelp, acquireUpdateLock, hostConfigs, pluginServers, resolveServerBin } from './paths.mjs'
 
 // This file has no exports: it performs an install the moment it is loaded. Importing it —
 // from a test, a tool, or by accident — would silently run one. Say so instead.
@@ -164,7 +164,7 @@ phase('Prerequisites')
 // ── 1. Mandate files ────────────────────────────────────────────────────────
 if (wants('config')) {
   phase('Config — mandates')
-  for (const name of ['CLAUDE.md', 'ui-design-stack.md', 'react-tooling-stack.md', 'security-stack.md']) {
+  for (const name of ['CLAUDE.md', 'ui-design-stack.md', 'react-tooling-stack.md', 'security-stack.md', 'python-tooling-stack.md']) {
     const src = join(REPO, 'config', name)
     if (!existsSync(src)) { warn(`${name} missing from repo`); continue }
     const text = realize(readFileSync(src, 'utf8'), vars)
@@ -280,6 +280,67 @@ if (wants('hooks')) {
           }
         }
       }
+      // Prune registrations the manifest no longer carries. The merge above updates a hook that
+      // is still listed and moves one that changed event — it never REMOVED one. So four hooks
+      // folded into one left all five registered, and every prompt got the mandates twice from
+      // ten processes instead of once from six. Only this package's own hooks are candidates:
+      // a command that points into CONFIG_ROOT/hooks is ours to prune; anything else is not.
+      const wantedBases = new Set()
+      // `parsed` is ALREADY the hooks map (line 241 takes `.hooks`). Reading `.hooks` off it
+      // again yielded undefined, an empty wanted-set, and a prune of every hook on the machine.
+      for (const groups of Object.values(parsed || {})) {
+        for (const g of groups) for (const h of g.hooks || []) {
+          const b = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
+          if (b) wantedBases.add(b)
+        }
+      }
+      const ourHooksDir = join(CONFIG_ROOT, 'hooks').replace(/\\/g, '/').toLowerCase()
+      const pruned = []
+      // THE INVARIANT. An empty wanted-set is a manifest that could not be read — a failure, not
+      // a plan. The first version of this prune read one level too deep, got nothing, and removed
+      // all twenty-three hooks and their files, twice. So the candidates are counted BEFORE any
+      // is touched, and a prune that would remove more than the manifest keeps is refused and
+      // reported: that shape is only ever a bug, never a real removal.
+      const candidates = []
+      for (const event of Object.keys(settings.hooks)) {
+        for (const g of settings.hooks[event]) for (const h of g.hooks || []) {
+          const cmd = String(h.command).replace(/\\/g, '/').toLowerCase()
+          const b = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
+          if (cmd.includes(ourHooksDir) && b && !wantedBases.has(b)) candidates.push(b)
+        }
+      }
+      // "Never more removed than kept" was wrong: a manifest that legitimately shrinks from 19 to
+      // 3 must prune 16, and that rule refused it for ever with a message calling the manifest
+      // misread. The bug this guards against is an EMPTY wanted-set — a manifest that could not
+      // be read — and a second, cheaper tell: a hook the manifest omits but this repo still SHIPS
+      // under config/hooks/ is a manifest bug, not a removal, and is kept.
+      // "Shipped" means the same three directories the copy above reads from — not config/hooks
+      // alone, which pruned user-prompt-visual.js out of skills/visual-design-mastery/hooks/ and
+      // deleted its installed file the moment a manifest omitted it. A hook this package still
+      // ships is never pruned: to remove one, delete its source file, and the manifest with it.
+      const shipped = new Set(hookSources.flatMap((d) => { try { return readdirSync(d) } catch { return [] } }))
+      const safeToPrune = wantedBases.size > 0
+      if (candidates.length && !safeToPrune) {
+        warn(`refusing to prune ${candidates.length} hook(s) (${candidates.slice(0, 4).join(', ')}${candidates.length > 4 ? ' …' : ''}): the manifest names no hooks at all, which is a manifest that could not be read, not a removal`)
+      }
+      for (const event of Object.keys(settings.hooks)) {
+        if (!safeToPrune) break
+        for (const g of settings.hooks[event]) {
+          g.hooks = (g.hooks || []).filter((h) => {
+            const cmd = String(h.command).replace(/\\/g, '/').toLowerCase()
+            if (!cmd.includes(ourHooksDir)) return true          // not ours: leave it alone
+            const b = (String(h.command).match(/([\w.-]+\.(?:js|mjs|cjs))/) || [])[1]
+            if (!b || wantedBases.has(b)) return true
+            if (shipped.has(b)) { warn(`${b} still ships with this package but is missing from config/hooks.json — kept registered. A shipped hook is never pruned; to remove it, delete its source file and the manifest entry together`); return true }
+            pruned.push(b)
+            // The installed file too, or a stale script sits on disk looking like a hook.
+            try { rmSync(join(CONFIG_ROOT, 'hooks', b), { force: true }) } catch { /* already gone */ }
+            return false
+          })
+        }
+      }
+      if (pruned.length) ok(`pruned ${pruned.length} hook(s) the manifest no longer carries: ${pruned.join(', ')}`)
+
       // Drop any group this merge emptied, so settings.json does not accrete husks.
       for (const event of Object.keys(settings.hooks)) {
         settings.hooks[event] = settings.hooks[event].filter((g) => (g.hooks || []).length > 0)
@@ -473,15 +534,29 @@ if (wants('mcp') || wants('mcp-register')) {
       // before, and only this one existed — the doctor enumerated what WAS registered, so a
       // server deleted from ~/.claude.json produced no row and no failure.
       const manifest = join(REPO, 'library', 'mcp-servers', 'servers.json')
+      // Two shapes: `entry` is a node entry point this package vendors under node_modules;
+      // `bin` is a standalone executable it does not vendor and must find. A registry that
+      // could only express the first silently excluded every server that ships as a binary.
       const entries = {}
+      const binaries = {}
       for (const [name, spec] of Object.entries(JSON.parse(readFileSync(manifest, 'utf8')).servers)) {
-        entries[name] = join(mcpRoot, 'node_modules', ...spec.entry)
+        if (spec.entry) entries[name] = join(mcpRoot, 'node_modules', ...spec.entry)
+        else if (spec.bin) {
+          const found = resolveServerBin(spec.bin)
+          if (found) binaries[name] = found
+          else warn(`${name} is not installed — ${spec.why}. Get it from ${spec.install}, then re-run: node tools/install.mjs --only=mcp-register`)
+        }
       }
       const registered = new Set()
       for (const [name, entry] of Object.entries(entries)) {
         if (!existsSync(entry)) { warn(`${name} entry not found, skipping registration`); continue }
         // Pin the node binary: relying on PATH is how MCP servers silently die.
         cfg.mcpServers[name] = { command: vars.NODE, args: [entry], env: {} }
+        registered.add(name)
+      }
+      for (const [name, bin] of Object.entries(binaries)) {
+        // No args: the binary speaks MCP on stdio when run bare.
+        cfg.mcpServers[name] = { command: bin, args: [], env: {} }
         registered.add(name)
       }
       const n = registered.size

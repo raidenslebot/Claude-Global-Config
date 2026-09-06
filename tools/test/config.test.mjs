@@ -201,3 +201,28 @@ test('every tier2 skill path points into a repo that sources.json actually clone
     assert.ok(clonable.has(repo), `tier2 "${t.name}" lives in "${repo}", which is not a clonable repo entry`)
   }
 })
+
+test('no mandate file carries a control character', () => {
+  // A Windows path written into these files as `\repos\build` is a carriage return and a
+  // backspace to anything that processes string escapes, and the mangled path reached the model
+  // as `C:\Claude\dskills` + CR + `epos` + BS + `uild-your-own-x`. It was written by a patch
+  // script whose heredoc interpreted the escapes, and nothing here would have caught it: the
+  // file parsed, the install succeeded, and the only symptom was a command nobody could run.
+  // Forward slashes are the fix in the source; this is the gate on it.
+  for (const name of ['CLAUDE.md', 'ui-design-stack.md', 'react-tooling-stack.md', 'security-stack.md', 'python-tooling-stack.md']) {
+    const p = join(REPO, 'config', name)
+    if (!existsSync(p)) continue
+    const text = readFileSync(p, 'utf8')
+    // A carriage return that is immediately followed by a line feed is a CRLF line ending, not a
+    // mangled path — this repo is Windows-first and a file can arrive that way. A BARE carriage
+    // return, mid-line, is the signature of `\repos` read as an escape, and stays a failure.
+    const bad = [...text].map((c, i) => [c.charCodeAt(0), i])
+      .filter(([code, i]) => code < 32 && code !== 10 && code !== 9
+        && !(code === 13 && text.charCodeAt(i + 1) === 10))
+    if (bad.length) {
+      const at = bad[0][1]
+      assert.fail(`${name} holds ${bad.length} control character(s); first is 0x${bad[0][0].toString(16)} `
+        + `near: ${JSON.stringify(text.slice(Math.max(0, at - 60), at + 20))}`)
+    }
+  }
+})

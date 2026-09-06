@@ -14,6 +14,7 @@
 //   cgc print-lint <file|dir…>        the press-readiness gate
 //   cgc outline --font <f> --text <s>  text as one SVG path, no font needed
 //   cgc specimen --display <f> --text <f>  a pairing and a palette, set and rendered
+//   cgc skills <query>                search the registry; --get fetches into the library
 //   cgc doctor · install · uninstall · sync · scan · test · where · version
 //
 // Every subcommand takes the flags its tool documents; `cgc <name> --help` prints them.
@@ -37,6 +38,7 @@ export const COMMANDS = {
   render: ['screen-render.mjs', 'screenshots at real widths, or an exact canvas'],
   print: ['print-render.mjs', 'paper and fabric: PDF, PNG proof, garment mockup'],
   'print-lint': ['print-lint.mjs', 'the press-readiness gate'],
+  skills: ['skills-find.mjs', 'search the skills.sh registry; fetch into the indexed library, never into context'],
   icons: ['icon-lint.mjs', 'an icon SET judged as a set: grid, weight, colour, and the stroke at the size it is used'],
   outline: ['outline-text.mjs', 'text as one SVG path'],
   specimen: ['specimen.mjs', 'a pairing and a palette, set for real'],

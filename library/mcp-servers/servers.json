@@ -10,16 +10,33 @@
     "",
     "Local command servers only. A server addressed by URL is somebody else's service over the",
     "network and every one of those ends at a login prompt; the doctor reports one as a policy",
-    "break, not as a broken install."
+    "break, not as a broken install.",
+    "",
+    "A server may be a node entry point under node_modules (`entry`) or a standalone executable this package does not vendor (`bin`). The second kind states where it installs itself and how to put it there, because a manifest that can only describe one shape quietly excludes the other."
   ],
   "servers": {
     "playwright": {
-      "entry": ["@playwright", "mcp", "cli.js"],
+      "entry": [
+        "@playwright",
+        "mcp",
+        "cli.js"
+      ],
       "why": "the browser every render, audit and motion capture runs in"
     },
     "context7": {
-      "entry": ["@upstash", "context7-mcp", "dist", "index.js"],
+      "entry": [
+        "@upstash",
+        "context7-mcp",
+        "dist",
+        "index.js"
+      ],
       "why": "up-to-date library documentation, so a version-stale API is not invented"
+    },
+    "codebase-memory-mcp": {
+      "bin": "codebase-memory-mcp",
+      "install": "https://github.com/DeusData/codebase-memory-mcp/releases/latest",
+      "why": "code structure the agent does not have to re-read the tree to learn: index a repo once, then search_graph / trace_path / get_architecture / detect_changes answer in milliseconds instead of a hundred thousand tokens of file-by-file exploration",
+      "note": "MIT, pure C, no language runtime, no API key and no telemetry — its README states it 'makes no network request of its own accord'. One shared coordination daemon per account rather than a process per session, which is why this one and not Graft; sources.json records that decision. `bin` rather than `entry` because this package does not vendor it: resolveServerBin() finds it on PATH or in the locations its own installer uses."
     }
   }
 }

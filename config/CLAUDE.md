@@ -5,8 +5,9 @@
 Every session start runs `session-start-cgc.js`. It follows the repository's main branch —
 fast-forwarding when behind and re-applying config, hooks and skills — runs the doctor over
 every mandate, hook, skill, MCP registration and cost check and **repairs** any failure by
-re-applying the install, runs the package's own test suite once per commit, and reports one
-line to the user and to the session:
+re-applying the install, starts the package's own test suite once per commit — in the
+background, at reduced priority, so no session start waits on it — and reports one line to the
+user and to the session, carrying the last finished test result:
 
 `CGC v<version> enabled · <n>/<n> checks · <n>/<n> tests · up to date (<commit>)` — the hook
 supplies the real numbers.
@@ -177,6 +178,39 @@ resident (~1,508 tokens); installing all 815 would cost ~57,674 tokens *every se
 dispatch. Search it instead: `grep -i "<topic>" {{LIBRARY_ROOT}}\_index\INDEX.md`, then read the
 SKILL.md at the path it gives. Regenerate after a `git pull` with
 `node {{LIBRARY_ROOT}}\_index\build-index.mjs`.
+
+**Beyond the skill library, three indexed corpora — none of them resident, all cloned by the
+installer.** `grep` them; do not install them. The path is the `:url` form of the library root,
+quoted — all forward slashes, so no segment can be read as a string escape and Git Bash cannot
+eat a backslash; the installer clones each corpus directly under the root, not under `repos/`.
+
+- **`build-your-own-x`** — 359 step-by-step tutorials in 31 categories, each tagged with its
+  language, CC0. When the task is "implement X from scratch" — a database, a git, an interpreter,
+  a ray tracer, a shell, a text editor, a neural network — read the one that already did it well
+  instead of inventing an approach:
+  `grep -i "<topic>" "{{LIBRARY_ROOT:url}}/build-your-own-x/README.md"`
+- **`agency-agents`** — 273 subagent definitions across 18 divisions. Read them for their workflow
+  sections and lift the STRUCTURE. **Never install them:** the frontmatter alone is ~17,700 tokens
+  per session, none of the 273 `name:` values match Claude Code's documented format, and not one
+  description says when *not* to use it — so 59 engineering agents all match on "code".
+- **`OpenMontage`** — the video field, which `design-fields` does not cover. `skills/core` and
+  `skills/creative` are portable craft with real citations and real numbers. AGPL-3.0: quote and
+  cite, never vendor. Read it by path — opening the clone as a project registers 49 skills.
+
+**Finding a skill that does not exist yet: `cgc skills <query>`.** It searches the skills.sh
+registry over plain HTTPS — no account, no npm package, and it never calls their telemetry
+endpoint — and shows the third-party audit verdict beside each hit. `--get` fetches one into the
+indexed library, never into `~/.claude/skills`: everything there loads in every session, and a
+name that collides shadows one of this package's. Listing there is automatic and unreviewed — a
+skill appears because somebody installed it, not because anybody read it. `--print` reads one
+before you trust it.
+
+**Code structure, without re-reading the tree: the `codebase-memory-mcp` server.** Index a repo
+once, then `search_graph`, `trace_path`, `get_architecture` and `detect_changes` answer in
+milliseconds instead of a hundred thousand tokens of file-by-file exploration. Pure C, no runtime,
+no API key, no telemetry, one shared daemon rather than a process per session. Reach for it before
+reading a large unfamiliar codebase by hand. (Graft does the same job and is deliberately not
+installed; `library/sources.json` records why.)
 
 **Precedence (do not re-litigate):** Motion beats `motion-framer`; the live component libraries
 below beat `animated-component-libraries`; `visual-design-mastery/references/animation-principles.md`

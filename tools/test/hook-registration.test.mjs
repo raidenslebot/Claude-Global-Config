@@ -189,3 +189,21 @@ test('the doctor notices an MCP server that was removed from the registrations, 
   // true is that this particular alarm has stopped.
   assert.ok(!failsOf(doctor()).some((m) => /"playwright" is NOT registered/.test(m)), 'the doctor still says it is unregistered')
 })
+
+test('the merged mandate hook matches its four sources', () => {
+  // user-prompt-mandates.js is GENERATED from config/mandates/*.js so that four constant strings
+  // cost one node process per prompt instead of four. A hand-edit to the generated file, or an
+  // edit to a source without regenerating, makes the two disagree in silence — and the text the
+  // model sees is whichever one was installed last.
+  const R = REPO
+  const blocks = ['ui-stack.js', 'react-stack.js', 'security-stack.js', 'python-stack.js'].map((f) => {
+    const src = readFileSync(join(R, 'config', 'mandates', f), 'utf8')
+    const m = src.match(/additionalContext:\s*("(?:[^"\\]|\\.)*")/)
+    assert.ok(m, `${f} carries an additionalContext string`)
+    return JSON.parse(m[1])
+  })
+  const gen = readFileSync(join(R, 'config', 'hooks', 'user-prompt-mandates.js'), 'utf8')
+  const m = gen.match(/additionalContext:\s*("(?:[^"\\]|\\.)*")/)
+  assert.ok(m, 'the generated hook carries an additionalContext string')
+  assert.equal(JSON.parse(m[1]), blocks.join('\n\n'), 'regenerate it: node tools/merge-mandates.mjs')
+})
