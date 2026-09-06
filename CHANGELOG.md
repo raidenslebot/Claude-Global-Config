@@ -5,6 +5,58 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.66.0 — 2026-09-05
+
+A fifth adversarial review, and a change of method: this release adds a gate that tests the
+updater as a STATE MACHINE instead of one scenario at a time. Five releases in a row had defects
+found in the previous release's fixes, three of them introduced BY a fix, and every one was found
+by a person reading a diff. The tests grew one row per defect while the state space grew
+combinatorially, so the next defect always sat in a combination nobody had written down.
+
+**`tools/test/update-invariants.test.mjs` runs the real hook against the cross product** — ten
+clone states (current, behind, dirty, an untracked collision, ahead, diverged, detached, another
+branch, no origin, not a clone) × seven memory states (never seen, recorded before a landed
+update, recorded before a re-apply that FAILED, up to date, a failed background attempt, a record
+from an older version, a corrupt state directory) = seventy runs — and asserts the properties
+that must hold in all of them: it never fails a prompt, never emits anything but the documented
+shape, **never moves HEAD**, never exceeds the ten seconds the host allows, never claims a
+re-apply the record does not support, never announces an update to a session with no record of
+its own, and is silent when there is nothing to say. Ten more runs do the same for the
+session-start hook, including that it never moves a clone it is supposed to leave alone.
+
+**It found a defect on its first run.** A corrupt `last-applied` still has an mtime, and the
+mtime is what answers "did an update land?" — so a record that could not be parsed produced
+"CGC updated itself … the config, hooks and skills were re-applied; the mandates, gates and fixes
+in those commits are in force from this message on". Nobody had written that combination down.
+It now says the record is unreadable and names the command that makes it certain.
+
+**And the review found that 1.65.0's own fix had inverted itself.** The state digest that decides
+whether a recorded blocking reason is still true was written in exactly one place — inside the
+branch that REPORTS a reason — which is the one branch that cannot run once the state has
+changed. So the digest froze at the pre-change state, every later prompt saw a difference, and a
+blocked clone spawned a fresh detached updater **on every single prompt, for ever**, while never
+printing the reason again. That is worse than the every-two-minutes respawn it replaced. The
+digest is recorded when an attempt is ASKED for, so every attempt refreshes it, and two gates now
+govern a retry: a thirty-second floor under everything, so that a repository which changes on its
+own — a build watcher, a test run writing into the tree — cannot turn "the state changed" into a
+fetch, a pull, an install and a doctor on every prompt; and above that floor, a reason the user
+has invalidated is retried at once while one that still stands waits out the half-hour.
+
+**A re-apply that failed and was then repaired was still reported as broken.** `update()` writes
+`applied:false` the moment the post-pull install exits non-zero — and `verify()` repairs it two
+lines later, in the same process, and nothing wrote that back. Every open session was told, as
+fact, that its hooks were stale and its gates not in force, and to run a command that had already
+succeeded. A clean doctor after the repair is the evidence, and it now corrects the record.
+
+Smaller: clearing the background stamp when the clone reads as current could delete the
+duplicate-updater guard while an updater was still installing (it pulls before it installs), so
+that is now done only when no updater holds the lock; and the doctor's `unusable` set is scoped
+to the config this package owns, so a `playwright` entry in a project's or a plugin's own
+`.mcp.json` can no longer make the summary say a server this package registered correctly cannot
+start. The review's named test gaps are closed too: the thirty-minute backoff is now pinned by a
+case that back-dates between the floor and the backoff, and the reader of
+`CGC_UPDATE_LOCK_HELD` is pinned to an explicit `'1'`.
+
 ## 1.65.0 — 2026-09-05
 
 A fourth adversarial review, and the first end-to-end run against a real clone of the published

@@ -314,7 +314,10 @@ phase('MCP servers')
       // is a real failure and a real report, but re-running this install cannot put it back —
       // and a failure it cannot clear means a full install at every session start, for ever.
       else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) {
-        unusable.add(name)
+        // Only what THIS package registers: the flattened list spans project and plugin
+        // .mcp.json files too, and marking a name from one of those would make the summary say a
+        // server this package registered correctly cannot start.
+        if (!where.trim()) unusable.add(name)
         fail(`${name}${where}: server entry missing — ${entry}`, { repairable: !where.trim() })
       }
       else ok(`${name}${where} · ${basename(entry || command)}`)

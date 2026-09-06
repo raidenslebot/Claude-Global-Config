@@ -390,6 +390,15 @@ function main() {
   }
   let v = null
   try { v = withLock(verify) } catch { v = null }
+  // THE RECORD SAYS WHAT THE FIRST INSTALL RETURNED; the doctor says what is actually on disk.
+  // update() writes applied:false the moment the post-pull install exits non-zero — and verify()
+  // then repairs it, in this same process, and nothing wrote that back. Every open session was
+  // told, as fact, that its hooks were stale and its gates not in force, and to run a command
+  // that had already succeeded. A clean doctor after the repair IS the evidence.
+  if (u && u.status === 'updated' && !u.applied && v && !v.failed.length) {
+    const rec = readJson(path.join(STATE, 'last-applied'))
+    if (rec && rec.head === u.head) writeJson(path.join(STATE, 'last-applied'), { ...rec, applied: true, repairedAfterInstallFailure: true })
+  }
   let t = null
   try { t = selfTest(u.head || out(git(['rev-parse', 'HEAD']))) } catch { t = null }
 

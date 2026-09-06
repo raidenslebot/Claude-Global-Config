@@ -53,8 +53,13 @@ const STAMP = path.join(STATE, 'last-remote-check')
 // places this file lives: config/hooks in the repo, <config>/hooks once installed.
 const UPDATER = path.join(__dirname, 'session-start-cgc.js')
 const BG_STAMP = path.join(STATE, 'update-bg')
-// The working state as it was when a blocking reason was last reported. When it changes, the
-// user has done something — and whatever they did, the recorded reason is no longer evidence.
+// The working state as it was when the last background attempt was ASKED FOR. When it changes,
+// the user has done something — and whatever they did, the reason that attempt failed for is no
+// longer evidence. Recorded at ask time, beside the stamp, so that every attempt refreshes it:
+// the first version wrote it only where a blocking reason was REPORTED, which is the one branch
+// that cannot run once the state has changed — so the digest froze at the pre-change state,
+// every later prompt compared against it and saw a change, and the clone span a fresh detached
+// updater on every single prompt, for ever, while never printing the reason again.
 const BLOCKED_AT = path.join(STATE, 'update-blocked-state')
 // Written by the session-start hook when, and only when, an update actually LANDS. Its mtime
 // is the moment the installed config last changed under everybody. update.json cannot answer
@@ -65,6 +70,12 @@ const LAST_APPLIED = path.join(STATE, 'last-applied')
 // clone blocked by a dirty tree cannot be unblocked by trying again, and the reason is said.
 const BG_RETRY_MS = 30 * 60 * 1000
 const BG_RUNNING_MS = 2 * 60 * 1000
+// The hard floor under EVERY attempt. A state change earns a retry without waiting out the
+// backoff — that is the point of watching the state — but a repository that changes on its own,
+// with a build watcher or a test run writing into it, must not turn that into a fetch, a pull,
+// an install and a doctor on every prompt. Thirty seconds is under a human noticing, and bounds
+// the pathological case at two attempts a minute.
+const BG_FLOOR_MS = 30 * 1000
 
 const mtime = (p) => { try { return fs.statSync(p).mtimeMs } catch { return 0 } }
 
@@ -214,6 +225,13 @@ try {
     try { u = JSON.parse(fs.readFileSync(LAST_APPLIED, 'utf8')) } catch { u = null }
     const was = seen
     noteSeen(local)
+    // AN UNREADABLE RECORD IS NOT A SUCCESSFUL ONE. The question above is answered by the file's
+    // MTIME, which a truncated or garbage file has just as much as a good one — so a corrupt
+    // record announced an update and asserted "the config, hooks and skills were re-applied" on
+    // the strength of a file that could not be parsed. Nothing here knows whether that is true.
+    if (!u) {
+      emit(`CGC's record of its last update is unreadable, so it cannot say whether the config on this machine matches the clone at ${local.slice(0, 7)}. Re-apply it to be sure: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
+    }
     // The version this clone is on NOW, and the head this SESSION came from — not the record's
     // `before`. last-applied is one slot: with two releases between one session's prompts it
     // held the second one's before/after, and the session was told it had moved from a version
@@ -265,7 +283,11 @@ try {
   if (remote === local) {
     // Nothing is running any more, so the next release must not be met with "it is updating in
     // the background now" for the two minutes the stamp would otherwise still cover.
-    try { fs.rmSync(BG_STAMP, { force: true }); fs.rmSync(BLOCKED_AT, { force: true }) } catch { /* nothing to clear */ }
+    // ONLY WHEN NOTHING IS RUNNING. The updater pulls before it installs, so this branch is
+    // reached while it is still installing — and clearing the stamp there removed the guard that
+    // stops a second updater starting beside the first. The install runs inside the update lock,
+    // so a held lock is the signal that one is still at work.
+    try { if (!fs.existsSync(path.join(STATE, 'update.lock'))) { fs.rmSync(BG_STAMP, { force: true }); fs.rmSync(BLOCKED_AT, { force: true }) } } catch { /* nothing to clear */ }
     process.exit(0)                                // current: the common path says nothing at all
   }
 
@@ -339,12 +361,22 @@ try {
   const blocking = stale ? null : recorded
   const since = Date.now() - asked
   let started = false
-  if (stale || since > (blocking ? BG_RETRY_MS : BG_RUNNING_MS)) {
+  // TWO GATES, and the first one is unconditional. However interesting the state change, an
+  // update is never asked for more often than once every BG_RUNNING_MS: a repository with a
+  // build watcher in it changes on its own, and "the state changed" must not become "spawn a
+  // fetch, a pull, an install and a doctor on every prompt". Past that floor, a reason that
+  // still stands waits out the half-hour, and one the user has invalidated is retried at once.
+  if (since > BG_FLOOR_MS && (stale || since > (blocking ? BG_RETRY_MS : BG_RUNNING_MS))) {
     if (!fs.existsSync(UPDATER)) {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and cannot update: its updater is missing at ${UPDATER}. Re-install: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
     }
     try {
-      fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(BG_STAMP, String(process.pid))
+      fs.mkdirSync(STATE, { recursive: true })
+      fs.writeFileSync(BG_STAMP, String(process.pid))
+      // The state this attempt is being made against. Every attempt refreshes it, so a change
+      // is measured from the last ASK rather than from the last report.
+      const at = stateNow()
+      if (at !== null) fs.writeFileSync(BLOCKED_AT, at)
       const bg = spawn(process.execPath, [UPDATER], { cwd: REPO, detached: true, stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true, env: { ...process.env } })
       // No session_id: this run belongs to no session. Passing one would record THIS session as
       // having been told the new head by a start line it never saw, and it would never hear
@@ -375,13 +407,10 @@ try {
     // Two different sentences, because "it failed and nothing is happening" and "it failed and
     // it is trying again right now" are different facts, and the first version said the former
     // even on the prompt that had just spawned a new attempt.
-    // Remember the state this reason was reported against, so that a change to it is read as
-    // "the user acted" rather than ignored for half an hour.
-    try { const now = stateNow(); if (now !== null) { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(BLOCKED_AT, now) } } catch { /* the fallback is the timed retry */ }
     if (started) {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main}. The last attempt did NOT land: ${why}. It is trying again in the background now; the next prompt reports the result.`)
     }
-    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and the update did NOT land: ${why}. It is running a stale version — the mandates, gates and fixes in those commits are not in force. Fix it and it retries within half an hour, or at once on the next prompt after you fix it: git -C "${REPO}" status`)
+    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and the update did NOT land: ${why}. It is running a stale version — the mandates, gates and fixes in those commits are not in force. Fix it and it retries within seconds, or within half an hour anyway: git -C "${REPO}" status`)
   }
 
   const target = (() => { try { return JSON.parse(out(git(['show', `origin/${main}:package.json`])) || '{}').version } catch { return '' } })()

@@ -6,7 +6,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync, copyFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync, copyFileSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, basename } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
@@ -944,7 +944,7 @@ test('a pull that landed with an install that FAILED is not announced as "the co
   assert.equal(promptAs(w, 's'), null, 'and it is said once')
 })
 
-test('a blocking reason the clone no longer has is not repeated — it is retried at once', (t) => {
+test('a blocking reason the clone no longer has is not repeated — it is retried as soon as the floor allows', (t) => {
   // The hook reported an untracked file that blocked the fast-forward, correctly. The user then
   // deleted the file, exactly as the message said. Every prompt for the next THIRTY MINUTES
   // repeated the same reason, naming a file that no longer existed, and retried nothing — while
@@ -961,8 +961,13 @@ test('a blocking reason the clone no longer has is not repeated — it is retrie
   assert.match(String(promptAs(w, 's')), /the update did NOT land/, 'the reason is reported while it is true')
 
   // The user does what the message says. The working state changed, so the recorded reason is
-  // no longer evidence — it is retried at once, and the falsified reason is not repeated.
+  // no longer evidence — it is retried without waiting out the backoff, and the falsified reason
+  // is not repeated. (Every attempt is under a thirty-second floor, so that a repository which
+  // changes on its own cannot turn "the state changed" into a spawn per prompt; the stamp is
+  // aged here to stand for a prompt a little later, which is what a person typing produces.)
   rmSync(join(w.friend, 'newthing.txt'), { force: true })
+  const aMomentLater = new Date(Date.now() - 45 * 1000)
+  utimesSync(join(w.config, '.cgc', 'update-bg'), aMomentLater, aMomentLater)
   const retried = String(promptAs(w, 's'))
   assert.match(retried, /updating in the background now/, retried)
   assert.doesNotMatch(retried, /newthing\.txt/, 'it must not name a file the user has deleted')
@@ -984,7 +989,7 @@ test('a blocking reason that is STILL true is retried on the timer, and says so 
   promptAs(w, 's')
   waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the blocked outcome')
   const standing = String(promptAs(w, 's'))
-  assert.match(standing, /Fix it and it retries within half an hour/, 'the wait is stated, not left to be guessed')
+  assert.match(standing, /retries within seconds, or within half an hour anyway/, 'the wait is stated, not left to be guessed')
 
   // Half an hour later, with the file still in the way.
   const stamp = join(w.config, '.cgc', 'update-bg')
@@ -1047,4 +1052,125 @@ test('a session start that DOES hold the lock still tells the installer so', (t)
   assert.equal(r.status, 0)
   assert.equal(readFileSync(join(w.friend, 'installed.txt'), 'utf8'), '1',
     'the installer must not queue behind the process that already holds the lock')
+})
+
+test('a blocked clone that changes for an unrelated reason retries at most once, not once per prompt', (t) => {
+  // The digest was written only where a blocking reason is REPORTED — the one branch that cannot
+  // run once the state has changed. So it froze at the pre-change state, every later prompt saw
+  // a difference, and the clone spawned a fresh detached updater on EVERY prompt for ever while
+  // never printing the reason again: worse than the every-two-minutes respawn it replaced.
+  const w = world(t, {})
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  w.release('1.1.0', 'a release that adds newthing.txt')
+  const stamp = join(w.config, '.cgc', 'update-bg')
+  const digest = join(w.config, '.cgc', 'update-blocked-state')
+
+  promptAs(w, 's')
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the blocked outcome')
+  assert.ok(existsSync(digest), 'the state is recorded when the attempt is ASKED for, so every attempt refreshes it')
+  assert.match(String(promptAs(w, 's')), /the update did NOT land/)
+  const asked = readFileSync(stamp, 'utf8')
+  const askedAt = statSync(stamp).mtimeMs
+
+  // Something unrelated changes — a build log, an editor swap file, the user simply working.
+  writeFileSync(join(w.friend, 'build-output.log'), 'noise', 'utf8')
+  for (let i = 0; i < 4; i++) promptAs(w, 's')
+  assert.equal(statSync(stamp).mtimeMs, askedAt, 'no respawn inside the floor, however interesting the change')
+  assert.equal(readFileSync(stamp, 'utf8'), asked)
+
+  // Past the floor, the change earns exactly one retry — and that retry refreshes the digest,
+  // so the prompt after it does not spawn again.
+  const old = new Date(Date.now() - 60 * 1000)
+  utimesSync(stamp, old, old)
+  promptAs(w, 's')
+  const retriedAt = statSync(stamp).mtimeMs
+  assert.ok(retriedAt > askedAt, 'the change is retried once the floor has passed')
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the retry to finish')
+  promptAs(w, 's')
+  promptAs(w, 's')
+  assert.equal(statSync(stamp).mtimeMs, retriedAt, 'and the refreshed digest stops it spawning again')
+  waitFor(() => !existsSync(join(w.config, '.cgc', 'update.lock')), 20000, 'the updater to finish')
+})
+
+test('the two-minute floor and the thirty-minute backoff are different numbers', (t) => {
+  // Deleting the backoff entirely — respawning every two minutes, which is what 1.64.0 did —
+  // passed every other test in this file, because nothing back-dated the stamp by a value
+  // between the two.
+  const w = world(t, {})
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  w.release('1.1.0', 'a release that adds newthing.txt')
+  const stamp = join(w.config, '.cgc', 'update-bg')
+  promptAs(w, 's')
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the blocked outcome')
+  promptAs(w, 's')
+
+  // Ten minutes on, with the blocker untouched: past the floor, well inside the backoff.
+  const tenAgo = new Date(Date.now() - 10 * 60 * 1000)
+  utimesSync(stamp, tenAgo, tenAgo)
+  const said = String(promptAs(w, 's'))
+  assert.equal(statSync(stamp).mtimeMs, tenAgo.getTime(), 'a standing reason is not retried every two minutes')
+  assert.match(said, /the update did NOT land/, said)
+  waitFor(() => !existsSync(join(w.config, '.cgc', 'update.lock')), 20000, 'the updater to finish')
+})
+
+test('a re-apply that failed and was then REPAIRED is not reported as still broken', (t) => {
+  // update() writes applied:false the moment the post-pull install exits non-zero — and verify()
+  // repairs it two lines later, in the same process, and nothing wrote that back. Every open
+  // session was told as fact that its hooks were stale and its gates not in force, and to run a
+  // command that had already succeeded.
+  const w = world(t, { doctor: true })
+  writeFileSync(join(w.author, 'tools', 'install.mjs'),
+    "import { writeFileSync, existsSync } from 'node:fs'\n"
+    + "const tried = new URL('../tried.txt', import.meta.url)\n"
+    + "if (!existsSync(tried)) { writeFileSync(tried, '1'); process.exit(3) }\n"
+    + "writeFileSync(new URL('../installed.txt', import.meta.url), process.argv.slice(2).join(' '))\n", 'utf8')
+  git(w.author, 'commit', '-q', '-am', 'a flaky install')
+  git(w.author, 'push', '-q', 'origin', 'main')
+  w.release('1.1.0', 'a release')
+
+  const { line } = fire(w, w.friend, 'startup')
+  assert.match(line, /updated 1\.0\.0 → 1\.1\.0/, line)
+  assert.ok(existsSync(join(w.friend, 'installed.txt')), 'precondition: the repair really did run and succeed')
+  const rec = JSON.parse(readFileSync(join(w.config, '.cgc', 'last-applied'), 'utf8'))
+  assert.equal(rec.applied, true, 'a clean doctor after the repair is the evidence, not the first exit code')
+
+  const state = join(w.config, '.cgc')
+  mkdirSync(join(state, 'seen'), { recursive: true })
+  writeFileSync(join(state, 'seen', 'b'), 'b'.repeat(40))
+  const older = new Date(Date.now() - 10 * 60 * 1000)
+  utimesSync(join(state, 'seen', 'b'), older, older)
+  const said = String(promptAs(w, 'b'))
+  assert.match(said, /were re-applied/, said)
+  assert.doesNotMatch(said, /FAILED|NOT in force/, 'it must not report a failure that was repaired')
+})
+
+test('the background stamp is not cleared while an updater still holds the lock', (t) => {
+  // The updater pulls before it installs, so a prompt from another session sees the clone as
+  // current while the install is still running — and clearing the stamp there removed the guard
+  // that stops a second updater starting beside the first.
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  writeFileSync(join(state, 'update-bg'), '1')
+  writeFileSync(join(state, 'update-blocked-state'), 'x')
+  writeFileSync(join(state, 'update.lock'), JSON.stringify({ pid: 999999, at: Date.now() }))
+
+  assert.equal(promptAs(w, 's'), null, 'the clone is current, so the prompt is silent')
+  assert.ok(existsSync(join(state, 'update-bg')), 'the guard survives while an updater holds the lock')
+
+  rmSync(join(state, 'update.lock'), { force: true })
+  assert.equal(promptAs(w, 's'), null)
+  assert.equal(existsSync(join(state, 'update-bg')), false, 'and is cleared once nothing is running')
+  assert.equal(existsSync(join(state, 'update-blocked-state')), false)
+})
+
+test('the installer treats only "1" as the lock being held', () => {
+  // The hook sets '1' or '0'; nothing pinned the READER, so changing it to !== '0' would make a
+  // bare `node tools/install.mjs` — where the variable is unset — skip locking entirely.
+  const src = readFileSync(join(REPO, 'tools', 'paths.mjs'), 'utf8')
+  assert.match(src, /process\.env\.CGC_UPDATE_LOCK_HELD === '1'/, 'held is an explicit "1", never "anything but 0"')
 })
