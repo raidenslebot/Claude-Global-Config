@@ -285,7 +285,10 @@ function selfTest(head) {
 function compose(ver, u, v, t) {
   const bad = (v && v.failed.length) || (t && (t.fail > 0 || t.timedOut)) || u.status === 'failed'
   const parts = [`CGC v${ver} ${bad ? 'DEGRADED' : 'enabled'}`]
-  if (v) parts.push(`${v.ok}/${v.total} checks${v.failed.length ? ` (${v.failed.length} failed: ${v.failed[0]})` : ''}${v.repaired ? ' · repaired' : ''}`)
+  // A warning counts against the total but is not a failure; "49/50 checks" with nothing after
+  // it read as one check failed, and the reader went looking for a failure that was not there.
+  const warns = !v || v.failed.length || !v.warn ? '' : ` (${v.warn} warning${v.warn === 1 ? '' : 's'})`
+  if (v) parts.push(`${v.ok}/${v.total} checks${v.failed.length ? ` (${v.failed.length} failed: ${v.failed[0]})` : warns}${v.repaired ? ' · repaired' : ''}`)
   else parts.push('checks unavailable')
   if (t) {
     const counts = `${t.pass}/${Math.max(0, t.total - (t.skipped || 0))} tests${t.fail ? ` (${t.fail} failed)` : ''}${t.skipped ? ` (${t.skipped} skipped)` : ''}`

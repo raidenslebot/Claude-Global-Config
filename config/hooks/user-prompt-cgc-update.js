@@ -128,30 +128,37 @@ function version() {
 
 (async () => {
 try {
+  // The fetch window. Only the NETWORK is rate-limited by it — the ref comparison below runs
+  // on every prompt — and so is every report of a condition that does not change between
+  // prompts. Those exited before the window was ever opened, so "not a git clone", "detached"
+  // and "offline" were said on every single message for the rest of the session.
+  let fresh = false
+  try { fresh = Date.now() - fs.statSync(STAMP).mtimeMs < FETCH_TTL_MS } catch { fresh = false }
+  const stamp = () => { try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(STAMP, String(Date.now())) } catch { /* stamp is an optimisation */ } }
+  /** Say a standing condition once per fetch window; inside the window, say nothing. */
+  const once = (text) => { if (fresh) process.exit(0); stamp(); emit(text) }
+
   // Not a clone: there is nothing to be current with, and saying so once is honest.
-  if (!fs.existsSync(path.join(REPO, '.git'))) emit(`CGC ${version()} is not a git clone at ${REPO}, so it cannot verify it is current. Re-install from the repository to enable automatic updates.`)
+  if (!fs.existsSync(path.join(REPO, '.git'))) once(`CGC ${version()} is not a git clone at ${REPO}, so it cannot verify it is current. Re-install from the repository to enable automatic updates.`)
 
   const branch = out(git(['rev-parse', '--abbrev-ref', 'HEAD'])) || 'main'
   const local = out(git(['rev-parse', 'HEAD']))
-  if (!local) emit(`CGC ${version()}: git did not answer in ${REPO}, so the version could not be verified against the repository.`)
+  if (!local) once(`CGC ${version()}: git did not answer in ${REPO}, so the version could not be verified against the repository.`)
   // A detached checkout is pinned on purpose. The session-start hook refuses to move it; this
   // one merged origin/HEAD into it and called that an update.
-  if (branch === 'HEAD') emit(`CGC ${version()} is a detached checkout at ${local.slice(0, 7)}, so it is not moved automatically. Check out a branch to resume updates.`)
+  if (branch === 'HEAD') once(`CGC ${version()} is a detached checkout at ${local.slice(0, 7)}, so it is not moved automatically. Check out a branch to resume updates.`)
   // No remote named origin: nothing to be current with. (An upstream is NOT required — a repo
   // created locally and pushed without -u has origin/<branch> and no tracking config, which is
   // exactly the author's clone; the session-start hook follows origin/<branch> directly too.)
   if (!out(git(['remote', 'get-url', 'origin']))) {
-    emit(`CGC ${version()} has no remote named origin at ${REPO}, so currency cannot be verified. Add one to enable automatic updates.`)
+    once(`CGC ${version()} has no remote named origin at ${REPO}, so currency cannot be verified. Add one to enable automatic updates.`)
   }
 
-  // Rate-limit only the NETWORK. The ref comparison below runs every single time.
-  let fresh = false
-  try { fresh = Date.now() - fs.statSync(STAMP).mtimeMs < FETCH_TTL_MS } catch { fresh = false }
   if (!fresh) {
     // Stamp BEFORE the fetch. Stamping after meant a fetch the host killed at 10 s never
     // stamped, so an unreachable remote stalled every prompt for the full 10 s, each kill
     // leaving another orphaned git process behind.
-    try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(STAMP, String(Date.now())) } catch { /* stamp is an optimisation */ }
+    stamp()
     // Four seconds, inside a 10 s hook: a remote that has not answered by then will not, and an
     // unreachable one measured 6.2 s end to end at 6 s — too little headroom on a slow machine.
     const f = await gitTree(['fetch', '--quiet', 'origin', branch], 4000)
@@ -167,19 +174,28 @@ try {
   }
 
   const remote = out(git(['rev-parse', `origin/${branch}`]))
-  if (!remote) emit(`CGC ${version()}: no origin/${branch} to compare against, so currency is unverified.`)
+  if (!remote) once(`CGC ${version()}: no origin/${branch} to compare against, so currency is unverified.`)
   if (remote === local) process.exit(0)          // current: the common path says nothing at all
 
   // Behind (or diverged). Only fast-forward — never discard local work.
   const behind = out(git(['rev-list', '--count', `HEAD..origin/${branch}`])) || '?'
   const ahead = out(git(['rev-list', '--count', `origin/${branch}..HEAD`])) || '0'
+  // Ahead and not behind — the author's clone between a commit and its push — has nothing to
+  // update. Saying "NOT updated, fast-forwarding would not be safe" on every prompt was wrong
+  // twice over: nothing was behind, and nothing was unsafe.
+  if (behind === '0') process.exit(0)
+
+  // A block is said once per fetch window, not once per prompt. The ref comparison above runs
+  // on every prompt, so a diverged or dirty clone was told the same thing on every message for
+  // the rest of the session — which is how a hook ends up deleted, and a deleted hook checks
+  // nothing. `fresh` is true when this prompt did not fetch; the one that fetched speaks.
   if (ahead !== '0') {
-    emit(`CGC ${version()} has ${ahead} local commit(s) not in origin/${branch} and ${behind} behind it. It was NOT updated automatically, because fast-forwarding would not be safe here. Resolve it before relying on any gate: git -C "${REPO}" status`)
+    once(`CGC ${version()} has ${ahead} local commit(s) not in origin/${branch} and is ${behind} behind it. It was NOT updated automatically, because fast-forwarding would not be safe here. Resolve it before relying on any gate: git -C "${REPO}" status`)
   }
 
   const dirty = out(git(['status', '--porcelain', '--untracked-files=no']))
   if (dirty) {
-    emit(`CGC ${version()} is ${behind} commit(s) behind origin/${branch} and has uncommitted changes, so it was NOT updated automatically. Commit or stash, then it updates itself: git -C "${REPO}" status`)
+    once(`CGC ${version()} is ${behind} commit(s) behind origin/${branch} and has uncommitted changes, so it was NOT updated automatically. Commit or stash, then it updates itself: git -C "${REPO}" status`)
   }
 
   // The fast-forward is quick; the install that follows it is not — `deps` can run npm for
@@ -196,7 +212,7 @@ try {
 
   if (!result) process.exit(0)                   // another process holds the lock and is doing it
   if (!result.ok) {
-    emit(`CGC was ${behind} commit(s) behind origin/${branch} and could not fast-forward: ${result.why}. It is running a stale version.`)
+    once(`CGC was ${behind} commit(s) behind origin/${branch} and could not fast-forward: ${result.why}. It is running a stale version.`)
   }
   try {
     const bg = spawn(process.execPath,

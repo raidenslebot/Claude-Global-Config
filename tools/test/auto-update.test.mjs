@@ -449,7 +449,8 @@ test('the per-prompt update refuses rather than destroys, and never blocks the p
   const bare = mkdtempSync(join(tmpdir(), 'cgc-notrepo-'))
   t.after(() => rmSync(bare, { recursive: true, force: true }))
   writeFileSync(join(bare, 'package.json'), JSON.stringify({ version: '9.9.9' }), 'utf8')
-  assert.match(String(fire(bare)), /not a git clone/)
+  assert.match(String(fire(bare, { CGC_FETCH_TTL_MS: '0' })), /not a git clone/)
+  assert.equal(fire(bare), null, 'and once per fetch window, not once per prompt')
 
   // Offline must not read as current: "checked and fine" and "could not check" are different.
   const off = fire(w.friend, { GIT_ALLOW_PROTOCOL: 'none', CGC_FETCH_TTL_MS: '0' })
@@ -481,6 +482,10 @@ test('the per-prompt updater refuses a detached checkout, names a local-only bra
   const said = prompt()
   assert.match(String(said), /detached checkout/, said)
   assert.equal(git('rev-parse', 'HEAD'), before, 'a detached HEAD is never moved')
+  // A standing condition is said once per fetch window. It exited before the window was ever
+  // opened, so "detached" — and "not a git clone", and "offline" — was said on every prompt.
+  assert.equal(prompt({ CGC_FETCH_TTL_MS: '600000' }), null, 'inside the window it is not repeated')
+  assert.match(String(prompt()), /detached checkout/, 'the next window says it again')
 
   git('checkout', '-q', '-b', 'wip')
   const wip = prompt()
@@ -561,4 +566,35 @@ test('a timed-out fetch leaves no git process behind', (t) => {
     ? spawnSync('powershell', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "Name='git.exe' OR Name='git-remote-http.exe'" | Where-Object { $_.CommandLine -like '*${tag}*' -or $_.CommandLine -like '*10.255.255.1:9/nope.git*' } | Measure-Object).Count`], { encoding: 'utf8', timeout: 30000 }).stdout.trim()
     : spawnSync('sh', ['-c', `ps -eo args | grep -E "${tag}|10[.]255[.]255[.]1:9/nope[.]git" | grep -v grep | wc -l`], { encoding: 'utf8' }).stdout.trim()
   assert.equal(Number(holders), 0, `git processes still running against the clone: ${holders}`)
+})
+
+test('an ahead-only clone is current, and a blocked one is told once per fetch window, not once per prompt', (t) => {
+  // The author's clone sits ahead of origin between every commit and its push, and was told
+  // "NOT updated automatically, because fast-forwarding would not be safe" on EVERY prompt —
+  // with nothing behind and nothing unsafe. And a clone that really is blocked (diverged, or
+  // dirty over files the update touches) got the same line on every message for the rest of
+  // the session: the ref comparison runs per prompt, so the report did too.
+  const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
+  const w = world(t, {})
+  const prompt = (env = {}) => {
+    const r = spawnSync(process.execPath, [HOOK], {
+      input: '{}', encoding: 'utf8', timeout: 120000,
+      env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0', ...env },
+    })
+    assert.equal(r.status, 0)
+    return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : null
+  }
+  const fgit = (...a) => git(w.friend, ...a)
+
+  // Ahead only: a local commit, origin unmoved. Nothing to say.
+  fgit('commit', '-q', '--allow-empty', '-m', 'wip')
+  assert.equal(prompt(), null, 'ahead of origin with nothing behind is current')
+
+  // Diverged: origin moves too. The prompt that fetched says so; the next one, inside the
+  // fetch window, says nothing — the block has been reported and has not changed.
+  w.release('1.1.0', 'upstream moves')
+  const said = prompt()
+  assert.match(String(said), /1 local commit\(s\) not in origin\/main and is 1 behind/, said)
+  assert.equal(prompt({ CGC_FETCH_TTL_MS: '600000' }), null, 'inside the fetch window the block is not repeated')
+  assert.match(String(prompt()), /local commit/, 'the next fetch reports it again')
 })

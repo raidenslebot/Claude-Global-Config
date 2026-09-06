@@ -5,6 +5,21 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.61.1 — 2026-09-05
+
+Two things the per-prompt updater said too often, found by using 1.61.0 for an hour. An
+ahead-only clone — the author's own,
+between every commit and its push — was told "NOT updated automatically, because fast-forwarding
+would not be safe" on every prompt, with nothing behind and nothing unsafe; it is current, and
+says nothing. A clone that really is blocked, diverged or dirty over files the update touches,
+got its line on every message for the rest of the session, because the ref comparison runs per
+prompt and so did the report; it is said once per fetch window now, by the prompt that fetched.
+The same rule covers every standing condition — not a clone, no origin, detached, a branch origin
+lacks, offline, a fast-forward that fails — each of which exited before the window was ever
+opened and so was repeated on every prompt. And the session line says `49/50 checks (1 warning)`
+rather than `49/50 checks`, which read as one check failed and sent the reader looking for a
+failure that was not there.
+
 ## 1.61.0 — 2026-09-05
 
 Seven external resources absorbed, a per-prompt update guarantee, and the resource discipline the
@@ -132,6 +147,10 @@ still reads zero under-assignments.
 The doctor also stops warning "no entry point in args" on a standalone-binary server —
 `codebase-memory-mcp` is one — which was a warning about the correct shape at every session
 start; only a runtime command needs a script named in `args`.
+
+The per-prompt updater's upstream check caught the author's clone too — pushed without
+`-u`, it has `origin/main` and no tracking config — and is replaced by following
+`origin/<branch>` directly, as the session-start hook always has.
 
 ## 1.60.0 — 2026-09-03
 
