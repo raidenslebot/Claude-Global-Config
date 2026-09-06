@@ -6,7 +6,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync, copyFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync, copyFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, basename } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
@@ -697,6 +697,12 @@ test("a session's own commit is not announced to it as somebody else's update", 
   assert.equal(promptAs(w, 'author'), null, 'after the push: still nothing — it was this clone\'s own commit')
 })
 
+/** A real session start for one session id, which records what that session was told. */
+const start = (w, session) => spawnSync(process.execPath, [HOOK], {
+  input: JSON.stringify({ source: 'startup', session_id: session }), encoding: 'utf8', timeout: 120000,
+  env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config },
+})
+
 test('every session hears about an update once — the one that started it, one that was open before it, one that only started', (t) => {
   const w = world(t, {})
   // X started before the update and never prompted: its session-start hook recorded the head
@@ -714,27 +720,169 @@ test('every session hears about an update once — the one that started it, one 
   assert.match(String(a1), /updating in the background/, a1)
   updated(w)
 
+  // A SESSION START LANDS BETWEEN THE UPDATE AND THE TELLING. update.json is one slot, and a
+  // start on a current clone rewrites it with {status:'current'} — which is why "was this an
+  // update or a local commit?" cannot be asked of it. It is asked of last-applied, whose mtime
+  // says when the config last changed under everybody, and which nothing but an update writes.
+  assert.equal(start(w, 'c-new').status, 0)
+  assert.equal(JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status, 'current',
+    'precondition: the later start really did overwrite update.json')
+
   const a2 = promptAs(w, 'a')
-  assert.match(String(a2), /updated itself to v1\.1\.0 .* since this session last checked/, a2)
-  assert.match(String(a2), /config was re-applied/)
+  assert.match(String(a2), /updated itself since this session last checked/, a2)
+  assert.match(String(a2), /re-applied/)
   assert.equal(promptAs(w, 'a'), null, 'A: told once')
   const b = promptAs(w, 'b')
-  assert.match(String(b), /updated itself to v1\.1\.0/, b)
+  assert.match(String(b), /updated itself since this session last checked/, b)
+  assert.match(String(b), /v1\.0\.0 → v1\.1\.0/, b)
   assert.equal(promptAs(w, 'b'), null, 'B: told once')
   const xi = promptAs(w, 'x-idle')
-  assert.match(String(xi), /updated itself to v1\.1\.0/, 'X, whose first prompt lands after the update, is told its start line is stale')
+  assert.match(String(xi), /updated itself since this session last checked/, 'X, whose first prompt lands after the update, is told its start line is stale')
   assert.equal(promptAs(w, 'c-new'), null, 'a session that started after the update has nothing to be told')
 })
 
-test('a head that moved by a local commit in another window is named as that, not as an update', (t) => {
-  // update.json records what the session-start hook did; a head it did not produce moved by a
-  // commit, and the config was NOT re-applied by that — the line must not claim it was.
+
+test('an update that cannot land is REPORTED, not announced as still running for ever', (t) => {
+  // The hand-off said "updating in the background now — the next prompt reports the result" and
+  // then never looked: update.json was read only on the current path, which a clone that is
+  // still behind never reaches. An untracked file the pull would overwrite is the case that
+  // proves it — the porcelain probe uses --untracked-files=no and cannot see it, so only the
+  // pull discovers it. Every prompt said "updating now", for ever, and launched a fresh
+  // detached updater every two minutes.
   const w = world(t, {})
-  assert.equal(promptAs(w, 's'), null)
-  git(w.friend, 'commit', '-q', '--allow-empty', '-m', 'from another window')
-  git(w.friend, 'push', '-q', 'origin', 'main')
-  const said = promptAs(w, 's')
-  assert.match(String(said), /moved from [0-9a-f]{7} since this session last checked by a local commit, not an update/, said)
-  assert.doesNotMatch(String(said), /re-applied;/)
-  assert.equal(promptAs(w, 's'), null, 'once')
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')          // untracked, in the way
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  w.release('1.1.0', 'a release that adds newthing.txt')
+
+  const first = promptAs(w, 's')
+  assert.match(String(first), /updating in the background/, first)
+  waitFor(() => existsSync(join(w.config, '.cgc', 'update.json')) && JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty', 20000, 'the blocked update to record its outcome')
+
+  const second = promptAs(w, 's')
+  assert.match(String(second), /the update did NOT land/, second)
+  assert.match(String(second), /newthing\.txt/, 'and says what blocked it')
+  assert.match(String(second), /running a stale version/, 'and that the new commits are not in force')
+  assert.doesNotMatch(String(second), /updating in the background/)
+  // And it does not relaunch an updater on every prompt: the stamp is minutes old, not seconds.
+  const stampAt = readFileSync(join(w.config, '.cgc', 'update-bg'), 'utf8')
+  promptAs(w, 's')
+  assert.equal(readFileSync(join(w.config, '.cgc', 'update-bg'), 'utf8'), stampAt, 'no respawn while the failure stands')
+  assert.equal(head(w.friend), head(w.friend), 'and nothing was merged')
+})
+
+test('a missing updater is said, not spawned into silence', (t) => {
+  // spawn() succeeds for a path that does not exist and the child dies at once; with stdio
+  // ignored, the hook reported "updating in the background" on every prompt while nothing moved.
+  const w = world(t, {})
+  w.release('1.1.0', 'a release')
+  const hookDir = mkdtempSync(join(tmpdir(), 'cgc-nohook-'))
+  t.after(() => rmSync(hookDir, { recursive: true, force: true }))
+  const lone = join(hookDir, 'user-prompt-cgc-update.js')
+  writeFileSync(lone, readFileSync(join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js'), 'utf8'), 'utf8')
+  const r = spawnSync(process.execPath, [lone], {
+    input: '{}', encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
+  })
+  assert.equal(r.status, 0)
+  const said = JSON.parse(r.stdout).hookSpecificOutput.additionalContext
+  assert.match(said, /its updater is missing/, said)
+  assert.doesNotMatch(said, /updating in the background/)
+})
+
+test('git that cannot answer about local changes is not read as a clean tree', (t) => {
+  // Every git call is clamped to what is left of the budget, and out() returns null for a call
+  // that failed or timed out exactly as it does for an empty answer. Read as "no local changes"
+  // and "0 commits ahead", those two conflations hand a dirty or diverged clone to the updater.
+  // A corrupt index is the honest way to produce exactly that: `git status` cannot answer, while
+  // rev-parse, rev-list and symbolic-ref — which never read the index — all answer normally.
+  // The test is a CONTRAST: one clone, one fetch window, two runs that differ only in whether
+  // git can read the index. GIT_INDEX_FILE is inherited by the hook's git calls, so pointing it
+  // at a damaged file makes `status --porcelain` exit non-zero while rev-parse and rev-list —
+  // which never read an index — answer normally. Inside the window every standing condition is
+  // silent by design, so what is asserted is the decision, not the sentence: with the index
+  // readable the clone is handed to the updater, and with it unreadable it never is.
+  const w = world(t, {})
+  w.release('1.1.0', 'a release')
+  git(w.friend, 'fetch', '-q', 'origin', 'main')       // git will not fetch with a bad index
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  const window = () => writeFileSync(join(state, 'last-remote-check'), String(Date.now()))
+  const run = (env) => spawnSync(process.execPath, [join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')], {
+    input: '{}', encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, ...env },
+  })
+
+  const bad = join(w.root, 'not-an-index')
+  writeFileSync(bad, 'x', 'utf8')
+  assert.notEqual(spawnSync('git', ['-C', w.friend, 'status', '--porcelain'], { encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: bad } }).status, 0,
+    'precondition: status cannot answer')
+  assert.equal(spawnSync('git', ['-C', w.friend, 'rev-parse', 'HEAD'], { encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: bad } }).status, 0,
+    'precondition: the rest of the path still answers')
+
+  window()
+  assert.equal(run({ GIT_INDEX_FILE: bad }).status, 0, 'the hook never fails a prompt')
+  assert.equal(existsSync(join(state, 'update-bg')), false,
+    'a tree git cannot describe is never handed to the updater — unknown is not clean')
+  assert.equal(head(w.friend), head(w.friend), 'and nothing was merged')
+
+  // The contrast: everything else identical, and now it does hand off.
+  window()
+  assert.equal(run({}).status, 0)
+  assert.ok(existsSync(join(state, 'update-bg')), 'a readable index is handed off, so the test is testing the index')
+  // The updater's cwd is the clone; let it finish before the world is removed.
+  waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
+})
+
+test('the per-session record is swept, not accumulated for ever', (t) => {
+  // The sweep ran only when this session had no record — and then the session-start hook began
+  // writing one at every start, which made that condition unreachable and the sweep dead code.
+  const w = world(t, {})
+  const dir = join(w.config, '.cgc', 'seen')
+  mkdirSync(dir, { recursive: true })
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  for (let i = 0; i < 150; i++) {
+    const p = join(dir, `stale-${i}`)
+    writeFileSync(p, 'x')
+    utimesSync(p, old, old)
+  }
+  promptAs(w, 'fresh-session')
+  const names = readdirSync(dir)
+  assert.ok(names.includes('fresh-session'), 'this session is recorded')
+  assert.ok(names.length < 10, `week-old records are swept, ${names.length} left`)
+})
+
+test('a session start that could not get the lock does not tell the installer the lock is held', (t) => {
+  // withLock runs its body whether or not it got the lock, and runInstall asserted "held" to the
+  // installer unconditionally — and paths.mjs makes acquireUpdateLock() a no-op on that
+  // assertion. So a session that waited out the lock spawned an installer with locking switched
+  // off, read-modify-writing settings.json beside the process that did hold it.
+  const w = world(t, { doctor: true })
+  // A live lock held by somebody else, and a wait short enough to test.
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  writeFileSync(join(state, 'update.lock'), JSON.stringify({ pid: 999999, at: Date.now() }))
+  // The stub install records the flag it was given.
+  writeFileSync(join(w.friend, 'tools', 'install.mjs'),
+    "import { writeFileSync } from 'node:fs'\nwriteFileSync(new URL('../installed.txt', import.meta.url), String(process.env.CGC_UPDATE_LOCK_HELD || 'unset'))\n", 'utf8')
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: '{"source":"startup"}', encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_LOCK_WAIT_MS: '500' },
+  })
+  assert.equal(r.status, 0)
+  assert.equal(readFileSync(join(w.friend, 'installed.txt'), 'utf8'), 'unset',
+    'the installer must take the lock itself when its parent does not hold it')
+  assert.ok(existsSync(join(state, 'update.lock')), "and the other process's lock is left alone")
+})
+
+test("a doctor warning reaches the reader, not just the count", (t) => {
+  // A registration pointing at a binary that is gone is a warning, correctly — the repair cannot
+  // download it — but only the COUNT reached the line, so a server that fails to start in every
+  // session read as "enabled · (1 warning)" and the instruction that fixes it went nowhere.
+  const w = world(t, {})
+  writeFileSync(join(w.friend, 'tools', 'doctor.mjs'),
+    "console.log(JSON.stringify({ healthy: true, counts: { ok: 3, warn: 1 }, results: [{ level: 'warn', message: 'codebase-memory-mcp: registered at C:/gone.exe, which is gone' }] }))\n", 'utf8')
+  const { line, ctx } = fire(w, w.friend)
+  assert.match(line, /3\/4 checks \(1 warning\)/, line)
+  assert.match(ctx, /Warning: codebase-memory-mcp: registered at .*which is gone/, ctx)
 })

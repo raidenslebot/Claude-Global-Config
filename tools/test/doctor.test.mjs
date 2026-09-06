@@ -8,7 +8,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -247,4 +247,42 @@ test('a standalone server registered at a path that is gone does not loop the re
   assert.ok(rows.every((r) => r.level !== 'fail'), 'nothing about it is a failure the repair would loop on:\n' + rows.map((r) => r.level + ' ' + r.message).join('\n'))
   const gone = rows.find((r) => /which is gone/.test(r.message))
   assert.ok(gone && /--only=mcp\b/.test(gone.message), 'and the dead registration names the step that re-downloads it')
+})
+
+test('a binary that merely MOVED is a repairable failure, and the summary stops claiming it is fine', (t) => {
+  // The sibling of the dead-registration case: the registered path is gone, but the binary is
+  // somewhere this package looks — which is exactly what mcp-register can put right, so it stays
+  // a failure the session-start repair clears. And the summary counted names present in the
+  // config, so it said "all 3 … are registered" one line under a warning that one of them
+  // cannot start. Registered is not the claim that matters.
+  const d = scratch(t)
+  const progs = join(d, 'AppData', 'Local', 'Programs', 'codebase-memory-mcp')
+  mkdirSync(progs, { recursive: true })
+  writeFileSync(join(progs, process.platform === 'win32' ? 'codebase-memory-mcp.exe' : 'codebase-memory-mcp'), '', 'utf8')
+  // Every server the manifest requires is registered — the vendored ones at their real entries —
+  // so the summary line is reached at all. With one of them missing the doctor takes the
+  // "not registered" branch instead and never states the claim under test.
+  const want = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+  const mcpServers = {}
+  for (const [name, spec] of Object.entries(want)) {
+    mcpServers[name] = spec.entry
+      ? { command: process.execPath, args: [join(REPO, 'library', 'mcp-servers', 'node_modules', ...spec.entry)], env: {} }
+      : { command: join(d, 'gone', 'codebase-memory-mcp.exe'), args: [], env: {} }
+  }
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers }), 'utf8')
+  const sys = process.platform === 'win32' ? join(process.env.SystemRoot || process.env.windir || '', 'System32') : '/usr/bin:/bin'
+  const j = runDoctorJson(d, {
+    LOCALAPPDATA: join(d, 'AppData', 'Local'),
+    PATH: [dirname(process.execPath), sys].join(process.platform === 'win32' ? ';' : ':'),
+  })
+  const shown = j.results.filter((r) => r.level !== 'ok').map((r) => `${r.level} ${r.message}`).join('\n')
+  const moved = j.results.find((r) => /the binary is at/.test(r.message))
+  assert.ok(moved, `the move is reported:\n${shown}`)
+  assert.equal(moved.level, 'fail')
+  assert.equal(moved.repairable, true, 'mcp-register can re-register a binary it can find')
+  assert.match(moved.message, /--only=mcp-register/)
+  // And nothing claims they are all fine.
+  assert.equal(j.results.some((r) => /all \d+ MCP servers this package requires are registered$/.test(r.message)), false,
+    'the summary must not contradict the row above it')
+  assert.ok(j.results.some((r) => /registered but cannot start/.test(r.message)), 'it names the one that cannot start')
 })

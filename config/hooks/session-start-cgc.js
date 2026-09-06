@@ -57,8 +57,16 @@ const writeJson = (p, v) => { try { fs.mkdirSync(path.dirname(p), { recursive: t
 const tool = (name) => path.join(REPO, 'tools', name)
 const version = () => readJson(path.join(REPO, 'package.json'))?.version || '?'
 
+// Set by withLock while, and only while, this process holds the lock. runInstall told the
+// installer "the lock is held" unconditionally — and withLock runs its body whether or not it
+// got the lock, so a session that waited thirty seconds and gave up spawned an installer with
+// locking switched OFF. Measured: three installers, two overlapping for 28 s, all doing
+// read-modify-write on settings.json and ~/.claude.json. Now a process that does not hold the
+// lock spawns an installer that takes it properly and waits its turn.
+let LOCK_HELD = false
+
 function runInstall(fixes = []) {
-  // This runs inside withLock, so the installer must not queue behind its own parent.
+  // When this process holds the lock, the installer must not queue behind its own parent.
   // mcp-register is in the list and `mcp` is not: registering the servers is a JSON write that
   // takes a tenth of a second, while `mcp` fetches packages and a browser over the network. A
   // machine where CGC was installed before Claude Code had ever run had no ~/.claude.json to
@@ -69,7 +77,7 @@ function runInstall(fixes = []) {
   // DEGRADED line and an instruction to type by hand after every rewrite.
   const extra = fixes.includes('dedupe') ? ['--dedupe'] : []
   const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register', ...extra],
-    { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, CGC_UPDATE_LOCK_HELD: '1' } })
+    { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, ...(LOCK_HELD ? { CGC_UPDATE_LOCK_HELD: '1' } : {}) } })
   return r.status === 0
 }
 
@@ -85,7 +93,9 @@ function runInstall(fixes = []) {
 // rather than hanging on someone else's git.
 const LOCK = path.join(STATE, 'update.lock')
 const LOCK_STALE_MS = 5 * 60 * 1000
-const LOCK_WAIT_MS = 30 * 1000
+// Overridable only so a test can prove what happens when the wait runs out: the real
+// behaviour is a thirty-second wait, which no test can afford to sit through.
+const LOCK_WAIT_MS = Number(process.env.CGC_LOCK_WAIT_MS || 30 * 1000)
 
 function sleep(ms) {
   try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch { /* no sleep, so spin once */ }
@@ -112,7 +122,9 @@ function withLock(fn) {
       sleep(250)
     }
   }
+  LOCK_HELD = held
   try { return fn() } finally {
+    LOCK_HELD = false
     // Only OUR lock. A holder that outlived the stale window has had its lock reclaimed by
     // another process; removing that one would let a third in beside it.
     if (held) { try { if (JSON.parse(fs.readFileSync(LOCK, 'utf8')).pid === process.pid) fs.unlinkSync(LOCK) } catch { /* gone, or not ours */ } }
@@ -175,6 +187,11 @@ function update() {
   // Re-apply what a pull changes on disk but not in the live config. argo's CLI and plugin
   // point into the repo and are updated by the pull itself.
   const applied = runInstall()
+  // A record of the last update that actually LANDED, with its own mtime. update.json cannot
+  // serve: it is one slot, rewritten by the next session start with 'current', so a still-open
+  // session asking "did the config change under me?" was told a real update was "a local
+  // commit, not an update" — and told to run an install that had already run.
+  writeJson(path.join(STATE, 'last-applied'), { at: Date.now(), head: remote, from: head, before, after: version(), applied })
   return finish({ status: 'updated', head: remote, from: head, before, after: version(), subjects, hooksChanged, applied })
 }
 
@@ -193,7 +210,12 @@ function doctor() {
   const repairable = fails.some((x) => x.repairable !== false)
   // The extra install flags those failures asked for, deduplicated.
   const fixes = [...new Set(fails.flatMap((x) => (x.fix ? [x.fix] : [])))]
-  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed, repairable, fixes }
+  // The warn TEXT, not just the count. A registration pointing at a binary that is gone is a
+  // warning, correctly — the repair cannot download it — but only the count reached the line,
+  // so a server that fails to start in every session read as "enabled · (1 warning)" and the
+  // instruction that fixes it was delivered nowhere.
+  const warned = (j.results || []).filter((r) => r.level === 'warn').map((r) => r.message)
+  return { ok: c.ok || 0, total: (c.ok || 0) + (c.warn || 0) + (c.fail || 0), warn: c.warn || 0, failed, warned, repairable, fixes }
 }
 function readJsonText(s) { try { return JSON.parse(String(s || '')) } catch { return null } }
 
@@ -373,6 +395,9 @@ function main() {
   const line = compose(ver, u, v, t)
   const extra = details(u)
   const fix = v && v.failed.length ? `\nStill failing after repair: ${v.failed.join('; ')} — run node ${tool('doctor.mjs')} and fix what it names.` : ''
+  const warns = v && !v.failed.length && v.warned && v.warned.length
+    ? `\nWarning: ${v.warned[0]}${v.warned.length > 1 ? ` (and ${v.warned.length - 1} more — run node ${tool('doctor.mjs')})` : ''}`
+    : ''
   const tests = t && t.fail
     ? (t.background && t.forHead && t.head && t.forHead !== t.head
       ? `\n${t.fail} of the package's tests failed at ${short(t.forHead)}; ${short(t.head)} is being tested in the background now — run npm test in ${REPO} to see it.`
@@ -388,7 +413,7 @@ function main() {
     systemMessage: line,
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
-      additionalContext: `CGC STATUS — ${line}${extra ? '\n' + extra : ''}${fix}${tests}\n${say}`,
+      additionalContext: `CGC STATUS — ${line}${extra ? '\n' + extra : ''}${fix}${warns}${tests}\n${say}`,
     },
   }) + '\n')
 }

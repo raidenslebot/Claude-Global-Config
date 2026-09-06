@@ -53,6 +53,17 @@ const STAMP = path.join(STATE, 'last-remote-check')
 // places this file lives: config/hooks in the repo, <config>/hooks once installed.
 const UPDATER = path.join(__dirname, 'session-start-cgc.js')
 const BG_STAMP = path.join(STATE, 'update-bg')
+// Written by the session-start hook when, and only when, an update actually LANDS. Its mtime
+// is the moment the installed config last changed under everybody. update.json cannot answer
+// that question — it is one slot, rewritten by every later session start with 'current', so a
+// real update was reported to still-open sessions as "a local commit, not an update".
+const LAST_APPLIED = path.join(STATE, 'last-applied')
+// A background attempt that failed is retried this often, rather than every two minutes: a
+// clone blocked by a dirty tree cannot be unblocked by trying again, and the reason is said.
+const BG_RETRY_MS = 30 * 60 * 1000
+const BG_RUNNING_MS = 2 * 60 * 1000
+
+const mtime = (p) => { try { return fs.statSync(p).mtimeMs } catch { return 0 } }
 
 // Sixty seconds. The local ref comparison below runs on EVERY prompt and costs no network; this
 // bounds only how old the remote knowledge may be. A burst of prompts is one fetch, and a release
@@ -158,8 +169,9 @@ try {
   if (!main) once(`CGC ${version()}: origin has no branch to follow (no origin/HEAD, and no ${branch}, main or master), so currency cannot be verified. Fetch once: git -C "${REPO}" fetch origin`)
   if (branch !== main) once(`CGC ${version()} is on branch "${branch}"; ${main} is not followed here, so it is not updated automatically. Updates resume on ${main}.`)
 
-  // This session's memory of the head it was last told about. The session-start hook writes
-  // it at every start, so a session's first prompt already knows what its start line said.
+  // This session's memory. The FILE holds the head this session was last told about; its
+  // MTIME is when it was told. The session-start hook writes it at every start, so a session's
+  // first prompt already knows what its own start line said.
   const seenFile = SESSION ? path.join(STATE, 'seen', SESSION) : null
   const seen = (() => { try { return seenFile ? fs.readFileSync(seenFile, 'utf8').trim() : null } catch { return null } })()
   const noteSeen = (h) => {
@@ -167,16 +179,31 @@ try {
     try {
       fs.mkdirSync(path.dirname(seenFile), { recursive: true })
       fs.writeFileSync(seenFile, h)
-      // A file per session accumulates; on a session's first note, sweep the week-old ones.
-      if (!seen) {
-        const dir = path.dirname(seenFile)
-        const names = fs.readdirSync(dir)
-        if (names.length > 200) {
-          const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-          for (const n of names) { try { const p = path.join(dir, n); if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { force: true }) } catch { /* next */ } }
-        }
+      // One file per session, for ever, unless somebody sweeps. This runs only when a session
+      // is first seen or is told something — never on the silent common path — so the readdir
+      // is rare. (The first version swept only when `seen` was null, and the session-start
+      // hook then began writing the file at every start, which made `seen` never null and the
+      // sweep dead code: 251 files left of 250 stale ones.)
+      const dir = path.dirname(seenFile)
+      const names = fs.readdirSync(dir)
+      if (names.length > 100) {
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+        for (const n of names) { try { const p = path.join(dir, n); if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { force: true }) } catch { /* next */ } }
       }
     } catch { /* a convenience */ }
+  }
+
+  // Has an update landed since this session was last told anything? One question, asked the
+  // same way on every path below — current, ahead, behind — because the thing a session needs
+  // to hear is not "the head changed" but "the config under you was re-applied".
+  const appliedSinceSeen = () => Boolean(seenFile) && mtime(LAST_APPLIED) > mtime(seenFile)
+  const tellApplied = () => {
+    let u = null
+    try { u = JSON.parse(fs.readFileSync(LAST_APPLIED, 'utf8')) } catch { u = null }
+    noteSeen(local)
+    const to = u && u.after ? `v${u.after}` : `v${version()}`
+    const from = u && u.before ? `v${u.before} → ` : ''
+    emit(`CGC updated itself since this session last checked: ${from}${to} (${String((u && u.head) || local).slice(0, 7)}). The config, hooks and skills were re-applied; the mandates, gates and fixes in those commits are in force from this message on.`)
   }
 
   if (!fresh) {
@@ -203,41 +230,38 @@ try {
 
   const remote = out(git(['rev-parse', `origin/${main}`]))
   if (!remote) once(`CGC ${version()}: no origin/${main} to compare against, so currency is unverified.`)
-  if (remote === local) {
-    // Current — but was THIS session told? The update may have been applied by the session-start
-    // hook this hook started in the background, or by another session; either way the local ref
-    // comparison reads "current" here while this session's hooks, config and mandates changed
-    // under it. Once per session, per head. The session-start hook records what it did, so a
-    // head that moved by an UPDATE is told apart from one that moved by a local commit made in
-    // this clone — the first re-applied the config; the second did not.
-    if (seen && seen !== local) {
-      noteSeen(local)
-      let u = null
-      try { u = JSON.parse(fs.readFileSync(path.join(STATE, 'update.json'), 'utf8')) } catch { u = null }
-      if (u && u.status === 'updated' && u.head === local) {
-        emit(`CGC updated itself to v${version()} (${local.slice(0, 7)}) since this session last checked, ${seen.slice(0, 7)} → ${local.slice(0, 7)}. The config was re-applied; the mandates, gates and fixes in between are in force from this message on.`)
-      }
-      emit(`CGC's clone is at v${version()} (${local.slice(0, 7)}), moved from ${seen.slice(0, 7)} since this session last checked by a local commit, not an update. The installed config is re-applied only by an update or by: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
-    }
-    if (!seen) noteSeen(local)
-    process.exit(0)                                // the common path says nothing at all
-  }
+
+  // Whatever the ref comparison says, an update that landed since this session was last told
+  // is told to it — the session that started the update included, and a window that was open
+  // before it and has only now prompted. A head that moved by a LOCAL COMMIT writes no
+  // last-applied record, so it is silent: a commit re-applies nothing.
+  if (appliedSinceSeen()) tellApplied()
+  if (!seen) noteSeen(local)
+
+  if (remote === local) process.exit(0)            // current: the common path says nothing at all
 
   // Behind (or diverged). Only fast-forward — never discard local work.
   const behind = out(git(['rev-list', '--count', `HEAD..origin/${main}`])) || '?'
-  const ahead = out(git(['rev-list', '--count', `origin/${main}..HEAD`])) || '0'
+  // "git did not answer" is not "zero", and not "clean". Every call below is clamped to what is
+  // left of the budget, so a slow machine can time one out — and `out()` returns null for that
+  // exactly as it does for an empty answer. Read as 0 commits ahead and a clean tree, those two
+  // conflations hand a DIVERGED or DIRTY clone to the updater. Unknown is its own answer.
+  const aheadR = git(['rev-list', '--count', `origin/${main}..HEAD`])
+  const dirtyR = git(['status', '--porcelain', '--untracked-files=no'])
+  if (aheadR.status !== 0 || dirtyR.status !== 0) {
+    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main}, but git could not answer about local commits or local changes, so it was NOT updated automatically. It will try again shortly.`)
+  }
+  const ahead = String(aheadR.stdout || '').trim() || '0'
+  const dirty = String(dirtyR.stdout || '').trim()
+
   // Ahead and not behind — the author's clone between a commit and its push — has nothing to
   // update. Saying "NOT updated, fast-forwarding would not be safe" on every prompt was wrong
-  // twice over: nothing was behind, and nothing was unsafe. The commit is this clone's own work,
-  // so it is noted as seen: after the push, "current" must not read as an update this session
-  // was never told about.
-  if (behind === '0') { noteSeen(local); process.exit(0) }
+  // twice over: nothing was behind, and nothing was unsafe.
+  if (behind === '0') { if (local !== seen) noteSeen(local); process.exit(0) }
 
   if (ahead !== '0') {
     once(`CGC ${version()} has ${ahead} local commit(s) not in origin/${main} and is ${behind} behind it. It was NOT updated automatically, because fast-forwarding would not be safe here. Resolve it before relying on any gate: git -C "${REPO}" status`)
   }
-
-  const dirty = out(git(['status', '--porcelain', '--untracked-files=no']))
   if (dirty) {
     once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and has uncommitted changes, so it was NOT updated automatically. Commit or stash, then it updates itself: git -C "${REPO}" status`)
   }
@@ -246,15 +270,25 @@ try {
   // DETACHED to do exactly what it does at every start: pull under the lock with a timeout git
   // can clean up after, re-apply the config, run the doctor, repair, record what it did. Nothing
   // here merges: a merge killed at a hook's deadline left .git/index.lock and a half checkout
-  // behind, and both hooks then told the user to commit changes the user never made. One
-  // updater, in a process nobody kills; this session hears the result on its next prompt.
-  // This session's first sight of the clone is the OLD head: recorded now, so the prompt after
-  // the update sees a head it was not told about and reports it — the session that started
-  // the update is told it finished, like every other.
-  if (!seen) noteSeen(local)
-  let running = false
-  try { running = Date.now() - fs.statSync(BG_STAMP).mtimeMs < 2 * 60 * 1000 } catch { running = false }
-  if (!running) {
+  // behind, and both hooks then told the user to commit changes the user never made.
+  //
+  // AND THE ANSWER IS READ BACK. The first version said "updating in the background now — the
+  // next prompt reports the result" and then never looked: a fast-forward blocked by an
+  // untracked file that would be overwritten (which the porcelain probe above cannot see, and
+  // only the pull discovers) left every prompt saying "updating now" for ever, with a fresh
+  // detached updater launched every two minutes and the real reason recorded in update.json
+  // where nothing read it.
+  const asked = mtime(BG_STAMP)
+  let ran = null
+  try { ran = JSON.parse(fs.readFileSync(path.join(STATE, 'update.json'), 'utf8')) } catch { ran = null }
+  // An outcome recorded after we last asked is the answer to our request.
+  const answered = ran && asked && (ran.at || 0) >= asked && ran.status !== 'updated' && ran.status !== 'current'
+    ? ran : null
+  const since = Date.now() - asked
+  if (since > (answered ? BG_RETRY_MS : BG_RUNNING_MS)) {
+    if (!fs.existsSync(UPDATER)) {
+      once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and cannot update: its updater is missing at ${UPDATER}. Re-install: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
+    }
     try {
       fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(BG_STAMP, String(process.pid))
       const bg = spawn(process.execPath, [UPDATER], { cwd: REPO, detached: true, stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true, env: { ...process.env } })
@@ -267,8 +301,28 @@ try {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and could not start the update (${String(e.message || e).slice(0, 60)}). Run: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
     }
   }
+
+  if (answered) {
+    const why = {
+      // 200, not 90: the FILENAME git names is the whole content of this message, and it sits
+      // at the end of git's sentence — truncating cut it off.
+      dirty: `files it changes were edited locally (${String(answered.error || '').slice(0, 200)})`,
+      failed: `the fast-forward failed (${String(answered.error || '').slice(0, 200)})`,
+      diverged: 'this clone has local commits that are not on the remote branch',
+      ahead: 'this clone is ahead of the remote branch',
+      offline: 'the remote could not be reached',
+      'no-git': 'it is not a git clone',
+      'no-git-cli': 'git is not on PATH',
+      detached: 'it is a detached checkout',
+      branch: 'another branch is checked out',
+      'no-remote-branch': 'the origin has no branch to follow',
+    }[answered.status] || `the update reported "${answered.status}"`
+    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and the update did NOT land: ${why}. It is running a stale version — the mandates, gates and fixes in those commits are not in force. Fix it and it resumes on its own: git -C "${REPO}" status`)
+  }
+
   const target = (() => { try { return JSON.parse(out(git(['show', `origin/${main}:package.json`])) || '{}').version } catch { return '' } })()
-  once(`CGC ${version()} is ${behind} commit(s) behind origin/${main}${target ? ` (v${target} available)` : ''}. It is updating in the background now — the fast-forward, the config re-apply and the doctor — and the next prompt reports the result. Until then the mandates, gates and fixes in those commits are NOT yet in force.`)
+  once(`CGC ${version()} is ${behind} commit(s) behind origin/${main}${target ? ` (v${target} available)` : ''}. It is updating in the background now — the fast-forward, the config re-apply and the doctor — and the next prompt reports the result, landed or blocked. Until then the mandates, gates and fixes in those commits are NOT yet in force.`)
+
 } catch (e) {
   // Never break a prompt. An unexpected failure is a line, not an exception — once per window.
   once(`CGC could not verify it is up to date (${String(e && e.message || e).slice(0, 120)}). It is NOT confirmed current.`)

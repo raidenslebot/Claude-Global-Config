@@ -184,6 +184,8 @@ phase('MCP servers')
 
     // `project` marks a scope that loads ONLY in that project's sessions, which is what makes
     // the same name in two different projects one server in each rather than two in one.
+    // Names that are registered but cannot start — the binary the command names is gone.
+    const unusable = new Set()
     const servers = scopes.flatMap(([where, map, project, kind]) =>
       Object.entries(map || {}).map(([name, s]) => ({ name, where, s: s || {}, project: project || null, kind: kind || null })))
 
@@ -293,8 +295,10 @@ phase('MCP servers')
         const spec = (() => { try { return readJson(join(REPO, 'library', 'mcp-servers', 'servers.json')).servers[name] || null } catch { return null } })()
         const elsewhere = spec && spec.bin && !where.trim() ? resolveServerBin(spec.bin) : null
         if (spec && spec.bin && !where.trim() && !elsewhere) {
+          unusable.add(name)
           warn(`${name}: registered at ${command}, which is gone, and the binary is not installed anywhere this package looks. Re-download it with: node tools/install.mjs --only=mcp`)
         } else if (elsewhere) {
+          unusable.add(name)
           fail(`${name}: registered at ${command}, which is gone; the binary is at ${elsewhere} — re-register with: node tools/install.mjs --only=mcp-register`, { repairable: true })
         } else {
           // Same rule: a broken command in somebody else's config is a real problem and a real
@@ -328,6 +332,9 @@ phase('MCP servers')
       if (want && cfg) {
         const have = new Set(servers.map((x) => x.name))
         const gone = Object.keys(want).filter((n) => !have.has(n))
+        // Registered but unusable is not "registered": the summary said "all 3 … are registered"
+        // directly under a warning that one of their binaries is gone.
+        const broken = Object.keys(want).filter((n) => have.has(n) && unusable.has(n))
         if (gone.length) {
           for (const n of gone) {
             const spec = want[n] || {}
@@ -345,6 +352,9 @@ phase('MCP servers')
               fail(`MCP server "${n}" is NOT registered — ${spec.why}. Re-register with: node tools/install.mjs --only=mcp-register`, { repairable: true })
             }
           }
+        } else if (broken.length) {
+          const n = Object.keys(want).length
+          ok(`${n - broken.length}/${n} MCP servers this package requires are registered and usable — ${broken.join(', ')} is registered but cannot start; see above`)
         } else ok(`all ${Object.keys(want).length} MCP servers this package requires are registered`)
       }
     }

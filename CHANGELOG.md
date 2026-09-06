@@ -5,6 +5,61 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.64.0 — 2026-09-05
+
+A third adversarial review, of 1.63.0. Seven more, and the two worst were both 1.63.0's own:
+the hand-off it introduced never read its answer back, and the record it asked was the wrong one.
+
+**"It is updating in the background now — the next prompt reports the result" was a promise the
+next prompt could not keep.** `update.json` was read only on the path where the clone is already
+current, which a clone that is still behind never reaches. So an update that could not land was
+never reported: every prompt said "updating now", for ever, and launched a fresh detached updater
+every two minutes. The case that proves it is an untracked file the incoming commit would
+overwrite — the porcelain probe uses `--untracked-files=no` and cannot see it, so only the pull
+discovers it. Reproduced: five prompts, five identical "updating now", HEAD unmoved, the real
+reason sitting in `update.json` where nothing read it, while a session start on the same clone
+said `UPDATE BLOCKED by local changes` — the two hooks contradicting each other about one
+machine. **1.61.0 reported that blocking reason correctly; 1.63.0 lost it.** The answer is read
+back now: an outcome recorded after the hook last asked is the answer to that request, it is
+said with the filename git named, and a failed attempt is retried every thirty minutes rather
+than relaunched every two.
+
+**A single-slot file was being used as a log.** "Did the config change under me, or did somebody
+just commit?" was asked of `update.json` — which every later session start rewrites with
+`{status:'current'}`. So the first start after an update erased the evidence, and every session
+that had not yet been told was told the opposite: "moved … by a local commit, not an update",
+plus an instruction to run an install that had already run. An update that LANDS now writes its
+own record, `last-applied`, and the question every path asks is its mtime against the session's
+own: *has an update landed since this session was last told anything?* That one question replaces
+three different comparisons, and it fixes the case 1.63.0 also broke — a session that was open,
+saw an update land, and then saw a local commit was silently marked up to date and never told at
+all.
+
+**A session that gave up waiting for the lock told the installer the lock was held.** `withLock`
+runs its body whether or not it got the lock, and `runInstall` asserted `CGC_UPDATE_LOCK_HELD=1`
+unconditionally — which `paths.mjs` honours by making the installer's own lock a no-op. Measured
+with a slow install stub: three installers, two overlapping for twenty-eight seconds, all
+read-modify-writing `settings.json` and `~/.claude.json` — the exact hazard the lock exists to
+prevent. It is passed only when this process really holds the lock; otherwise the installer takes
+it and waits its turn. Not new in 1.63.0, but newly reachable from every prompt rather than only
+from a session start.
+
+**"git did not answer" is not "clean", and not "zero commits ahead".** Every git call is clamped
+to what is left of the hook's budget, and the reader returned null for a call that failed exactly
+as it does for an empty answer — so a clone whose index git cannot read was handed to the updater
+as clean and unforked. Unknown is its own answer now, and the clone is left alone until git can
+describe it.
+
+Smaller: a warning now reaches the reader — a registration pointing at a binary that is gone is
+correctly a warning rather than a repair loop, but only the *count* reached the status line, so
+a server that fails to start in every session read as "enabled · (1 warning)" with the fix
+delivered nowhere; the doctor's summary no longer says "all 3 MCP servers are registered" one
+line under a warning that one of them cannot start, and a binary that merely MOVED stays a
+repairable failure because re-registering it is exactly what the repair does; a missing updater
+is said rather than spawned into silence; and the per-session record is swept again — 1.63.0
+added a second writer that made the sweep's condition unreachable, so it kept one file per
+session for ever (measured: 251 left of 250 stale).
+
 ## 1.63.0 — 2026-09-05
 
 A second adversarial review, of 1.62.0 this time, found eight more. The worst was introduced by
