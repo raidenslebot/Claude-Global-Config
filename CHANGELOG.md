@@ -5,6 +5,43 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.70.0 — 2026-09-06
+
+**A cap is not a budget.** 1.69.0 refused a fan-out that was as wide as its data, and said "cap
+it" without ever saying what a cap may be — so `.slice(0, 500)` satisfied the gate and still asked
+for five hundred agents. The hole was found within the hour, by the obvious question: the account
+had started at zero, so why would a thousand agents ever have made sense?
+
+It never could, and the run record says so exactly:
+
+```
+by status: {"done": 69, "error": 931}
+by model : {"claude-fable-5-1": 1000}
+tokens   : 8,665,098   →  ~125,600 per agent that ran
+```
+
+**Sixty-nine agents were an entire session limit**, reached from nothing in thirty minutes,
+because each was reading a whole language specification. The script asked for 1,193 — seventeen
+times what the account could serve. The other 931 existed only to fail, and they failed into a
+verdict that read "every verifier died" as agreement.
+
+So the gate now estimates what a script can actually dispatch, from the script's own stated
+widths, and refuses `fanout-exceeds-budget` above a ceiling of 40 agents
+(`CGC_WORKFLOW_AGENT_CEILING`, or `// cgc-audit-ack: fanout-exceeds-budget` to decide otherwise
+in writing). The estimate distinguishes the two shapes that matter: **nesting multiplies and
+sequence adds.** Two phases one after the other are 13 + 12; the same two nested are 13 × 12.
+Reading them the same way would either refuse honest workflows or wave through the one that
+broke. It resolves a width through a previous fan-out as well — `design-divergence` judges the
+directions it just produced, so its width is five directions plus five times three judges, which
+is twenty, and it passes.
+
+The number is not the runtime's 1,000-agent backstop. That is a runaway guard, and treating it as
+a budget is how a workflow comes to ask for something no account can answer.
+
+Also corrected: this hook's own header still said "Never returns a permissionDecision", which
+1.69.0 had made false in the same file. A stale claim about a guard is the failure mode this
+package keeps rediscovering, so it now describes the four refusals it actually makes.
+
 ## 1.69.0 — 2026-09-06
 
 **Model routing for workflows was advisory, and one run showed exactly what that costs.**

@@ -24,7 +24,15 @@
  * string brief — is left untouched, and that workflow inherits. Rewriting a user's string
  * into an object would change what the script sees and break it.
  *
- * Never returns a permissionDecision: it adjusts an argument, it does not grant approval.
+ * IT ALSO REFUSES. Injecting a routing table was advisory — the script has to read it, and a
+ * script written for the task at hand does not; exactly one shipped workflow ever did. So this
+ * also audits the script's text and returns `permissionDecision: 'deny'`, naming the fix, for
+ * four defects that are visible before a single agent starts: agents that route nowhere, a
+ * fan-out as wide as its data, a fan-out wider than an account can serve, and a verdict that
+ * treats "every verifier died" as agreement. Each is refusable because each is a fact about the
+ * text rather than a judgement about the task, and a deliberate exception is written into the
+ * script as `cgc-audit-ack: <code>` so that it has an author.
+ *
  * Exits 0 always; silent when it has nothing to change.
  */
 
@@ -304,6 +312,80 @@ function auditWorkflow(script, { routable }) {
         `the fan-out over "${name}" is as wide as the data: nothing slices it, and it is not a literal array`,
         `cap it — \`const capped = ${name}.slice(0, MAX)\` — and log() how many were dropped, or acknowledge with "// cgc-audit-ack: unbounded-fanout". The runtime stops at 1000 agents per workflow and a pipeline stage that throws drops its item to null, so an uncapped fan-out does not fail loudly; it silently reports on the part that fitted.`)
     }
+  }
+
+
+  // ── how many agents this script can actually dispatch ─────────────────────────────────────
+  //
+  // Refusing an UNBOUNDED fan-out is not enough, and the hole was found within the hour: the
+  // rule said "cap it" and never said what a cap may be, so `.slice(0, 500)` satisfied it and
+  // still asks for five hundred agents.
+  //
+  // The number that matters is not the runtime's 1,000-agent backstop — that is a runaway guard,
+  // not a budget. It is what an account can actually serve. Measured on the run that made this
+  // gate necessary: 69 agents completed and consumed 8,665,098 tokens — about 125,600 each,
+  // because each was reading a whole language specification — and that was a session limit,
+  // reached from nothing, in thirty minutes. The other 931 agents existed only to fail. So a
+  // script asking for four figures is not ambitious; it is asking for something no account can
+  // serve, and the failures land on whatever it needed the rest of the day for.
+  const CEILING = Number(process.env.CGC_WORKFLOW_AGENT_CEILING || 40)
+
+  /** A literal, or a name whose declaration is one (`const JUDGES = input.n || 3`). */
+  const numOf = (token) => {
+    if (/^\d+$/.test(token)) return Number(token)
+    const m = /^\s*(?:[\w.]+\s*\|\|\s*)?(\d+)\s*$/.exec(declarationOf(token))
+    return m ? Number(m[1]) : null
+  }
+
+  /** How many items a fan-out over this expression iterates, or null when it cannot be known. */
+  const widthOf = (expr, seen = new Set()) => {
+    const e = String(expr || '').trim()
+    let m
+    if ((m = /^\[([^\]]*)\]/.exec(e))) {
+      if (/\.\.\./.test(m[1])) return null                 // a spread is not a width
+      return m[1].trim() ? m[1].split(',').length : 0
+    }
+    if ((m = /^Array\s*\.\s*from\s*\(\s*\{\s*length\s*:\s*([\w.]+)/.exec(e))) return numOf(m[1])
+    if ((m = /^([A-Za-z_$][\w$]*)/.exec(e))) {
+      const name = m[1]
+      if (seen.has(name)) return null                      // a cycle is not a width
+      seen.add(name)
+      const body = declarationOf(name)
+      let d
+      if ((d = /\.slice\s*\(\s*\d+\s*,\s*([\w.]+)\s*\)/.exec(body))) return numOf(d[1])
+      if ((d = /^\s*await\s+(?:parallel|pipeline)\s*\(([\s\S]*)$/.exec(body))) return widthOf(d[1], seen)
+      if (/^\s*\[/.test(body)) return widthOf(body, seen)
+      return null
+    }
+    return null
+  }
+
+  // Every fan-out, with the span of its own call, so that one INSIDE another multiplies rather
+  // than adds: two phases in sequence are 13 + 20, the same two nested are 13 x 20.
+  const sites = []
+  for (const m of code.matchAll(/\b(?:parallel|pipeline)\s*\(/g)) {
+    let i = m.index + m[0].length, depth = 1
+    const argStart = i
+    for (; i < code.length && depth > 0; i++) {
+      const c = code[i]
+      if (c === '(' || c === '[' || c === '{') depth++
+      else if (c === ')' || c === ']' || c === '}') depth--
+    }
+    sites.push({ start: m.index, end: i, width: widthOf(code.slice(argStart, i)) })
+  }
+  const inside = (a, b) => a.start > b.start && a.end <= b.end
+  let worst = 0
+  for (const site of sites) {
+    if (sites.some((other) => other !== site && inside(site, other))) continue   // counted by its parent
+    const nested = sites.filter((other) => other !== site && inside(other, site))
+    let n = site.width
+    for (const child of nested) { if (n !== null && child.width !== null) n *= child.width }
+    if (n !== null) worst += n
+  }
+  if (worst > CEILING) {
+    add('fanout-exceeds-budget',
+      `this script can dispatch about ${worst} agents, and the ceiling is ${CEILING}`,
+      `narrow it. Verify the ranked top of the list rather than all of it, or use fewer verifiers per item; a finder that produces hundreds of items is usually the thing to fix, not the thing to scale. On the run this ceiling comes from, 69 agents of that weight were an entire session limit — so a fan-out in the hundreds cannot complete, and the agents past the limit fail rather than answer. Raise it deliberately with CGC_WORKFLOW_AGENT_CEILING, or acknowledge with "// cgc-audit-ack: fanout-exceeds-budget".`)
   }
 
   // 2. Votes that survived are counted, but nothing says what happens when NONE did. That is the

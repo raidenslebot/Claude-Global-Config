@@ -98,3 +98,60 @@ test('every workflow this package ships passes its own gate', () => {
     assert.deepEqual(codes(src), [], `${name} must pass`)
   }
 })
+
+test('a cap is not a budget: the script must ask for a number an account can serve', () => {
+  // The first version of this gate demanded `.slice(0, MAX)` and never said what MAX may be, so
+  // `.slice(0, 500)` satisfied it and still asked for five hundred agents. The number that
+  // matters is not the runtime's 1,000-agent backstop — that is a runaway guard. On the run this
+  // ceiling comes from, 69 agents completed, spent 8,665,098 tokens between them, and that was a
+  // session limit reached from nothing in thirty minutes; the other 931 existed only to fail.
+  const capped = [
+    'const R = [1, 2, 3]',
+    'const unique = all.slice(0, 300)',
+    'await parallel(R.map(x => () => agent("a", { model: "haiku" })))',
+    'await pipeline(unique, f => parallel([0, 1].map(v => () => agent("v", { model: "opus" }))))',
+    'const vs = z.filter(Boolean)',
+    'if (vs.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(capped), ['fanout-exceeds-budget'], '300 x 2 verifiers is 600 agents')
+
+  const sane = capped.replace('all.slice(0, 300)', 'ranked.slice(0, 12)')
+  assert.deepEqual(codes(sane), [], '12 x 2 = 24 fits')
+})
+
+test('nesting multiplies and sequence adds — the difference decides whether a script is sane', () => {
+  // Two phases one after the other are 13 + 24; the same two nested are 13 x 24. Reading them
+  // the same way either refuses honest workflows or waves through the one that broke.
+  const sequential = [
+    'const A = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]',
+    'const B = ranked.slice(0, 12)',
+    'await parallel(A.map(x => () => agent("a", { model: "haiku" })))',
+    'await parallel(B.map(x => () => agent("b", { model: "opus" })))',
+    'const vs = z.filter(Boolean)',
+    'if (vs.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(sequential), [], '13 + 12 = 25 is two phases, not a product')
+
+  const nested = [
+    'const B = ranked.slice(0, 12)',
+    'await pipeline(B, f => parallel(Array.from({ length: 8 }, () => () => agent("v", { model: "opus" }))))',
+    'const vs = z.filter(Boolean)',
+    'if (vs.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(nested), ['fanout-exceeds-budget'], '12 x 8 = 96 is nested')
+})
+
+test('the width of a fan-out over a previous fan-out is that fan-out, not unknown', () => {
+  // design-divergence judges the DIRECTIONS it just produced. Losing that link reports the
+  // shipped workflow as unbounded, which is how a gate gets switched off.
+  const src = [
+    'const OPS = ALL.slice(0, 5)',
+    'const JUDGES = input.judgesPerDirection || 3',
+    'const directions = await parallel(OPS.map(o => () => agent("make one", { model: "sonnet" })))',
+    'const judged = await parallel(directions.filter(Boolean).map(d => () =>',
+    '  parallel(Array.from({ length: JUDGES }, () => () => agent("judge it", { model: "opus" })))))',
+    'const vs = z.filter(Boolean)',
+    'if (vs.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(src), [], '5 directions + 5 x 3 judges = 20')
+})
