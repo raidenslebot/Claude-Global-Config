@@ -41,6 +41,7 @@ const UPDATER_TESTS = [join(TESTS, 'auto-update.test.mjs'), join(TESTS, 'update-
 const DOCTOR_TESTS = [join(TESTS, 'doctor.test.mjs')]
 const PRUNE_TESTS = [join(TESTS, 'hook-prune.test.mjs')]
 const FUZZ_TESTS = [join(TESTS, 'hook-fuzz.test.mjs')]
+const GATE_TESTS = [join(TESTS, 'workflow-gate.test.mjs')]
 
 /**
  * Each mutation names a guard, the file it lives in, the exact text that IS the guard, what it
@@ -56,6 +57,46 @@ const FUZZ_TESTS = [join(TESTS, 'hook-fuzz.test.mjs')]
  * two. So a kill by some other test is reported separately from a kill by the right one.
  */
 const MUTATIONS = [
+  {
+    name: 'a spread into a literal is not a bound',
+    expect: 'spread is not a bound',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: "if (/^\\s*\\[/.test(body) && !/\\.\\.\\./.test(body)) return true",
+    to: "if (/^\\s*\\[/.test(body)) return true",
+    tests: GATE_TESTS,
+  },
+  {
+    name: 'a verdict computed from no survivors is refused',
+    expect: 'collapse to the affirmative',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: "const failsOpen = /\\.length\\s*>\\s*0\\s*&&/.test(code)",
+    to: 'const failsOpen = false',
+    tests: GATE_TESTS,
+  },
+  {
+    name: 'a workflow whose agents name no model is refused',
+    expect: 'pinned session is not asked',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: 'if (routable && /\\bagent\\s*\\(/.test(code)) {',
+    to: 'if (false) {',
+    tests: GATE_TESTS,
+  },
+  {
+    name: 'a declaration is read to the end of its own statement',
+    expect: 'declaration is read to its own end',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: '        if (!opensWith && !endsWith) break',
+    to: '        break',
+    tests: GATE_TESTS,
+  },
+  {
+    name: 'an acknowledgement excuses only the fault it names',
+    expect: 'deliberate exception is recorded',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: 'const add = (code_, why, fix) => { if (!acked.has(code_)) faults.push({ code: code_, why, fix }) }',
+    to: 'const add = (code_, why, fix) => { if (acked.size === 0) faults.push({ code: code_, why, fix }) }',
+    tests: GATE_TESTS,
+  },
   {
     name: 'the prompt hook refuses to announce an update to a session with no record',
     expect: "no record of its own",

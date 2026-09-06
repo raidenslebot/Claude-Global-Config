@@ -307,8 +307,28 @@ width multiplies whichever you choose, so this matters most when there are many 
   advisory again, which is what it was before and what did not work.
 
 The bias is deliberate: a wrong downgrade yields confident, plausible, wrong output that nobody
-notices, while an unnecessary inherit only costs money. So ambiguity always resolves upward. The
+notices, while an unnecessary inherit only costs money. So ambiguity always resolves upward. That
 hook never returns a permission decision — it adjusts an argument, it does not grant approval.
+
+**A WORKFLOW IS THE OTHER DISPATCH PATH, and it is gated rather than adjusted.** Workflow agents
+are spawned by the Workflow runtime, never through the Agent tool, so the hook above never sees
+them. A second hook fires on the Workflow call and REFUSES a script with any of three defects,
+naming the fix — because these were advisory once and the result was a single run that spent
+8.67M tokens to produce nothing usable:
+
+- **`unrouted-fanout`** — not one `agent()` names a model or reads the injected `__modelPolicy`,
+  so the whole fleet inherits the session model. That is what "the model never changes" is.
+- **`unbounded-fanout`** — a `parallel()`/`pipeline()` as wide as the data. The runtime stops at
+  1,000 agents and a pipeline stage that throws drops its item to `null`, so this does not fail
+  loudly: it silently reports on whatever fitted.
+- **`verdict-fails-open`** — survivors gathered with `filter(Boolean)` and no branch for there
+  being NONE. An agent that dies returns `null`, and `vs.length > 0 && vs.every(...)` is `false`
+  on an empty list, so a finding nobody checked comes back affirmative. Agents die exactly when
+  the fan-out is largest, which is when this matters most.
+
+Cap the fan-out and `log()` what was dropped; decide the empty case pessimistically; route every
+agent. A script that means to break one of these anyway says so in a comment —
+`// cgc-audit-ack: <code>` — so the exception has an author instead of being an oversight.
 
 A second hook states the applicable rule each prompt so the reasoning is visible. Full detail:
 skill `model-routing`.

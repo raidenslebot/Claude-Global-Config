@@ -154,6 +154,191 @@ function classify(model) {
   return routable ? 'routable' : 'pinned'
 }
 
+
+// ── the gate ────────────────────────────────────────────────────────────────────────────────
+//
+// WHY THIS IS A GATE AND NOT A NOTE. Injecting `__modelPolicy` into args was advisory: the
+// script has to read it, and a script authored for the task at hand does not. Measured on a real
+// run — factorx-spec-review, 2026-09-06 — the policy arrived in args, was ignored, and all 1,000
+// agents ran on the session model. The same run had no cap between finding and verifying (590
+// findings x 2 verifiers = 1,193 agents wanted against a 1,000 backstop) and collapsed its votes
+// with `vs.length > 0 && vs.every(...)`, which returns "not refuted" for an EMPTY vote list. 931
+// agents then died on the account's session limit, and every finding whose verifiers died was
+// reported as confirmed: 491 "confirmed" defects, of which 421 had no verification at all and 70
+// had half. Of the 169 findings that got two working verifiers, ZERO survived. The run cost
+// 8.67M tokens to produce a result whose verified subset was empty.
+//
+// None of those three is a judgement call, and all three are visible in the script's text before
+// a single agent starts. So they are refused, with the fix named. A script that means to do one
+// of them anyway says so in a comment — `// cgc-audit-ack: <code>` — and the acknowledgement is
+// the record that somebody decided rather than forgot.
+
+/**
+ * Blank out string, template and comment CONTENT so a search sees code and not prose. Length is
+ * preserved so offsets still line up. Interpolations inside a template are code and stay: a
+ * prompt that merely contains the word "agent(" must not read as a call site, while
+ * `${agent(x)}` genuinely is one.
+ */
+function stripLiterals(src) {
+  const out = src.split('')
+  const blank = (i) => { if (out[i] !== '\n') out[i] = ' ' }
+  let i = 0
+  const tpl = []                       // template-literal nesting: brace depth of each ${...}
+  while (i < src.length) {
+    const c = src[i], d = src[i + 1]
+    if (c === '/' && d === '/') { while (i < src.length && src[i] !== '\n') blank(i++); continue }
+    if (c === '/' && d === '*') { blank(i++); blank(i++); while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) blank(i++); blank(i++); blank(i++); continue }
+    if (c === "'" || c === '"') {
+      const q = c; i++
+      while (i < src.length && src[i] !== q) { if (src[i] === '\\') blank(i++); blank(i++) }
+      i++; continue
+    }
+    if (c === '`') {
+      i++
+      while (i < src.length) {
+        if (src[i] === '\\') { blank(i++); blank(i++); continue }
+        if (src[i] === '`') { i++; break }
+        if (src[i] === '$' && src[i + 1] === '{') { i += 2; tpl.push(1); break }   // code resumes
+        blank(i++)
+      }
+      continue
+    }
+    if (tpl.length && c === '{') { tpl[tpl.length - 1]++; i++; continue }
+    if (tpl.length && c === '}') {
+      tpl[tpl.length - 1]--
+      if (tpl[tpl.length - 1] === 0) {                                            // back into the template
+        tpl.pop(); i++
+        while (i < src.length) {
+          if (src[i] === '\\') { blank(i++); blank(i++); continue }
+          if (src[i] === '`') { i++; break }
+          if (src[i] === '$' && src[i + 1] === '{') { i += 2; tpl.push(1); break }
+          blank(i++)
+        }
+        continue
+      }
+      i++; continue
+    }
+    i++
+  }
+  return out.join('')
+}
+
+/**
+ * The three refusals. `routable` is false on a pinned session, where inheritance is the rule and
+ * naming a model would be wrong — so the routing fault is not raised there.
+ *
+ * @returns {{code: string, why: string, fix: string}[]}
+ */
+function auditWorkflow(script, { routable }) {
+  const src = String(script || '')
+  const code = stripLiterals(src)
+  // `[ \t]` and not `\s`: written as `ack:\s` the source contains "k:\", which is exactly the
+  // shape of a Windows drive path — and the gate that keeps real drive paths out of installed
+  // hooks reads it as one. The guard is right to be strict, so the regex avoids the collision.
+  const acked = new Set([...src.matchAll(/cgc-audit-ack:[ \t]*([a-z-]+)/g)].map((m) => m[1]))
+  const faults = []
+  const add = (code_, why, fix) => { if (!acked.has(code_)) faults.push({ code: code_, why, fix }) }
+
+  // 1. A fan-out whose width comes from the data, with nothing bounding it. An array LITERAL is
+  //    bounded by construction; an identifier is only bounded if something slices it.
+  // What "bounded" means, calibrated against the two real scripts. A literal array is bounded
+  // only if nothing is SPREAD into it: `[0, 1]` is two, `[...seen.values()]` is however many the
+  // data had — and that second one is the exact expression that put 590 findings into a fan-out
+  // with a 1000-agent ceiling. Array.from({length: n}) states its own width. An identifier is
+  // bounded when its declaration slices, states a length, or is itself the result of a bounded
+  // fan-out; the declaration is read across lines, because a capped list is usually a ternary.
+  /**
+   * The initialiser of `const <name> = …`, exactly — from the `=` to the newline at which every
+   * bracket it opened has closed again.
+   *
+   * Two cheaper versions of this were wrong in opposite directions. Stopping at the first line
+   * that began with a keyword ran straight past the end of a one-line declaration into the next
+   * statement, so `const u = [...seen.values()]` followed by `await pipeline(u, …)` read as "u is
+   * the result of a fan-out" and the unbounded case was called bounded. Capping the scan at 400
+   * characters then failed the other way: a declaration whose initialiser is a multi-line
+   * `parallel(...)` never closed inside the cap, matched nothing, and a bounded list was called
+   * unbounded. Depth is the thing that actually delimits a statement, so count it.
+   */
+  const declarationOf = (name) => {
+    const at = new RegExp(`\\b(?:const|let|var)\\s+${name}\\s*=`).exec(code)
+    if (!at) return ''
+    let i = at.index + at[0].length
+    const start = i
+    let depth = 0
+    for (; i < code.length && i - start < 4000; i++) {
+      const c = code[i]
+      if (c === '(' || c === '[' || c === '{') depth++
+      else if (c === ')' || c === ']' || c === '}') depth--
+      else if (c === '\n' && depth <= 0 && i > start) {
+        // Depth alone ends a statement one line too early when the statement is a multi-line
+        // ternary: `const OPERATORS = (cond)` closes its bracket, and the `? … : ALL.slice(0, 5)`
+        // that actually bounds it lives on the next two lines. A line that ends on an operator,
+        // or the next one that opens with one, is a continuation rather than an end.
+        const before = code.slice(0, i).trimEnd().slice(-1)
+        const after = code.slice(i + 1).trimStart().slice(0, 2)
+        const opensWith = /^[?:.+*/%&|,)\]}]|^(?:&&|\|\||\?\?)/.test(after)
+        const endsWith = /[=+\-*/%?:&|,([{]/.test(before)
+        if (!opensWith && !endsWith) break
+      }
+    }
+    return code.slice(start, i)
+  }
+
+  const boundedName = (name) => {
+    const body = declarationOf(name)
+    if (/\.slice\s*\(|Array\s*\.\s*from\s*\(/.test(body)) return true
+    // Anchored: the fan-out must BE this declaration, not merely appear somewhere after it.
+    if (/^\s*await\s+(?:parallel|pipeline)\s*\(/.test(body)) return true       // as wide as its own source
+    if (/^\s*\[/.test(body) && !/\.\.\./.test(body)) return true              // a literal, nothing spread in
+    return new RegExp(`\\b${name}\\s*\\.\\s*slice\\s*\\(`).test(code)
+  }
+  // Capture EITHER the opening bracket of a literal OR a whole identifier. A character class
+  // holding both ran them together and yielded "[0" as a name, which is not a name — and the
+  // RegExp built from it threw inside the hook, where a throw is a silent no-op.
+  const fans = [...code.matchAll(/\b(?:parallel|pipeline)\s*\(\s*(\[|[A-Za-z_$][\w$]*)/g)].map((m) => m[1])
+  for (const name of [...new Set(fans)]) {
+    if (!/^[A-Za-z_$][\w$]*$/.test(name) || name === 'Array') continue   // a literal, or Array.from's stated width
+    if (boundedName(name)) continue
+    {
+      add('unbounded-fanout',
+        `the fan-out over "${name}" is as wide as the data: nothing slices it, and it is not a literal array`,
+        `cap it — \`const capped = ${name}.slice(0, MAX)\` — and log() how many were dropped, or acknowledge with "// cgc-audit-ack: unbounded-fanout". The runtime stops at 1000 agents per workflow and a pipeline stage that throws drops its item to null, so an uncapped fan-out does not fail loudly; it silently reports on the part that fitted.`)
+    }
+  }
+
+  // 2. Votes that survived are counted, but nothing says what happens when NONE did. That is the
+  //    line that turned 421 unverified findings into "confirmed".
+  if (/\.filter\s*\(\s*Boolean\s*\)/.test(code) && /\bagent\s*\(/.test(code)) {
+    // The tell is narrow on purpose, because "handled" and "unhandled" look alike. A ternary on
+    // the count — `scores.length ? Math.max(...scores) : 10` in design-divergence, where 10 is the
+    // WORST score — decides the empty case pessimistically and is correct. What is not correct is
+    // `vs.length > 0 && vs.every(...)`: with no survivors that whole expression is false, the
+    // negation is true, and a finding nobody checked is reported as confirmed. That is the shape,
+    // and only that shape, that this refuses.
+    const saysEmpty = /\.length\s*===\s*0|\.length\s*<\s*\d|\.length\s*!==\s*\d|\.length\s*\?|\bif\s*\(\s*!\s*\w+\.length/.test(code)
+    const failsOpen = /\.length\s*>\s*0\s*&&/.test(code)
+    if (failsOpen && !saysEmpty) {
+      add('verdict-fails-open',
+        'surviving results are filtered with filter(Boolean) but nothing branches on there being NONE — an agent that dies returns null, so a verdict computed from an empty list is a verdict nobody reached',
+        'decide the empty case explicitly — \`if (votes.length === 0) return { ...f, verdict: "unverified" }\` — and never let it collapse to the affirmative. An agent dies on a terminal API error or when the account hits its session limit, which is exactly when a fan-out is largest.')
+    }
+  }
+
+  // 3. Agents with no model on a session where the aliases can express one. The policy is in
+  //    args; a script that neither uses it nor names a model runs the whole fleet on the session
+  //    model, which is what "the model is still not being changed" looks like from outside.
+  if (routable && /\bagent\s*\(/.test(code)) {
+    const routes = /__modelPolicy|\bmodel\s*:/.test(code)
+    if (!routes) {
+      add('unrouted-fanout',
+        'every agent() in this script inherits the session model: it neither names a model nor reads the __modelPolicy this hook puts in args',
+        'route each agent by the hardest decision it must make alone — retrieval and mechanical passes to "haiku", work scoped to a stated spec to "sonnet", verification to "opus", genuinely open questions omitted so they inherit. See the model-routing skill; workflows/design-divergence.js carries the helper.')
+    }
+  }
+
+  return faults
+}
+
 function readPayload() {
   try {
     return JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
@@ -179,6 +364,23 @@ function main() {
   if (args !== undefined && (args === null || typeof args !== 'object' || Array.isArray(args))) return
   if (args && args.__modelPolicy) return // already carried (a resume, or a nested workflow)
 
+  // The gate runs before the injection: a script with one of these defects is not improved by
+  // being handed a routing table it does not read.
+  const faults = auditWorkflow(input.script, { routable: mode === 'routable' })
+  if (faults.length) {
+    const reason = ['This workflow was not started. ' + faults.length + ' thing(s) in the script must be settled first:']
+      .concat(faults.map((f, i) => `\n${i + 1}. ${f.code} — ${f.why}\n   ${f.fix}`))
+      .join('')
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: reason,
+      },
+    }))
+    return
+  }
+
   const updated = {
     ...input,
     args: {
@@ -196,7 +398,7 @@ function main() {
 }
 
 // Exported so the drift test can compare SIGNAL_SOURCES against the routing hook's copy.
-module.exports = { SIGNAL_SOURCES, classify }
+module.exports = { SIGNAL_SOURCES, classify, auditWorkflow, stripLiterals }
 
 if (require.main === module) {
   try {

@@ -147,8 +147,21 @@ vocabulary is held byte-identical to the routing hook's by test, and the shipped
 evaluated against `decide()` over the entire labelled corpus.
 
 Limits, stated plainly: a workflow whose `args` is a bare string cannot carry the policy and
-inherits. And a script that omits the helper inherits — which is the safe direction, so a
-forgotten helper costs money, never correctness.
+inherits.
+
+**A script that omits the helper no longer merely inherits — it is refused.** That was the old
+wording here, and it called a forgotten helper safe because it "costs money, never correctness".
+That was wrong on both halves. Measured on one real run: 1,000 agents on the session model,
+8.67M tokens, and — because the same script also fanned out as wide as its data and collapsed an
+empty vote list to the affirmative — 931 agents died on the account's session limit and 421
+findings nobody had checked were reported as confirmed defects. Forgetting cost the money *and*
+the correctness, and it exhausted the quota that the rest of the day's work needed.
+
+So the hook now audits the script's text and denies it, naming the fix, for `unrouted-fanout`,
+`unbounded-fanout` or `verdict-fails-open`. Deliberate exceptions are written into the script as
+`// cgc-audit-ack: <code>`, which makes the exception a decision with an author rather than an
+omission nobody can see. `tools/test/workflow-gate.test.mjs` holds the calibration against both
+that run and the workflows this package ships.
 
 This path depends on the harness honouring `updatedInput` for the Workflow tool — a contract
 that was **observed, not assumed**, and that an upgrade could change. The shipped workflow

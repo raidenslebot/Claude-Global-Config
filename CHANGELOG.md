@@ -5,6 +5,65 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.69.0 — 2026-09-06
+
+**Model routing for workflows was advisory, and one run showed exactly what that costs.**
+
+The hook fired, and it injected `__modelPolicy` into the script's `args` as designed. The script
+never read it. That is the whole mechanism: the injection is data, and a script authored for the
+task at hand has no reason to look for it. Exactly one shipped workflow applied it. So the
+mandate's claim that routing is "APPLIED AUTOMATICALLY — you cannot forget" was true for the
+Agent tool, where the hook rewrites `updatedInput.model`, and false for every workflow.
+
+The run that showed it — `factorx-spec-review`, from its own record:
+
+| | |
+|---|---|
+| agents | **1,000** — exactly the runtime's backstop; it wanted 1,193 |
+| model | `claude-fable-5-1` on all of them, the session model |
+| policy | present in `args`, ignored by the script |
+| tokens | 8,665,098 |
+| findings | 590, and "590 after dedup" — the dedup key collapsed nothing |
+| agent failures | 999, of which **931 were "You've hit your session limit"** |
+
+And then the part that matters more than the cost. Votes were collapsed with
+
+```js
+const refuted = vs.length > 0 && vs.every(v => v.refuted)
+return { ...f, confirmed: !refuted }
+```
+
+`vs` is the surviving votes. With none, that expression is `false`, so `confirmed` is **true**: a
+finding whose verifiers both died is reported as verified. The arithmetic of the run is that
+sentence made concrete — 421 findings got zero working verifiers and 70 got one, and
+`421 + 70 = 491` is precisely the "confirmed: 491" it reported. Of the 169 findings that did get
+two working verifiers, **zero survived**. Every result it published was one nobody had checked,
+and the reason nobody checked them is that the fan-out exhausted the account's quota.
+
+**So the Workflow hook is now a gate, not a note.** It reads the script before anything starts
+and refuses three things, naming the fix for each — `unrouted-fanout` (no `agent()` names a model
+or reads the policy), `unbounded-fanout` (a `parallel()`/`pipeline()` as wide as the data, against
+a 1,000-agent ceiling, where a stage that throws drops its item to `null` and the loss is silent)
+and `verdict-fails-open` (survivors gathered with `filter(Boolean)` and no branch for there being
+none). A script that means to do one anyway writes `// cgc-audit-ack: <code>`, which turns an
+oversight into a decision with an author.
+
+Getting the detector right took four wrong versions, each caught by calibrating against the two
+real scripts rather than against my idea of them. A spread is not a bound — `[...seen.values()]`
+reads as an array literal and is however long the data was, which was the exact false negative
+that would have let this run through. Reading a declaration by keyword-terminator ran off the end
+of a one-line statement into the next; capping that read at 400 characters then missed a
+multi-line one entirely; depth is what delimits a statement, and even that ends a multi-line
+ternary one line early, before the `.slice(0, 5)` that bounds it. And `vs.length ? … : 10` in the
+shipped `design-divergence` is a *pessimistic* empty case — correct, and it must not be refused.
+The gate passes both workflows this package ships, refuses all three defects of the run above,
+and is held there by `tools/test/workflow-gate.test.mjs` and five entries in the mutation gate.
+
+One guard of this package's own caught a genuine collision on the way: written as `ack:\s`, the
+regex contains "k:\", which is the shape of a Windows drive path, and the check that keeps real
+drive paths out of installed hooks read it as one. The check is right to be strict, so the regex
+moved rather than the check.
+
 ## 1.68.0 — 2026-09-06
 
 A seventh review. **The concurrency fix in 1.67.0 was theatre, and the test written to prove it
