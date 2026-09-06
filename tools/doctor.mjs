@@ -314,6 +314,7 @@ phase('MCP servers')
       // is a real failure and a real report, but re-running this install cannot put it back —
       // and a failure it cannot clear means a full install at every session start, for ever.
       else if ((/[\\/]/.test(entry) || /\.[cm]?js$/i.test(entry)) && !existsSync(entry)) {
+        unusable.add(name)
         fail(`${name}${where}: server entry missing — ${entry}`, { repairable: !where.trim() })
       }
       else ok(`${name}${where} · ${basename(entry || command)}`)
@@ -354,7 +355,7 @@ phase('MCP servers')
           }
         } else if (broken.length) {
           const n = Object.keys(want).length
-          ok(`${n - broken.length}/${n} MCP servers this package requires are registered and usable — ${broken.join(', ')} is registered but cannot start; see above`)
+          ok(`${n - broken.length}/${n} MCP servers this package requires are registered and usable — ${broken.join(', ')} ${broken.length === 1 ? 'is' : 'are'} registered but cannot start; see above`)
         } else ok(`all ${Object.keys(want).length} MCP servers this package requires are registered`)
       }
     }

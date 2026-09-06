@@ -286,3 +286,28 @@ test('a binary that merely MOVED is a repairable failure, and the summary stops 
     'the summary must not contradict the row above it')
   assert.ok(j.results.some((r) => /registered but cannot start/.test(r.message)), 'it names the one that cannot start')
 })
+
+test('a VENDORED server whose entry is missing also stops the summary claiming everything is registered', (t) => {
+  // The unusable set was populated from the two "command not found" branches only. The pre-
+  // existing "server entry missing" branch — which is playwright and context7, i.e. BOTH vendored
+  // servers — never marked the name, so the summary printed "all 3 MCP servers this package
+  // requires are registered" directly under two FAILs saying their entries do not exist. That is
+  // the exact sentence pair the change was written to eliminate, through the branch it missed.
+  const d = scratch(t)
+  const want = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+  const mcpServers = {}
+  for (const [name, spec] of Object.entries(want)) {
+    mcpServers[name] = spec.entry
+      ? { command: process.execPath, args: [join(d, 'gone', ...spec.entry)], env: {} }   // entry does not exist
+      : { command: process.execPath, args: [], env: {} }                                  // a command that resolves
+  }
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers }), 'utf8')
+  const j = runDoctorJson(d, { LOCALAPPDATA: join(d, 'AppData', 'Local') })
+  const missing = j.results.filter((r) => /server entry missing/.test(r.message))
+  assert.ok(missing.length >= 2, 'both vendored entries are reported:\n' + j.results.filter((r) => r.level !== 'ok').map((r) => r.level + ' ' + r.message).join('\n'))
+  assert.equal(j.results.some((r) => /all \d+ MCP servers this package requires are registered$/.test(r.message)), false,
+    'the summary must not contradict the rows above it')
+  const summary = j.results.find((r) => /registered but cannot start/.test(r.message))
+  assert.ok(summary, 'and it names them')
+  assert.match(summary.message, /are registered but cannot start/, 'plural, because there are two')
+})

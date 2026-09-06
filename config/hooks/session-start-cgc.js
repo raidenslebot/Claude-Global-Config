@@ -77,7 +77,9 @@ function runInstall(fixes = []) {
   // DEGRADED line and an instruction to type by hand after every rewrite.
   const extra = fixes.includes('dedupe') ? ['--dedupe'] : []
   const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register', ...extra],
-    { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, env: { ...process.env, ...(LOCK_HELD ? { CGC_UPDATE_LOCK_HELD: '1' } : {}) } })
+    { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, // Set either way: a spread cannot UNSET a value inherited from this process's own
+    // environment, and paths.mjs treats only '1' as held.
+    env: { ...process.env, CGC_UPDATE_LOCK_HELD: LOCK_HELD ? '1' : '0' } })
   return r.status === 0
 }
 

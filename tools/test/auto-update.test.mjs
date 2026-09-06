@@ -731,10 +731,10 @@ test('every session hears about an update once — the one that started it, one 
   const a2 = promptAs(w, 'a')
   assert.match(String(a2), /updated itself since this session last checked/, a2)
   assert.match(String(a2), /re-applied/)
-  assert.equal(promptAs(w, 'a'), null, 'A: told once')
+  assert.match(String(a2), /v1\.1\.0 \([0-9a-f]{7}\), up from [0-9a-f]{7}/, a2)
   const b = promptAs(w, 'b')
   assert.match(String(b), /updated itself since this session last checked/, b)
-  assert.match(String(b), /v1\.0\.0 → v1\.1\.0/, b)
+  assert.match(String(b), /v1\.1\.0 \([0-9a-f]{7}\), up from [0-9a-f]{7}/, b)
   assert.equal(promptAs(w, 'b'), null, 'B: told once')
   const xi = promptAs(w, 'x-idle')
   assert.match(String(xi), /updated itself since this session last checked/, 'X, whose first prompt lands after the update, is told its start line is stale')
@@ -755,6 +755,7 @@ test('an update that cannot land is REPORTED, not announced as still running for
   git(w.author, 'add', '-A')
   w.release('1.1.0', 'a release that adds newthing.txt')
 
+  const before = head(w.friend)
   const first = promptAs(w, 's')
   assert.match(String(first), /updating in the background/, first)
   waitFor(() => existsSync(join(w.config, '.cgc', 'update.json')) && JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty', 20000, 'the blocked update to record its outcome')
@@ -768,7 +769,7 @@ test('an update that cannot land is REPORTED, not announced as still running for
   const stampAt = readFileSync(join(w.config, '.cgc', 'update-bg'), 'utf8')
   promptAs(w, 's')
   assert.equal(readFileSync(join(w.config, '.cgc', 'update-bg'), 'utf8'), stampAt, 'no respawn while the failure stands')
-  assert.equal(head(w.friend), head(w.friend), 'and nothing was merged')
+  assert.equal(head(w.friend), before, 'and nothing was merged')
 })
 
 test('a missing updater is said, not spawned into silence', (t) => {
@@ -820,16 +821,25 @@ test('git that cannot answer about local changes is not read as a clean tree', (
   assert.equal(spawnSync('git', ['-C', w.friend, 'rev-parse', 'HEAD'], { encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: bad } }).status, 0,
     'precondition: the rest of the path still answers')
 
+  const before = head(w.friend)
   window()
   assert.equal(run({ GIT_INDEX_FILE: bad }).status, 0, 'the hook never fails a prompt')
   assert.equal(existsSync(join(state, 'update-bg')), false,
     'a tree git cannot describe is never handed to the updater — unknown is not clean')
-  assert.equal(head(w.friend), head(w.friend), 'and nothing was merged')
+  assert.equal(head(w.friend), before, 'and nothing was merged')
 
   // The contrast: everything else identical, and now it does hand off.
   window()
   assert.equal(run({}).status, 0)
   assert.ok(existsSync(join(state, 'update-bg')), 'a readable index is handed off, so the test is testing the index')
+  // The DIRTY half is reachable through the index; the AHEAD half is not — nothing breaks
+  // `rev-list --count` while leaving `rev-parse origin/main` working, and without that the hook
+  // exits earlier for a different reason. So that half is pinned where it lives: both probes
+  // must be guarded, or the conflation comes back for one of them.
+  const src = readFileSync(join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js'), 'utf8')
+  assert.match(src, /if \(aheadR\.status !== 0 \|\| dirtyR\.status !== 0\)/, 'both probes are guarded, not just the one a test can break')
+  assert.doesNotMatch(src, /const ahead = out\(/, 'ahead is read from stdout, not through the null-on-failure reader')
+  assert.doesNotMatch(src, /const dirty = out\(/, 'and so is dirty')
   // The updater's cwd is the clone; let it finish before the world is removed.
   waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
 })
@@ -870,7 +880,7 @@ test('a session start that could not get the lock does not tell the installer th
     env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_LOCK_WAIT_MS: '500' },
   })
   assert.equal(r.status, 0)
-  assert.equal(readFileSync(join(w.friend, 'installed.txt'), 'utf8'), 'unset',
+  assert.equal(readFileSync(join(w.friend, 'installed.txt'), 'utf8'), '0',
     'the installer must take the lock itself when its parent does not hold it')
   assert.ok(existsSync(join(state, 'update.lock')), "and the other process's lock is left alone")
 })
@@ -885,4 +895,156 @@ test("a doctor warning reaches the reader, not just the count", (t) => {
   const { line, ctx } = fire(w, w.friend)
   assert.match(line, /3\/4 checks \(1 warning\)/, line)
   assert.match(ctx, /Warning: codebase-memory-mcp: registered at .*which is gone/, ctx)
+})
+
+test('a session with no record of its own is not greeted with an update that landed before it existed', (t) => {
+  // mtime() answers 0 for a file that is not there, and the guard only tested that the prompt
+  // HAS a session id — so a session with no record compared 0 against last-applied and was told
+  // about whatever update happened last, however long ago. Found by running the real hooks
+  // against a real clone: a session that had never prompted was greeted with an update that had
+  // already landed. It also resurrects an old announcement for any session whose record the
+  // week-old sweep removed.
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  // An update that landed a while ago, and a session that has never been seen before.
+  writeFileSync(join(state, 'last-applied'), JSON.stringify({ at: Date.now() - 3 * 60 * 60 * 1000, head: head(w.friend), before: '1.0.0', after: '1.1.0', applied: true }))
+  const old = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  utimesSync(join(state, 'last-applied'), old, old)
+
+  assert.equal(promptAs(w, 'never-seen-before'), null, 'a session with no record has no stale belief to correct')
+  assert.ok(existsSync(join(state, 'seen', 'never-seen-before')), 'but it is recorded, so the NEXT update is told to it')
+
+  // And the next update is: it now has a record, so a newer last-applied is news.
+  const later = join(state, 'last-applied')
+  writeFileSync(later, JSON.stringify({ at: Date.now(), head: head(w.friend), before: '1.1.0', after: '1.2.0', applied: true }))
+  assert.match(String(promptAs(w, 'never-seen-before')), /updated itself since this session last checked/)
+})
+
+test('a pull that landed with an install that FAILED is not announced as "the config was re-applied"', (t) => {
+  // The record carries `applied`, and the message ignored it. A fast-forward whose install step
+  // failed — settings.json contention, a timeout at the 120 s cap — was announced to every open
+  // session as "the config, hooks and skills were re-applied … in force from this message on".
+  // That is the ONLY report anyone gets: the background updater carries no session, so nobody
+  // sees its start line, and the next session start reports 'current' and erases the failure.
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(join(state, 'seen'), { recursive: true })
+  writeFileSync(join(state, 'seen', 's'), head(w.friend))
+  const old = new Date(Date.now() - 60 * 1000)
+  utimesSync(join(state, 'seen', 's'), old, old)
+  writeFileSync(join(state, 'last-applied'), JSON.stringify({ at: Date.now(), head: head(w.friend), before: '1.0.0', after: '1.1.0', applied: false }))
+
+  const said = String(promptAs(w, 's'))
+  assert.match(said, /config re-apply FAILED/, said)
+  assert.match(said, /still the OLD ones/, 'and says what that means for the gates')
+  assert.match(said, /NOT in force/)
+  assert.match(said, /install\.mjs/, 'and names the command that fixes it')
+  assert.doesNotMatch(said, /were re-applied/, 'it must not claim the opposite')
+  assert.equal(promptAs(w, 's'), null, 'and it is said once')
+})
+
+test('a blocking reason the clone no longer has is not repeated — it is retried at once', (t) => {
+  // The hook reported an untracked file that blocked the fast-forward, correctly. The user then
+  // deleted the file, exactly as the message said. Every prompt for the next THIRTY MINUTES
+  // repeated the same reason, naming a file that no longer existed, and retried nothing — while
+  // the ahead and dirty probes two lines earlier had already come back clean on that very
+  // prompt. A recorded reason the current state contradicts is a reason to try again now.
+  const w = world(t, {})
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  w.release('1.1.0', 'a release that adds newthing.txt')
+
+  assert.match(String(promptAs(w, 's')), /updating in the background/)
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the blocked outcome')
+  assert.match(String(promptAs(w, 's')), /the update did NOT land/, 'the reason is reported while it is true')
+
+  // The user does what the message says. The working state changed, so the recorded reason is
+  // no longer evidence — it is retried at once, and the falsified reason is not repeated.
+  rmSync(join(w.friend, 'newthing.txt'), { force: true })
+  const retried = String(promptAs(w, 's'))
+  assert.match(retried, /updating in the background now/, retried)
+  assert.doesNotMatch(retried, /newthing\.txt/, 'it must not name a file the user has deleted')
+  assert.doesNotMatch(retried, /did NOT land/, 'nor ask again for a fix that has been made')
+  waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the retry to land')
+})
+
+test('a blocking reason that is STILL true is retried on the timer, and says so rather than reading as a fresh failure', (t) => {
+  // The other half: nothing about the clone changed, so the reason stands. It is re-tried when
+  // the half-hour is up — and the prompt that re-tries must not print the "nothing is happening,
+  // go and fix it" sentence, which is what the first version said even on the prompt that had
+  // just spawned a new attempt.
+  const w = world(t, {})
+  writeFileSync(join(w.friend, 'newthing.txt'), 'mine', 'utf8')
+  writeFileSync(join(w.author, 'newthing.txt'), 'theirs', 'utf8')
+  git(w.author, 'add', '-A')
+  w.release('1.1.0', 'a release that adds newthing.txt')
+  const before = head(w.friend)
+  promptAs(w, 's')
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the blocked outcome')
+  const standing = String(promptAs(w, 's'))
+  assert.match(standing, /Fix it and it retries within half an hour/, 'the wait is stated, not left to be guessed')
+
+  // Half an hour later, with the file still in the way.
+  const stamp = join(w.config, '.cgc', 'update-bg')
+  const old = new Date(Date.now() - 31 * 60 * 1000)
+  utimesSync(stamp, old, old)
+  const retried = String(promptAs(w, 's'))
+  assert.match(retried, /trying again in the background now/, retried)
+  assert.match(retried, /The last attempt did NOT land/, 'and it still says why the last one failed')
+  waitFor(() => { try { return JSON.parse(readFileSync(join(w.config, '.cgc', 'update.json'), 'utf8')).status === 'dirty' } catch { return false } }, 20000, 'the retry to fail the same way')
+  assert.equal(head(w.friend), before, 'still behind, still not merged')
+  assert.notEqual(head(w.friend), head(w.author), 'the clone really is behind, so the assertion above means something')
+  // The retry's updater has the clone as its cwd; let it release the lock and exit before the
+  // world is removed, or the teardown races it and rmSync fails with EPERM on Windows.
+  waitFor(() => !existsSync(join(w.config, '.cgc', 'update.lock')), 20000, 'the updater to finish')
+})
+
+test('with two updates between one session\'s prompts, the "from" is where THAT session was', (t) => {
+  // last-applied is one slot. Reading `before` out of it told a session it had moved from a
+  // version it was never on: two releases landed, and the session that had been on 1.0.0 was
+  // told "v1.1.0 → v1.2.0". The only honest "from" is the session's own record.
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(join(state, 'seen'), { recursive: true })
+  const wasAt = head(w.friend)
+  writeFileSync(join(state, 'seen', 's'), wasAt)
+  const old = new Date(Date.now() - 60 * 1000)
+  utimesSync(join(state, 'seen', 's'), old, old)
+  // Two updates, the record holding only the second.
+  writeFileSync(join(state, 'last-applied'), JSON.stringify({ at: Date.now(), head: head(w.friend), before: '1.1.0', after: '1.2.0', applied: true }))
+
+  const said = String(promptAs(w, 's'))
+  assert.match(said, new RegExp(`up from ${wasAt.slice(0, 7)}`), said)
+  assert.doesNotMatch(said, /v1\.1\.0/, 'a version this session was never on is never named as its starting point')
+})
+
+test('the sweep keeps the record of a session that is still live', (t) => {
+  // The amplifier for the no-record defect: sweeping a live session's record makes it a session
+  // with no record, and the guard's other half then decides what it hears.
+  const w = world(t, {})
+  const dir = join(w.config, '.cgc', 'seen')
+  mkdirSync(dir, { recursive: true })
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  for (let i = 0; i < 150; i++) { const p = join(dir, `stale-${i}`); writeFileSync(p, 'x'); utimesSync(p, old, old) }
+  writeFileSync(join(dir, 'still-here'), head(w.friend))          // written just now
+  promptAs(w, 'fresh-session')
+  assert.ok(existsSync(join(dir, 'still-here')), "a live session's record survives the sweep")
+  assert.ok(readdirSync(dir).length < 10, 'and the stale ones do not')
+})
+
+test('a session start that DOES hold the lock still tells the installer so', (t) => {
+  // The other half of the lock flag: passing it when it is true is what stops the installer
+  // waiting thirty seconds for a lock its own parent holds, at every session start.
+  const w = world(t, { doctor: true })
+  writeFileSync(join(w.friend, 'tools', 'install.mjs'),
+    "import { writeFileSync } from 'node:fs'\nwriteFileSync(new URL('../installed.txt', import.meta.url), String(process.env.CGC_UPDATE_LOCK_HELD))\n", 'utf8')
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: '{"source":"startup"}', encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config },
+  })
+  assert.equal(r.status, 0)
+  assert.equal(readFileSync(join(w.friend, 'installed.txt'), 'utf8'), '1',
+    'the installer must not queue behind the process that already holds the lock')
 })

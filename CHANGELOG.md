@@ -5,6 +5,63 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.65.0 — 2026-09-05
+
+A fourth adversarial review, and the first end-to-end run against a real clone of the published
+repository. Six defects, two of them in what the hook SAYS rather than what it does — which for
+a hook whose entire job is to tell you the truth about your install is the same thing.
+
+**A pull that landed with an install that failed was announced as "the config, hooks and skills
+were re-applied … in force from this message on".** The record carries `applied`; the message
+ignored it. That sentence was the only report anyone got: the background updater carries no
+session, so nobody sees its own line, and the next session start reports `current` and erases
+the failure. So a machine whose hooks were still the OLD ones was told, in the one line it is
+instructed to trust, that the new gates were in force. It now says the fast-forward landed, the
+re-apply FAILED, the mandates are NOT in force, and how to fix it.
+
+**A blocking reason was repeated for half an hour after the user had acted on it.** The hook
+correctly reported an untracked file that blocked the fast-forward — and then went on naming
+that file, once per fetch window, after the user deleted it, while retrying nothing. The first
+fix for this was itself wrong and the tests caught it: comparing the recorded reason against the
+`--untracked-files=no` probe, which by construction cannot see the very files that cause this
+failure, so "the probe says clean" is that failure's normal state and every blocked clone
+retried on every prompt. The evidence is the whole working state now — HEAD plus the porcelain
+*with* untracked files, recorded when the reason was reported. Different state means the user
+did something, whatever it was, and the reason is re-tested rather than repeated. When the
+reason still stands, the retry happens on the half-hour and says so, instead of printing "go and
+fix it" on the very prompt that just started a new attempt. The wait is now stated in the
+message; before, nothing anywhere said it.
+
+**Found by running the real hooks against a real clone rather than a stub: a session with no
+record of its own was greeted with an update that landed before it existed.** `mtime()` answers
+0 for a file that is not there, and the guard tested only that the prompt carried a session id —
+so "no record" compared 0 against the last update and matched anything. It also resurrects an
+old announcement for any session whose record the week-old sweep removed. A session with no
+record has no stale belief to correct: it is recorded, and told nothing.
+
+**Two updates between one session's prompts produced a wrong "from" version.** `last-applied` is
+one slot, and reading `before` out of it told a session it had moved from a version it was never
+on. The only honest "from" is the session's own record, so that is what the line uses — the head
+this session actually knew about.
+
+**The doctor's summary still contradicted the rows above it**, through the branch the previous
+fix did not touch: the `unusable` set was populated only from the two "command not found"
+branches, while "server entry missing" — which is both vendored servers, and what an absent
+`node_modules` produces — never marked the name. Reproduced: two FAILs naming missing entries,
+directly under "all 3 MCP servers this package requires are registered".
+
+**And two of the new tests contained an assertion that could never fail** —
+`assert.equal(head(w.friend), head(w.friend))`, in both cases guarding the worst regression the
+test existed to catch: the hook merging a clone it must leave alone. They compare against a
+captured head now, and the review's other named gaps are closed: the lock flag is asserted in
+both directions, the sweep is asserted to keep a live session's record, the unknown-ahead half
+is pinned where a behavioural test cannot reach it, and the vendored-entry branch has a test.
+
+Smaller: the flag that tells the installer the lock is held is set either way, because a spread
+cannot unset a value inherited from the environment; the background stamp is cleared once the
+clone is current, so a new release is not met with "it is updating in the background" while
+nothing is running; and the doctor's summary says "are" for more than one server.
+
 ## 1.64.0 — 2026-09-05
 
 A third adversarial review, of 1.63.0. Seven more, and the two worst were both 1.63.0's own:

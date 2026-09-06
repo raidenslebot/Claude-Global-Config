@@ -53,6 +53,9 @@ const STAMP = path.join(STATE, 'last-remote-check')
 // places this file lives: config/hooks in the repo, <config>/hooks once installed.
 const UPDATER = path.join(__dirname, 'session-start-cgc.js')
 const BG_STAMP = path.join(STATE, 'update-bg')
+// The working state as it was when a blocking reason was last reported. When it changes, the
+// user has done something — and whatever they did, the recorded reason is no longer evidence.
+const BLOCKED_AT = path.join(STATE, 'update-blocked-state')
 // Written by the session-start hook when, and only when, an update actually LANDS. Its mtime
 // is the moment the installed config last changed under everybody. update.json cannot answer
 // that question — it is one slot, rewritten by every later session start with 'current', so a
@@ -196,14 +199,35 @@ try {
   // Has an update landed since this session was last told anything? One question, asked the
   // same way on every path below — current, ahead, behind — because the thing a session needs
   // to hear is not "the head changed" but "the config under you was re-applied".
-  const appliedSinceSeen = () => Boolean(seenFile) && mtime(LAST_APPLIED) > mtime(seenFile)
+  // NO RECORD IS NOT "TOLD NOTHING SINCE THE BEGINNING OF TIME". mtime() answers 0 for a file
+  // that does not exist, and `Boolean(seenFile)` only tests that this prompt HAS a session id —
+  // so a session with no record at all compared 0 against last-applied and was told about
+  // whatever update happened last, however long ago. Found end to end: a session that had never
+  // prompted was greeted with an update that had already landed before it existed. A session
+  // with no record has no stale belief to correct: record where it is, and say nothing.
+  const appliedSinceSeen = () => {
+    const was = mtime(seenFile)
+    return was > 0 && mtime(LAST_APPLIED) > was
+  }
   const tellApplied = () => {
     let u = null
     try { u = JSON.parse(fs.readFileSync(LAST_APPLIED, 'utf8')) } catch { u = null }
+    const was = seen
     noteSeen(local)
-    const to = u && u.after ? `v${u.after}` : `v${version()}`
-    const from = u && u.before ? `v${u.before} → ` : ''
-    emit(`CGC updated itself since this session last checked: ${from}${to} (${String((u && u.head) || local).slice(0, 7)}). The config, hooks and skills were re-applied; the mandates, gates and fixes in those commits are in force from this message on.`)
+    // The version this clone is on NOW, and the head this SESSION came from — not the record's
+    // `before`. last-applied is one slot: with two releases between one session's prompts it
+    // held the second one's before/after, and the session was told it had moved from a version
+    // it was never on. `seen` is this session's own knowledge, so it is the only honest "from".
+    const where = `v${version()} (${local.slice(0, 7)})${was ? `, up from ${was.slice(0, 7)}` : ''}`
+    // AND WHETHER THE RE-APPLY WORKED. The record carries `applied`, and this message ignored
+    // it: a pull that landed with an install that failed was announced to every open session as
+    // "the config, hooks and skills were re-applied … in force from this message on" — the only
+    // report anyone got, since the background updater carries no session and the next session
+    // start reports 'current' and erases it.
+    if (u && u.applied === false) {
+      emit(`CGC fast-forwarded itself to ${where} since this session last checked, but the config re-apply FAILED — the hooks, skills and mandates on this machine are still the OLD ones, and the gates in those commits are NOT in force. Re-apply it: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
+    }
+    emit(`CGC updated itself since this session last checked: ${where}. The config, hooks and skills were re-applied; the mandates, gates and fixes in those commits are in force from this message on.`)
   }
 
   if (!fresh) {
@@ -238,7 +262,12 @@ try {
   if (appliedSinceSeen()) tellApplied()
   if (!seen) noteSeen(local)
 
-  if (remote === local) process.exit(0)            // current: the common path says nothing at all
+  if (remote === local) {
+    // Nothing is running any more, so the next release must not be met with "it is updating in
+    // the background now" for the two minutes the stamp would otherwise still cover.
+    try { fs.rmSync(BG_STAMP, { force: true }); fs.rmSync(BLOCKED_AT, { force: true }) } catch { /* nothing to clear */ }
+    process.exit(0)                                // current: the common path says nothing at all
+  }
 
   // Behind (or diverged). Only fast-forward — never discard local work.
   const behind = out(git(['rev-list', '--count', `HEAD..origin/${main}`])) || '?'
@@ -282,10 +311,35 @@ try {
   let ran = null
   try { ran = JSON.parse(fs.readFileSync(path.join(STATE, 'update.json'), 'utf8')) } catch { ran = null }
   // An outcome recorded after we last asked is the answer to our request.
-  const answered = ran && asked && (ran.at || 0) >= asked && ran.status !== 'updated' && ran.status !== 'current'
+  const recorded = ran && asked && (ran.at || 0) >= asked && ran.status !== 'updated' && ran.status !== 'current'
     ? ran : null
+  // IS THAT REASON STILL TRUE? Without this the hook repeated a blocking reason the user had
+  // already acted on — for half an hour, naming a file it had just watched them delete — while
+  // retrying nothing.
+  //
+  // The test cannot be the probes above: the commonest blocking reason is an UNTRACKED file the
+  // incoming commit would overwrite, and `--untracked-files=no` cannot see it, so "the probe
+  // says clean" is that failure's normal state rather than evidence it is fixed. (That was the
+  // first version of this check, and it made the hook retry on every prompt for a clone that
+  // was still genuinely blocked.) So the evidence is the whole working state — HEAD plus the
+  // porcelain WITH untracked files — recorded when the reason was reported. Different state
+  // means the user did something, whatever it was, and the reason must be re-tested rather
+  // than repeated.
+  const stateNow = () => {
+    const r = git(['status', '--porcelain'])
+    return r.status === 0 ? `${local}\n${String(r.stdout || '')}` : null
+  }
+  let stale = false
+  if (recorded) {
+    const now = stateNow()
+    let then = null
+    try { then = fs.readFileSync(BLOCKED_AT, 'utf8') } catch { then = null }
+    stale = Boolean(now && then && now !== then)
+  }
+  const blocking = stale ? null : recorded
   const since = Date.now() - asked
-  if (since > (answered ? BG_RETRY_MS : BG_RUNNING_MS)) {
+  let started = false
+  if (stale || since > (blocking ? BG_RETRY_MS : BG_RUNNING_MS)) {
     if (!fs.existsSync(UPDATER)) {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and cannot update: its updater is missing at ${UPDATER}. Re-install: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
     }
@@ -297,17 +351,18 @@ try {
       // that the update it started had landed.
       bg.stdin.end(JSON.stringify({ source: 'background-update' }))
       bg.unref()
+      started = true
     } catch (e) {
       once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and could not start the update (${String(e.message || e).slice(0, 60)}). Run: node "${path.join(REPO, 'tools', 'install.mjs')}"`)
     }
   }
 
-  if (answered) {
+  if (blocking) {
     const why = {
       // 200, not 90: the FILENAME git names is the whole content of this message, and it sits
       // at the end of git's sentence — truncating cut it off.
-      dirty: `files it changes were edited locally (${String(answered.error || '').slice(0, 200)})`,
-      failed: `the fast-forward failed (${String(answered.error || '').slice(0, 200)})`,
+      dirty: `files it changes were edited locally (${String(blocking.error || '').slice(0, 200)})`,
+      failed: `the fast-forward failed (${String(blocking.error || '').slice(0, 200)})`,
       diverged: 'this clone has local commits that are not on the remote branch',
       ahead: 'this clone is ahead of the remote branch',
       offline: 'the remote could not be reached',
@@ -316,8 +371,17 @@ try {
       detached: 'it is a detached checkout',
       branch: 'another branch is checked out',
       'no-remote-branch': 'the origin has no branch to follow',
-    }[answered.status] || `the update reported "${answered.status}"`
-    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and the update did NOT land: ${why}. It is running a stale version — the mandates, gates and fixes in those commits are not in force. Fix it and it resumes on its own: git -C "${REPO}" status`)
+    }[blocking.status] || `the update reported "${blocking.status}"`
+    // Two different sentences, because "it failed and nothing is happening" and "it failed and
+    // it is trying again right now" are different facts, and the first version said the former
+    // even on the prompt that had just spawned a new attempt.
+    // Remember the state this reason was reported against, so that a change to it is read as
+    // "the user acted" rather than ignored for half an hour.
+    try { const now = stateNow(); if (now !== null) { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(BLOCKED_AT, now) } } catch { /* the fallback is the timed retry */ }
+    if (started) {
+      once(`CGC ${version()} is ${behind} commit(s) behind origin/${main}. The last attempt did NOT land: ${why}. It is trying again in the background now; the next prompt reports the result.`)
+    }
+    once(`CGC ${version()} is ${behind} commit(s) behind origin/${main} and the update did NOT land: ${why}. It is running a stale version — the mandates, gates and fixes in those commits are not in force. Fix it and it retries within half an hour, or at once on the next prompt after you fix it: git -C "${REPO}" status`)
   }
 
   const target = (() => { try { return JSON.parse(out(git(['show', `origin/${main}:package.json`])) || '{}').version } catch { return '' } })()
