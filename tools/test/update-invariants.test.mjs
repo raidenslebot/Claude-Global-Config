@@ -23,6 +23,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { REPO } from '../paths.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
@@ -189,6 +190,7 @@ function quiesce(w) {
 test('every state the updater can meet keeps every invariant', (t) => {
   const failures = []
   let ran = 0
+  let withMemory = 0
   for (const [cloneName, setUpClone] of Object.entries(CLONES)) {
     for (const [memoryName, setUpMemory] of Object.entries(MEMORIES)) {
       const where = `${cloneName} + ${memoryName}`
@@ -197,7 +199,7 @@ test('every state the updater can meet keeps every invariant', (t) => {
       mkdirSync(state, { recursive: true })
       setUpClone(w)
       // The memory is written after the clone state, so it can name the clone's real head.
-      if (existsSync(join(w.friend, '.git'))) setUpMemory(w, state)
+      if (existsSync(join(w.friend, '.git'))) { setUpMemory(w, state); withMemory++ }
       const got = run(w)
       ran++
       const bad = (why) => failures.push(`${where}: ${why}\n    said: ${JSON.stringify(got.said)}`)
@@ -236,7 +238,11 @@ test('every state the updater can meet keeps every invariant', (t) => {
     }
   }
   assert.equal(failures.length, 0, `${failures.length} of ${ran} states broke an invariant:\n\n${failures.join('\n\n')}`)
-  assert.ok(ran >= 90, `the matrix must actually be a matrix, ran ${ran}`)
+  // `ran` is CLONES × MEMORIES restated, which can only fail if somebody deletes a state. What
+  // is worth asserting is that the memory fixtures were actually APPLIED — four clone states
+  // (detached, another branch, no origin, not a clone) answer from the clone alone and never
+  // read the memory at all, so a third of the grid is one answer repeated.
+  assert.ok(withMemory >= 60, `only ${withMemory} of ${ran} cells reached the memory they were given`)
 })
 
 test('the session-start hook keeps its own invariants in every clone state', (t) => {
@@ -382,38 +388,39 @@ test('a clone that goes from behind to current tells each session once and then 
   quiesce(w)
 })
 
-test('prompts that arrive together start at most one updater', (t) => {
-  // Reading the stamp and then writing it is a read-modify-write, and prompts from several
-  // sessions arrive together. Two updaters mean two installers doing read-modify-write on
-  // settings.json — the hazard the update lock exists for, and not one to leave to a window
-  // being narrow.
-  const w = world(t)
-  release(w, '1.1.0', 'a release')
-  const runs = []
-  for (let i = 0; i < 5; i++) {
-    runs.push(new Promise((res) => {
-      const c = spawn(process.execPath, [HOOK], {
-        env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
-        stdio: ['pipe', 'pipe', 'ignore'],
-      })
-      let out = ''
-      c.stdout.on('data', (d) => { out += d })
-      c.stdin.end(JSON.stringify({ session_id: `p${i}` }))
-      c.on('close', (code) => res({ code, out }))
-    }))
+test('of the prompts that decide an update is due on the same evidence, exactly one may start it', async (t) => {
+  // The claim's contract is a property about concurrent callers, and END TO END IT IS INVISIBLE:
+  // the stamp write serialises the common case by itself, so a claim that grants EVERY caller
+  // still yields one updater almost every time. The previous test here asserted that an install
+  // marker existed — and the stub wrote it with writeFileSync, so one install and five were the
+  // same file. It passed with the claim deleted, which is the whole of what it existed to prove.
+  //
+  // So the question is put to the claim itself, with every caller holding the evidence the
+  // others held: whoever wins must leave the rest with nothing to win.
+  const dir = mkdtempSync(join(tmpdir(), 'cgc-claim-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  // require, not import: the hook is CommonJS, and a query string on a file: URL is not a
+  // resolvable specifier for it. The env has to be set before the module reads it.
+  process.env.CLAUDE_CONFIG_DIR = dir
+  const { claimAttempt, BG_STAMP, STATE } = createRequire(import.meta.url)(HOOK)
+  mkdirSync(STATE, { recursive: true })
+  writeFileSync(BG_STAMP, '1')
+  const old = new Date(Date.now() - 45 * 60 * 1000)
+  utimesSync(BG_STAMP, old, old)
+  const asked = statSync(BG_STAMP).mtimeMs        // what every caller read before it decided
+
+  const won = []
+  for (let i = 0; i < 4; i++) {
+    won.push(claimAttempt(asked))
+    const until = Date.now() + 50                 // the window the race actually happens in
+    while (Date.now() < until) { /* spin */ }
   }
-  const done = spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 1)'])   // keep the shape sync-friendly
-  assert.equal(done.status, 0)
-  return Promise.all(runs).then((got) => {
-    for (const g of got) assert.equal(g.code, 0, 'every concurrent prompt still exits 0')
-    // Exactly one of them may hold the claim; the rest must not have started anything. The
-    // observable is the marker the stub install writes, one per updater that got that far.
-    const until = Date.now() + 30000
-    while (head(w.friend) !== head(w.author) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
-    quiesce(w)
-    const marker = join(w.friend, 'installed.txt')
-    assert.ok(existsSync(marker), 'the update did happen')
-    // Every prompt spoke, so no session was left uninformed by losing the race.
-    assert.ok(got.every((g) => g.out.trim().length > 0), 'a prompt that loses the claim still reports that the clone is behind')
-  })
+  assert.equal(won.filter(Boolean).length, 1, `exactly one caller may start an attempt, got ${won.map((x) => (x ? 'claimed' : 'stood down')).join(', ')}`)
+  assert.equal(won[0], true, 'and it is the first to ask')
+
+  // A caller holding NEWER evidence — it read the stamp after the winner moved it — is a
+  // different question and may proceed once the gates above it allow.
+  assert.equal(claimAttempt(statSync(BG_STAMP).mtimeMs), true, 'a caller that read the new stamp is not stood down for ever')
+  // Nothing is left holding the door: the claim file is released whatever the answer.
+  assert.equal(existsSync(`${BG_STAMP}.claim`), false, 'the claim is not held after the decision')
 })

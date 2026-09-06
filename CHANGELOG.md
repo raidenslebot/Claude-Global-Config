@@ -5,6 +5,55 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.68.0 — 2026-09-06
+
+A seventh review. **The concurrency fix in 1.67.0 was theatre, and the test written to prove it
+could not have caught that.** Both are worth stating plainly, because between them they are the
+whole lesson of the last three releases.
+
+`claimAttempt()` "claimed" the right to start an update by renaming the stamp aside — and then
+immediately recreating it, so the token it had taken was back within microseconds and every later
+prompt renamed it aside and won too. Six concurrent prompts started up to six updaters:
+statistically identical to having no claim at all, which is what the release notes said it fixed.
+Reproduced here as three callers holding the same evidence fifty milliseconds apart —
+`CLAIMED / CLAIMED / CLAIMED` before, `CLAIMED / stood down / stood down` after. What makes it
+work is not the rename but the RE-CHECK: the claim is an exclusive create, and under it the winner
+re-reads the stamp and stands down unless it still holds the value its decision was based on.
+Check, lock, check again.
+
+**The test could not fail.** It asserted that an install marker existed — and the stub wrote it
+with `writeFileSync`, so one install and five were the same file. It passed with the feature
+deleted. The property is about concurrent callers and is invisible end to end (the stamp write
+serialises the common case by itself), so the claim is now exported and asked directly, and the
+new test is mutation-verified: it fails against the shipped-broken claim and passes against the
+fix. The hook reads its stdin when it RUNS rather than when it loads, since reading fd 0 at load
+time hangs anything that merely imports the file — which is why the first attempt at that test
+never returned.
+
+**Two more gates added last release were dead.** The per-hook timeout assertion never ran at all:
+`readFileSync` was not imported, so `budgets()` threw inside its own `try`, the `catch` swallowed
+it, and `{}` came back — the advertised check could not fire. And the isolation canary watched a
+single file that only one hook writes, so a hook ignoring `CGC_REPO` and fetching against the real
+clone left it untouched; it could also fail spuriously when a real session start wrote there.
+Isolation is now proved positively: the hooks must have written into the SCRATCH home.
+
+**Widening the fuzz roots found a real defect in a hook that runs on every prompt.** argo ships
+two hooks, registered in `config/hooks.json` like the rest, and the fuzzer never knew about them.
+`user-prompt-graph.js` exited 1 on a payload of `null` — valid JSON is not necessarily an object,
+and a hook that throws on a prompt fails that prompt. Guarded, and checked against `null`, a bare
+string, an array, `{}` and empty input.
+
+**And the mutation gate learned to distinguish a kill from the RIGHT kill.** Its first run killed
+all sixteen mutations, but three unrelated guards were caught by one detached-checkout test that
+has nothing to do with any of them — a guard held by accident loses its net the day that test
+changes, and nobody connects the two. Each mutation now names the test that should object, and a
+kill by anything else is its own verdict. It caught a stale expectation on its first run with the
+feature enabled.
+
+Smaller: the matrix's run count restated `clones × memories`, which can only fail if a state is
+deleted; it now counts the cells that actually reached the memory they were given, since four
+clone states answer from the clone alone and never read it.
+
 ## 1.67.0 — 2026-09-05
 
 A sixth review, and most of what it found was in the GATE this package added last release rather

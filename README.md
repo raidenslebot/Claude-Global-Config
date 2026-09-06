@@ -450,6 +450,10 @@ docs/         architecture, troubleshooting,      tools/print-render.mjs / print
 CHANGELOG.md  what a machine gained between       tools/page-audit.mjs   the rendered page, measured
               two session starts                  tools/specimen.mjs     a pairing and a palette, set
                                                   tools/outline-text.mjs text as one SVG path
+                                                  tools/mutate.mjs       breaks each guard on
+                                                                         purpose; a mutation the
+                                                                         tests do not notice is a
+                                                                         guard nothing holds
                                                   tools/test/            the gates
                                                   .githooks/             pre-commit secret gate
 ```

@@ -42,6 +42,10 @@ function main() {
   } catch {
     return // malformed input is not our problem; stay silent
   }
+  // Valid JSON is not an object. `null`, a string and an array all parse, and the first of them
+  // threw here — on a hook that runs at EVERY prompt, which means a payload shaped like that
+  // fails the prompt itself. Well-formed and useful are different questions.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return
 
   const prompt = String(payload.prompt ?? '')
   const cwd = typeof payload?.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd()

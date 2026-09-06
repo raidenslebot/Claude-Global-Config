@@ -43,11 +43,16 @@ const STATE = path.join(CONFIG_ROOT, '.cgc')
 // session fast-forwards, every other live session's next prompt reads "current" from the local
 // ref comparison — with its hooks, config and mandates changed under it and nothing said. Each
 // session records the head it was last told about; a head it has not seen is announced once.
+// Read when the hook RUNS, not when the file loads. Reading fd 0 at load time blocks for as long
+// as stdin stays open, so anything that merely imports this file — a test asking the claim a
+// question — hangs for ever instead of getting an answer.
 let SESSION = null
-try {
-  const id = String(JSON.parse(fs.readFileSync(0, 'utf8') || '{}').session_id || '')
-  if (/^[A-Za-z0-9._-]{1,80}$/.test(id)) SESSION = id
-} catch { /* no payload, or not JSON: no per-session memory, nothing else changes */ }
+function readSession() {
+  try {
+    const id = String(JSON.parse(fs.readFileSync(0, 'utf8') || '{}').session_id || '')
+    if (/^[A-Za-z0-9._-]{1,80}$/.test(id)) SESSION = id
+  } catch { /* no payload, or not JSON: no per-session memory, nothing else changes */ }
+}
 const STAMP = path.join(STATE, 'last-remote-check')
 // The session-start hook, which does the update when this hook finds one. A sibling in both
 // places this file lives: config/hooks in the repo, <config>/hooks once installed.
@@ -80,33 +85,51 @@ const BG_FLOOR_MS = 30 * 1000
 const mtime = (p) => { try { return fs.statSync(p).mtimeMs } catch { return 0 } }
 
 /**
- * Claim the right to start ONE background attempt, atomically.
+ * Claim the right to start ONE background attempt.
  *
  * The gates below decide WHETHER an attempt is due; this decides WHO makes it. Reading the
  * stamp's mtime and then writing it is a read-modify-write, and prompts from several sessions
- * arrive together — so two of them could both see a due attempt and both spawn an updater, and
- * two updaters mean two installers doing read-modify-write on settings.json and ~/.claude.json.
- * That is the hazard the update lock exists for, and it is not one to leave to a window being
- * narrow: measured at about fifty milliseconds, which is small until the machine is loaded.
+ * arrive together — so two of them can both see a due attempt and both spawn an updater, and two
+ * updaters mean two installers doing read-modify-write on settings.json and ~/.claude.json.
  *
- * The claim is a rename, which is atomic and has exactly one winner: whoever moves the stamp
- * aside owns the attempt, and everyone else fails with ENOENT and stands down. A machine with no
- * stamp at all is the same race, resolved by an exclusive create.
+ * THE FIRST VERSION OF THIS FUNCTION SERIALISED NOTHING. It "claimed" the stamp by renaming it
+ * aside and then immediately recreated it, so the token it had taken was back within
+ * microseconds and every later prompt renamed it aside and won too. Measured: six concurrent
+ * prompts started up to six updaters — statistically identical to having no claim at all.
+ *
+ * What makes this work is not the rename but the RE-CHECK. The claim is an exclusive create,
+ * which has exactly one winner; under it, the winner re-reads the stamp and stands down unless it
+ * still holds the value the caller's decision was based on. A prompt whose read predates another
+ * prompt's attempt therefore loses, which is precisely the case the rename let through. Check,
+ * lock, check again — the claim file is released either way, so nothing is held after the
+ * decision, and a claim left behind by a process that died is reclaimed once it is older than the
+ * floor between attempts.
+ *
+ * @param {number} askedAt the stamp's mtime as the caller read it, before deciding
  */
-function claimAttempt() {
-  const aside = `${BG_STAMP}.claim`
+function claimAttempt(askedAt) {
+  const claim = `${BG_STAMP}.claim`
   try { fs.mkdirSync(STATE, { recursive: true }) } catch { return false }
-  const mark = () => {
-    try { const fd = fs.openSync(BG_STAMP, 'w'); fs.writeSync(fd, String(process.pid)); fs.closeSync(fd); return true } catch { return false }
+  const open = () => { try { return fs.openSync(claim, 'wx') } catch (e) { return e.code === 'EEXIST' ? 'held' : null } }
+  let fd = open()
+  if (fd === 'held') {
+    // A claim nobody released belongs to a process that died. It is not a claim for longer than
+    // one attempt could possibly take to start.
+    try { if (Date.now() - fs.statSync(claim).mtimeMs > BG_FLOOR_MS) fs.rmSync(claim, { force: true }); else return false } catch { return false }
+    fd = open()
+    if (fd === 'held' || fd === null) return false
   }
-  if (!fs.existsSync(BG_STAMP)) {
-    // No stamp: the first to create it exclusively wins, the rest see EEXIST.
-    try { const fd = fs.openSync(BG_STAMP, 'wx'); fs.writeSync(fd, String(process.pid)); fs.closeSync(fd); return true } catch { return false }
+  if (fd === null) return false
+  try {
+    fs.writeSync(fd, String(process.pid))
+    fs.closeSync(fd)
+    // THE RE-CHECK. Another prompt may have started an attempt between this one's read and now.
+    if (mtime(BG_STAMP) !== askedAt) return false
+    fs.writeFileSync(BG_STAMP, String(process.pid))
+    return true
+  } catch { return false } finally {
+    try { fs.rmSync(claim, { force: true }) } catch { /* the staleness check reclaims it */ }
   }
-  try { fs.renameSync(BG_STAMP, aside) } catch { return false }   // somebody else claimed it
-  const ok = mark()
-  try { fs.rmSync(aside, { force: true }) } catch { /* the next claim overwrites it */ }
-  return ok
 }
 
 // Sixty seconds. The local ref comparison below runs on EVERY prompt and costs no network; this
@@ -183,6 +206,14 @@ try { fresh = Date.now() - fs.statSync(STAMP).mtimeMs < FETCH_TTL_MS } catch { f
 const stamp = () => { try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(STAMP, String(Date.now())) } catch { /* stamp is an optimisation */ } }
 /** Say a standing condition once per fetch window; inside the window, say nothing. */
 const once = (text) => { if (fresh) process.exit(0); stamp(); emit(text) };
+
+
+// Exported so the claim can be exercised directly: its contract is a property about concurrent
+// callers, which no end-to-end assertion can see. Running the file still behaves as a hook.
+module.exports = { claimAttempt, BG_STAMP, STATE }
+if (require.main !== module) return
+
+readSession();  // the payload is this hook's, and only when it is running as one
 
 (async () => {
 try {
@@ -406,7 +437,7 @@ try {
     }
     // Losing the claim is not a reason to go quiet: an attempt IS being made, by whichever
     // prompt won it, and this session still needs to hear that it is behind and why.
-    if (claimAttempt()) try {
+    if (claimAttempt(asked)) try {
       // The state this attempt is being made against. Every attempt refreshes it, so a change
       // is measured from the last ASK rather than from the last report.
       // A digest we could not compute must not leave the PREVIOUS one in place: the next prompt
