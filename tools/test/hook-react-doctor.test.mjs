@@ -113,3 +113,23 @@ test('one scan at a time: a live slot means skip, a dead slot is taken over', (t
   assert.equal(taken.scanned, true, `a stale slot must be taken over (gate: ${taken.why})`)
   assert.equal(existsSync(lock), false, 'and released afterwards')
 })
+
+test('a framework name matches whole: exponential-backoff is not expo, astronomia is not astro', (t) => {
+  // The gate was a bare prefix, so a backend with exponential-backoff, astronomia, remixicon or
+  // nextcloud-node-client as a dependency paid the forty-second scan it exists to skip — the
+  // exact cost the change measured and set out to remove.
+  const w = world(t)
+  w.write(['api', 'package.json'], JSON.stringify({ dependencies: { 'exponential-backoff': '3', astronomia: '4', remixicon: '4', 'nextcloud-node-client': '1', 'vue-template-compiler-not': '0' } }))
+  const f = w.write(['api', 'src', 'server.js'], 'x')
+  const r = fire(w, f)
+  assert.equal(r.scanned, false, `a look-alike name must not scan (gate: ${r.why})`)
+  assert.match(r.why, /no framework/)
+  // Scoped prefixes still count: a project on TanStack's React bindings is a React project.
+  w.write(['app', 'package.json'], JSON.stringify({ dependencies: { '@tanstack/react-query': '5', react: '18' } }))
+  const g = w.write(['app', 'src', 'App.tsx'], 'x')
+  assert.equal(fire(w, g).scanned, true)
+  // And a scoped framework alone.
+  w.write(['native', 'package.json'], JSON.stringify({ dependencies: { '@react-native/metro-config': '0.7' } }))
+  const n = w.write(['native', 'App.js'], 'x')
+  assert.equal(fire(w, n).scanned, true, 'a @react-native/* dependency is a React Native project')
+})

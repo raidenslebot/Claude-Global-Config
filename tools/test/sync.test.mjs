@@ -189,3 +189,28 @@ test('an absolute hook path from any platform normalises to {{CONFIG_ROOT:url}}/
   assert.equal(doc.hooks.UserPromptSubmit[0].hooks[0].timeout, 10, 'hook fields other than command were dropped')
   assert.equal(/someone/.test(text), false, `a machine path survived into hooks.json:\n${text}`)
 })
+
+test('a sync preserves the manifest keys that are not hooks — `retired` is the prune’s ownership list', (t) => {
+  // config/hooks.json carries more than the live hooks: `retired` names the hooks this package
+  // once shipped, which no settings.json can know. Rebuilding the file from settings alone
+  // erased it — and an erased list means the prune owns nothing and a folded hook stays
+  // registered for ever. sync also reported it as permanent drift.
+  const repo = fixtureRepo(t)
+  const { home, cfg } = fixtureHome(t)
+  const hook = join(cfg, 'hooks', 'user-prompt-live.js')
+  writeFileSync(hook, '', 'utf8')
+  writeFileSync(join(cfg, 'settings.json'), JSON.stringify({
+    hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `"${process.execPath}" "${hook}"` }] }] },
+  }), 'utf8')
+  const manifest = join(repo, 'config', 'hooks.json')
+  writeFileSync(manifest, JSON.stringify({ hooks: {}, retired: ['user-prompt-ui-stack.js'] }, null, 2) + '\n', 'utf8')
+
+  assert.equal(runSync(repo, home).status, 0)
+  const after = JSON.parse(readFileSync(manifest, 'utf8'))
+  assert.deepEqual(after.retired, ['user-prompt-ui-stack.js'], 'the ownership list survives a sync')
+  assert.ok(after.hooks.UserPromptSubmit, 'and the live hook was recorded')
+  // And the round-trip is byte-stable, or --check reports drift for ever.
+  const r = runSync(repo, home, ['--check'])
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.equal(r.changed, 0, r.stdout)
+})

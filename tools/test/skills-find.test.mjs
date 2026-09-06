@@ -93,6 +93,10 @@ test('a fetched skill lands in the library, and a path that climbs out is refuse
     res.writeHead(200, { 'content-type': 'application/json' })
     if (req.url.includes('/evil/')) {
       res.end(JSON.stringify({ files: [{ path: '../../../../pwned.md', contents: 'no' }] }))
+    } else if (req.url.includes('/second/')) {
+      res.end(JSON.stringify({ files: [{ path: 'SKILL.md', contents: 'fine' }, { path: '../../../../pwned2.md', contents: 'no' }] }))
+    } else if (req.url.includes('/self/')) {
+      res.end(JSON.stringify({ files: [{ path: 'a/..', contents: 'a file where the directory goes' }] }))
     } else if (req.url.startsWith('/dl')) {
       res.end(JSON.stringify({ files: [{ path: 'SKILL.md', contents: '---\nname: x\n---\nbody' }] }))
     } else res.end('{}')
@@ -110,6 +114,18 @@ test('a fetched skill lands in the library, and a path that climbs out is refuse
   assert.equal(bad.code, 2)
   assert.match(bad.err, /climbs out/)
   assert.equal(existsSync(join(lib, '..', 'pwned.md')), false, 'nothing was written outside the library')
+
+  // "Validate every path before writing any" — asserted with a payload whose FIRST file is fine
+  // and whose second climbs out: nothing at all may land, or the property is only half true.
+  const second = await capture(['--get', 'second/repo/slug'])
+  assert.equal(second.code, 2)
+  assert.equal(existsSync(join(lib, '_found', 'second', 'repo', 'slug', 'SKILL.md')), false, 'the good file must not be written when a later one is refused')
+  assert.equal(existsSync(join(lib, '..', 'pwned2.md')), false)
+  // A path that resolves to the destination ITSELF passed the prefix test by exemption and was
+  // then written as a file where the skill's directory belongs.
+  const self = await capture(['--get', 'self/repo/slug'])
+  assert.equal(self.code, 2, self.out + self.err)
+  assert.match(self.err, /climbs out/)
 
   // An id that is not owner/repo/slug is rejected rather than fetched from a mangled URL.
   await assert.rejects(() => fetchSkill('justaname'), /owner>\/<repo>\/<slug/)

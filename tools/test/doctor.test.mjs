@@ -228,3 +228,23 @@ test('a standalone server that is not on the machine is a warning naming the ins
   assert.ok(vendored.length >= 1, 'the vendored servers are still failures')
   assert.ok(vendored.every((r) => r.level === 'fail' && r.repairable === true))
 })
+
+test('a standalone server registered at a path that is gone does not loop the repair either', (t) => {
+  // The other branch of the same check: the binary was deleted or moved, the registration
+  // still names the old path. mcp-register writes only servers it FINDS, so failing this as
+  // repairable ran an install that never touched the dead entry, and failed again — the loop,
+  // reached from the registration side.
+  const d = scratch(t)
+  const dead = join(d, 'gone', process.platform === 'win32' ? 'codebase-memory-mcp.exe' : 'codebase-memory-mcp')
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers: { 'codebase-memory-mcp': { command: dead, args: [], env: {} } } }), 'utf8')
+  const sys = process.platform === 'win32' ? join(process.env.SystemRoot || process.env.windir || '', 'System32') : '/usr/bin:/bin'
+  const j = runDoctorJson(d, {
+    LOCALAPPDATA: join(d, 'AppData', 'Local'),
+    PATH: [dirname(process.execPath), sys].join(process.platform === 'win32' ? ';' : ':'),
+  })
+  const rows = j.results.filter((r) => /codebase-memory-mcp/.test(r.message))
+  assert.ok(rows.length >= 1)
+  assert.ok(rows.every((r) => r.level !== 'fail'), 'nothing about it is a failure the repair would loop on:\n' + rows.map((r) => r.level + ' ' + r.message).join('\n'))
+  const gone = rows.find((r) => /which is gone/.test(r.message))
+  assert.ok(gone && /--only=mcp\b/.test(gone.message), 'and the dead registration names the step that re-downloads it')
+})

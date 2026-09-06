@@ -343,7 +343,15 @@ function details(u) {
 
 function main() {
   let source = 'startup'
-  try { source = JSON.parse(fs.readFileSync(0, 'utf8') || '{}').source || 'startup' } catch { /* no payload: a start */ }
+  let session = ''
+  try {
+    const p = JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
+    source = p.source || 'startup'
+    // The per-prompt hook announces a head this session has not been told about. This hook
+    // tells it here, at every start — a session whose first prompt lands after another session
+    // fast-forwarded the clone would otherwise never hear that its start line is stale.
+    session = /^[A-Za-z0-9._-]{1,80}$/.test(String(p.session_id || '')) ? String(p.session_id) : ''
+  } catch { /* no payload: a start */ }
   // A start or a resume opens a reply, so the line is announced. A clear or a compact happens
   // mid-conversation, where announcing it again would be noise.
   const announce = source === 'startup' || source === 'resume'
@@ -351,6 +359,11 @@ function main() {
   let u
   // The pull and the install it triggers are the only writers here; both run under the lock.
   try { u = withLock(update) } catch (e) { u = { status: 'failed', error: e.message } }
+  if (session) {
+    // What this session was told, so the per-prompt hook can tell it once about anything later.
+    const nowAt = u.head || out(git(['rev-parse', 'HEAD']))
+    if (nowAt) { try { fs.mkdirSync(path.join(STATE, 'seen'), { recursive: true }); fs.writeFileSync(path.join(STATE, 'seen', session), nowAt) } catch { /* a convenience */ } }
+  }
   let v = null
   try { v = withLock(verify) } catch { v = null }
   let t = null

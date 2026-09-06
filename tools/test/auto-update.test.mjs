@@ -414,12 +414,15 @@ test('every prompt verifies currency, and a stale clone updates itself without b
   // Current: silent. A hook that speaks on every prompt is a hook that gets removed.
   assert.equal(fire(w.friend), null, 'nothing to say when the clone matches its remote')
 
-  // Behind: it updates itself and says what it applied. CGC_FETCH_TTL_MS=0 forces the network
+  // Behind: it starts the update and says what is coming. CGC_FETCH_TTL_MS=0 forces the network
   // check — the default 60s window is what stops a burst of prompts becoming a burst of fetches,
   // and without overriding it here the second call would reuse the ref it just cached.
   w.release('1.1.0', 'a release the running session has never seen')
   const said = fire(w.friend, { CGC_FETCH_TTL_MS: '0' })
-  assert.match(String(said), /updated itself to v1\.1\.0/, said)
+  assert.match(String(said), /1 commit\(s\) behind origin\/main \(v1\.1\.0 available\)/, said)
+  // The update itself is the session-start hook's, run detached: nothing is merged inside a
+  // 10 s prompt hook, because a merge killed at that deadline wedges the clone.
+  waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
   assert.equal(JSON.parse(readFileSync(join(w.friend, 'package.json'), 'utf8')).version, '1.1.0')
 
   // And the next prompt is silent again, because it is current — even forcing a fresh fetch.
@@ -497,9 +500,9 @@ test('the per-prompt updater refuses a detached checkout, names a local-only bra
   git('branch', '--unset-upstream')
   assert.equal(git('rev-parse', '--abbrev-ref', 'main@{upstream}'), '', 'precondition: no upstream configured')
   const noUp = prompt()
-  assert.match(String(noUp), /updated itself to v1\.1\.0/, noUp)
-  // The detached re-apply has the clone as its cwd; let it finish before the world is removed.
-  waitFor(() => existsSync(join(w.friend, 'installed.txt')), 8000, 'the detached re-apply')
+  assert.match(String(noUp), /is 1 commit\(s\) behind origin\/main \(v1\.1\.0 available\)\. It is updating in the background/, noUp)
+  // The detached updater has the clone as its cwd; let it finish before the world is removed.
+  waitFor(() => git('rev-parse', 'HEAD') === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
 })
 
 test('an unreachable remote answers well inside the 10 s hook budget, and never reads as current', (t) => {
@@ -522,23 +525,33 @@ test('an unreachable remote answers well inside the 10 s hook budget, and never 
   assert.ok(existsSync(join(w.config, '.cgc', 'last-remote-check')), 'the stamp is written BEFORE the fetch, so a dead remote is tried once a minute, not once a prompt')
 })
 
-test('a stale clone fast-forwards and hands the re-apply off, leaving no lock behind', (t) => {
-  // The merge is quick; the install after it is not (deps can run npm for minutes). Inside a
-  // 10 s hook that install was killed mid-run: merge landed, config stale, update.lock left on
-  // disk, nothing said. The re-apply is a detached process now, and the lock is released here.
+test('a stale clone is updated by the session-start hook, detached — nothing is merged inside the prompt hook', (t) => {
+  // Two versions of this hook did the fast-forward themselves. The first also ran the install
+  // inside the 10 s budget and was killed mid-run: merge landed, config stale, lock left on
+  // disk. The second tree-killed a slow merge at its own deadline, which left .git/index.lock
+  // and a half checkout — a clone wedged for good, with both hooks telling the user to commit
+  // changes the user never made. Nothing merges here now: the session-start hook is started
+  // detached to do what it does at every start, with a timeout git can clean up after.
   const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
   const w = world(t, {})
   w.release('1.5.0', 'a release with a slow install')
+  const before = head(w.friend)
   const r = spawnSync(process.execPath, [HOOK], {
     input: '{}', encoding: 'utf8', timeout: 120000,
     env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
   })
   assert.equal(r.status, 0)
   const said = JSON.parse(r.stdout).hookSpecificOutput.additionalContext
-  assert.match(said, /updated itself to v1\.5\.0/, said)
+  assert.match(said, /1 commit\(s\) behind origin\/main \(v1\.5\.0 available\)\. It is updating in the background/, said)
+  assert.match(said, /NOT yet in force/, 'until the update lands, the new commits are not claimed')
+  assert.doesNotMatch(said, /updated itself/, 'the prompt hook does not claim an update it did not do')
+  // The prompt hook itself moved nothing.
+  assert.ok([before, head(w.author)].includes(head(w.friend)))
+  waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
   const shown = spawnSync('git', ['-C', w.friend, 'show', 'HEAD:package.json'], { encoding: 'utf8' }).stdout
   assert.equal(JSON.parse(shown).version, '1.5.0', 'the fast-forward landed')
-  assert.equal(existsSync(join(w.config, '.cgc', 'update.lock')), false, 'the lock is not held past the hook')
+  assert.equal(existsSync(join(w.friend, '.git', 'index.lock')), false, 'git was not killed mid-merge')
+  waitFor(() => !existsSync(join(w.config, '.cgc', 'update.lock')), 20000, 'the updater to release its lock')
   const marker = join(w.friend, 'installed.txt')
   const until = Date.now() + 8000
   while (!existsSync(marker) && Date.now() < until) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
@@ -597,4 +610,131 @@ test('an ahead-only clone is current, and a blocked one is told once per fetch w
   assert.match(String(said), /1 local commit\(s\) not in origin\/main and is 1 behind/, said)
   assert.equal(prompt({ CGC_FETCH_TTL_MS: '600000' }), null, 'inside the fetch window the block is not repeated')
   assert.match(String(prompt()), /local commit/, 'the next fetch reports it again')
+})
+
+test('the per-prompt updater follows the default branch only — a pushed feature branch is left alone, as the session-start hook leaves it', (t) => {
+  // The first version followed origin/<whatever is checked out>: it fast-forwarded a feature
+  // branch and re-applied THAT branch's config while the session-start hook, on the same
+  // clone, said "on feature, main not followed" and left it alone. One rule, both hooks.
+  const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
+  const w = world(t, {})
+  git(w.friend, 'checkout', '-q', '-b', 'feature')
+  git(w.friend, 'push', '-q', 'origin', 'feature')
+  // origin's feature moves ahead of the friend's.
+  git(w.author, 'fetch', '-q', 'origin')
+  git(w.author, 'checkout', '-q', '-b', 'feature', 'origin/feature')
+  writeFileSync(join(w.author, 'package.json'), JSON.stringify({ version: '1.1.0-feature' }))
+  git(w.author, 'commit', '-q', '-am', 'feature work'); git(w.author, 'push', '-q', 'origin', 'feature')
+  const before = head(w.friend)
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: '{}', encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0' },
+  })
+  assert.equal(r.status, 0)
+  const said = r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : null
+  assert.match(String(said), /on branch "feature"; main is not followed/, said)
+  assert.equal(head(w.friend), before, 'a feature branch is never fast-forwarded by the per-prompt hook')
+  assert.equal(existsSync(join(w.friend, 'installed.txt')), false, 'and nothing was re-applied from it')
+  // The session-start hook says the same thing about the same clone.
+  assert.match(fire(w, w.friend).line, /on feature, main not followed/)
+})
+
+test('a time-out for THIS head while another session is re-running it reads "another session", not "did not finish"', (t) => {
+  // A run times out at t=0; at t=11 min session A takes the claim and re-runs. Every start,
+  // resume, clear and compact in every session for the next twenty minutes then read
+  // "DEGRADED · tests did not finish in 20 min", on the strength of the record that is the
+  // reason for the re-run — and told the user it would be re-tried at the next start, while
+  // it was running.
+  const w = world(t, { tests: true })
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  writeFileSync(join(state, 'selftest.json'), JSON.stringify({ head: head(w.friend), at: Date.now() - 11 * 60 * 1000, total: 0, pass: 0, fail: 0, skipped: 0, timedOut: true, unread: false, budgetMs: 1200000 }))
+  writeFileSync(join(state, 'selftest.running'), JSON.stringify({ pid: process.pid, at: Date.now() }))
+  const { line, ctx } = fire(w, w.friend)
+  assert.match(line, /tests running in another session/, line)
+  assert.doesNotMatch(line, /did not finish|DEGRADED/, line)
+  assert.doesNotMatch(ctx, /did not finish within/)
+  assert.equal(existsSync(join(w.friend, 'testruns.txt')), false, 'it must not have started a second run')
+})
+
+
+/** The per-prompt hook, for one session. Returns the additionalContext, or null when silent. */
+function promptAs(w, session, env = {}) {
+  const r = spawnSync(process.execPath, [join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')], {
+    input: JSON.stringify(session ? { session_id: session } : {}), encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config, CGC_FETCH_TTL_MS: '0', ...env },
+  })
+  assert.equal(r.status, 0)
+  return r.stdout.trim() ? JSON.parse(r.stdout).hookSpecificOutput.additionalContext : null
+}
+/** The detached updater has landed when the clone is at the author's head and re-applied. */
+const updated = (w) => waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')) && !existsSync(join(w.config, '.cgc', 'update.lock')), 20000, 'the detached update')
+
+test('a clone whose origin/HEAD is unset is still followed by the per-prompt hook — no TypeError, no "could not verify" on every prompt', (t) => {
+  // out() is null on a non-zero exit, and git symbolic-ref exits 128 when origin/HEAD is unset:
+  // the line copied from the session-start hook (whose out() never returns null) did
+  // null.replace(), and the catch-all said "could not verify (Cannot read properties of null)"
+  // on every prompt — unthrottled, because the catch used emit rather than once.
+  const w = world(t, {})
+  git(w.friend, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+  assert.equal(promptAs(w, 's'), null, 'current, and silent')
+  w.release('1.1.0', 'Change')
+  const said = promptAs(w, 's')
+  assert.match(String(said), /updating in the background/, said)
+  assert.doesNotMatch(String(said), /could not verify|null/)
+  updated(w)
+})
+
+test("a session's own commit is not announced to it as somebody else's update", (t) => {
+  // The author's workflow: prompt, commit, prompt, push, prompt. Version two told the session
+  // after the push that the clone "moved … another session applied the update and re-applied
+  // the config" — three claims, all false.
+  const w = world(t, {})
+  assert.equal(promptAs(w, 'author'), null)
+  git(w.friend, 'commit', '-q', '--allow-empty', '-m', 'my work')
+  assert.equal(promptAs(w, 'author'), null, 'ahead-only: nothing to say')
+  git(w.friend, 'push', '-q', 'origin', 'main')
+  assert.equal(promptAs(w, 'author'), null, 'after the push: still nothing — it was this clone\'s own commit')
+})
+
+test('every session hears about an update once — the one that started it, one that was open before it, one that only started', (t) => {
+  const w = world(t, {})
+  // X started before the update and never prompted: its session-start hook recorded the head
+  // it announced, so its first prompt after the update can be told that line is stale.
+  const old = head(w.friend)
+  const x = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ source: 'startup', session_id: 'x-idle' }), encoding: 'utf8', timeout: 120000, env: { ...process.env, CGC_REPO: w.friend, CLAUDE_CONFIG_DIR: w.config } })
+  assert.equal(x.status, 0)
+  assert.equal(readFileSync(join(w.config, '.cgc', 'seen', 'x-idle'), 'utf8').trim(), old, 'the start line is on record')
+  // B prompted before the update.
+  assert.equal(promptAs(w, 'b'), null)
+
+  w.release('1.1.0', 'a release')
+  // A finds it and starts the update; it is not claimed as done.
+  const a1 = promptAs(w, 'a')
+  assert.match(String(a1), /updating in the background/, a1)
+  updated(w)
+
+  const a2 = promptAs(w, 'a')
+  assert.match(String(a2), /updated itself to v1\.1\.0 .* since this session last checked/, a2)
+  assert.match(String(a2), /config was re-applied/)
+  assert.equal(promptAs(w, 'a'), null, 'A: told once')
+  const b = promptAs(w, 'b')
+  assert.match(String(b), /updated itself to v1\.1\.0/, b)
+  assert.equal(promptAs(w, 'b'), null, 'B: told once')
+  const xi = promptAs(w, 'x-idle')
+  assert.match(String(xi), /updated itself to v1\.1\.0/, 'X, whose first prompt lands after the update, is told its start line is stale')
+  assert.equal(promptAs(w, 'c-new'), null, 'a session that started after the update has nothing to be told')
+})
+
+test('a head that moved by a local commit in another window is named as that, not as an update', (t) => {
+  // update.json records what the session-start hook did; a head it did not produce moved by a
+  // commit, and the config was NOT re-applied by that — the line must not claim it was.
+  const w = world(t, {})
+  assert.equal(promptAs(w, 's'), null)
+  git(w.friend, 'commit', '-q', '--allow-empty', '-m', 'from another window')
+  git(w.friend, 'push', '-q', 'origin', 'main')
+  const said = promptAs(w, 's')
+  assert.match(String(said), /moved from [0-9a-f]{7} since this session last checked by a local commit, not an update/, said)
+  assert.doesNotMatch(String(said), /re-applied;/)
+  assert.equal(promptAs(w, 's'), null, 'once')
 })

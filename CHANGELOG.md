@@ -5,6 +5,58 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.63.0 — 2026-09-05
+
+A second adversarial review, of 1.62.0 this time, found eight more. The worst was introduced by
+1.62.0 itself, and the release is the reason to stop doing the thing that caused it.
+
+**The per-prompt hook does not update anything any more.** It verifies, and when the clone is
+behind it starts the session-start hook — detached, sessionless — to do what that hook does at
+every start: fast-forward under the lock with a timeout git can clean up after, re-apply the
+config, run the doctor, record what it did. The prompt hook merged the clone itself in 1.61.0
+and 1.62.0, and 1.62.0's tree-kill made that unsafe: `taskkill /F` and `SIGKILL` cannot be
+caught, so a merge killed at the hook's deadline left `.git/index.lock` and a half-updated
+worktree behind, HEAD unmoved, nothing to clean it up. The clone was then wedged for good —
+the next prompt said "uncommitted changes, so it was NOT updated" and the next session start
+said "UPDATE BLOCKED by local changes", both about changes the user never made, and following
+their advice did not help. Reproduced with a slow smudge filter; the budget could legitimately
+allow as little as 500 ms for the merge, so a slow disk or a virus scanner was enough. One
+updater now, in a process nobody kills. The hook says what is coming and that it is **not yet
+in force**, rather than claiming an update it has not done.
+
+**A clone whose `origin/HEAD` is unset threw on every prompt.** The branch-following rule copied
+from the session-start hook came with that hook's `out()`, which returns '' — this hook's returns
+`null`, and `git symbolic-ref` exits 128 when origin/HEAD is unset, so `null.replace()` threw
+into the catch-all, which used `emit` rather than `once`: "could not verify it is up to date
+(Cannot read properties of null)" on every single prompt, unthrottled. `git init` + `remote add`
+clones are the shape this hits, and the comment above the code named them as supported.
+
+**A session's own commit was announced to it as somebody else's update.** The ahead-only path
+recorded nothing, so after a push the session was told the clone "moved … another session applied
+the update and re-applied the config" — three claims, all false. That is the author's workflow,
+and this session was told exactly that about the commit it had just made. The per-session record
+is written on the ahead-only path now, the session-start hook writes it too (so a window that was
+open before an update, and prompts for the first time after it, is told its start line is stale),
+and the message distinguishes a head that moved by an **update** from one that moved by a **local
+commit** — only the first re-applied the config, and only the first may say so.
+
+**The register-only repair could still loop, through two doors 1.62.0 left open.** A standalone
+server registered at a path that no longer exists — the binary deleted or moved — failed as
+repairable while `mcp-register` writes only servers it *finds*, so the dead entry was never
+touched; and a vendored server whose `node_modules` entry is missing (a fresh machine where the
+npm step never ran) failed the same way while `mcp-register` skips an entry it cannot find. Both
+are warnings naming `--only=mcp` now. A binary that has merely moved to somewhere this package
+looks stays a repairable failure, because re-registering it is exactly what the repair can do.
+
+Smaller: the budget starts at the first git call rather than inside the body, and every git call
+is clamped to what is left, so no path can be killed by the host mid-write; the prune's ownership
+is by basename, which is now stated where it is decided — a user's own file carrying a retired
+name is pruned with it; the Windows tar path comes from `SystemRoot`/`windir` rather than a
+literal. And the three test files 1.62.0's changelog claimed — the whole-name framework gate, the
+skills-find second-file climb and the destination-itself path — really are tested now: a broken
+patch loop meant they were written and never applied, which the review caught by reading the diff
+rather than the claim.
+
 ## 1.62.0 — 2026-09-05
 
 An adversarial review of 1.61.x, run as a subagent on the review model, found eight defects.

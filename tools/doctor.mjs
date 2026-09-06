@@ -287,9 +287,20 @@ phase('MCP servers')
       const entry = (s.args || [])[0]
       const command = String(s.command || '')
       if (!resolveExe(command)) {
-        // Same rule: a broken command in somebody else's config is a real problem and a real
-        // report, but not one re-running this install can fix.
-        fail(`${name}${where}: command not found — ${s.command}`, { repairable: !where.trim() })
+        // A standalone server whose registered binary is gone: the repair re-registers it only
+        // if the binary is somewhere this package looks; otherwise it must be downloaded, which
+        // the repair cannot do — so that is a warning naming the step, not a failure to loop on.
+        const spec = (() => { try { return readJson(join(REPO, 'library', 'mcp-servers', 'servers.json')).servers[name] || null } catch { return null } })()
+        const elsewhere = spec && spec.bin && !where.trim() ? resolveServerBin(spec.bin) : null
+        if (spec && spec.bin && !where.trim() && !elsewhere) {
+          warn(`${name}: registered at ${command}, which is gone, and the binary is not installed anywhere this package looks. Re-download it with: node tools/install.mjs --only=mcp`)
+        } else if (elsewhere) {
+          fail(`${name}: registered at ${command}, which is gone; the binary is at ${elsewhere} — re-register with: node tools/install.mjs --only=mcp-register`, { repairable: true })
+        } else {
+          // Same rule: a broken command in somebody else's config is a real problem and a real
+          // report, but not one re-running this install can fix.
+          fail(`${name}${where}: command not found — ${s.command}`, { repairable: !where.trim() })
+        }
       }
       // Only a RUNTIME needs a script named in args. A standalone binary — codebase-memory-mcp
       // is one — is the server itself, and warning "no entry point" on it at every session
@@ -326,6 +337,10 @@ phase('MCP servers')
             // install at every start, for ever. It is a warning that names the install step.
             if (spec.bin && !resolveServerBin(spec.bin)) {
               warn(`MCP server "${n}" is not installed — ${spec.why}. Download it for this platform (checksum-verified) with: node tools/install.mjs --only=mcp`)
+            } else if (spec.entry && !existsSync(join(REPO, 'library', 'mcp-servers', 'node_modules', ...spec.entry))) {
+              // The same shape for a vendored server: mcp-register skips an entry it cannot find,
+              // so a failure here would be re-tried by an install that cannot clear it.
+              warn(`MCP server "${n}" is not installed — its entry is missing under library/mcp-servers/node_modules. Install it with: node tools/install.mjs --only=mcp`)
             } else {
               fail(`MCP server "${n}" is NOT registered — ${spec.why}. Re-register with: node tools/install.mjs --only=mcp-register`, { repairable: true })
             }

@@ -302,7 +302,9 @@ if (wants('hooks')) {
       // the directory as proof of ownership and would have removed a user's my-guard.js,
       // registration and file, from a detached process with its output discarded. A hook is
       // this package's to prune only if this package once SHIPPED it: config/hooks.json names
-      // every hook it retired. Anything else in that directory is somebody else's.
+      // every hook it retired. Anything else in that directory is somebody else's. Ownership is
+      // by basename, so a user's OWN file carrying a retired name — a kept, customised copy of
+      // user-prompt-ui-stack.js — is pruned with it; a hook of one's own is named one's own way.
       const retired = new Set((() => { try { return JSON.parse(readFileSync(hooksManifest, 'utf8')).retired || [] } catch { return [] } })())
       const pruned = []
       // THE INVARIANT. An empty wanted-set is a manifest that could not be read — a failure, not
@@ -537,7 +539,9 @@ async function fetchStandaloneServer(name, spec) {
     writeFileSync(tmp, body)
     try {
       // Only the binary leaves the archive. Windows 10+ ships bsdtar in System32, which reads zip.
-      const tar = IS_WIN ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+      // Windows names its system root in the environment; without it, PATH decides.
+      const sysRoot = IS_WIN ? (process.env.SystemRoot || process.env.windir || '') : ''
+      const tar = sysRoot ? join(sysRoot, 'System32', 'tar.exe') : 'tar'
       const x = spawnSync(tar, ['-xf', tmp, '-C', destDir, exe], { encoding: 'utf8', timeout: 120000, windowsHide: true })
       if (x.status !== 0) { warn(`${name}: could not extract ${exe} from ${wantName}: ${String(x.stderr || (x.error && x.error.message) || '').trim().slice(0, 120)}`); return null }
     } finally { try { rmSync(tmp, { force: true }) } catch { /* temp file */ } }
