@@ -21,10 +21,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-mcp-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   mkdirSync(join(dir, '.claude'), { recursive: true })
   return dir
 }

@@ -10,12 +10,13 @@ import { tmpdir, homedir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'post-tool-verify.js')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'hook-verify-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function fire(file) {
@@ -58,7 +59,7 @@ test('a $USER path in a shell script and a single-letter regex literal are not m
   // temp dir lives there — so the positive control is written beside the repo and removed.
   const outside = join(REPO, `.hook-verify-${process.pid}`)
   mkdirSync(outside, { recursive: true })
-  t.after(() => rmSync(outside, { recursive: true, force: true }))
+  t.after(() => discard(outside))
   const real = join(outside, 'real.js'); writeFileSync(real, "const cfg = 'C:\\\\Users\\\\someone\\\\secret.env'\n")
   if (!real.toLowerCase().startsWith(homedir().toLowerCase())) {
     assert.match(fire(real) || '', /machine path|hardcoded/i, 'a literal drive path is still reported')

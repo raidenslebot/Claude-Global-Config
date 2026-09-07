@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const require = createRequire(import.meta.url)
 const { classify } = require('../../config/hooks/pre-tool-model-route.js')
@@ -28,7 +29,7 @@ const ROUTE = join(REPO, 'config', 'hooks', 'pre-tool-model-route.js')
  *  command switching to `after`, and NO assistant turn yet on the new model. */
 function switchedTranscript(t, before, after) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-switch-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const p = join(dir, 's.jsonl')
   const assistant = JSON.stringify({ type: 'assistant', message: { model: before, content: 'earlier answer' } })
   // The real record embeds the command markup inside a JSON string with literal \n escapes.
@@ -85,7 +86,7 @@ test('the command record beats an OLDER assistant message, never a newer one', (
   // message is the most recent fact and must win — a stale command record further back must
   // not keep reporting a model the session has since left.
   const dir = mkdtempSync(join(tmpdir(), 'cgc-switch-order-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const p = join(dir, 's.jsonl')
   const cmd = JSON.stringify({ type: 'user', message: { content: '<command-name>/model</command-name>\n<command-args>claude-opus-4-7</command-args>' } })
   const later = JSON.stringify({ type: 'assistant', message: { model: 'claude-sonnet-5' } })
@@ -97,7 +98,7 @@ test('a "Set model to" confirmation quoted inside tool output is NOT mistaken fo
   // This session's own tool output echoed `Set model to \`claude-fable-5-1\``. Only the
   // structured command markup is trusted; the confirmation text alone must be ignored.
   const dir = mkdtempSync(join(tmpdir(), 'cgc-switch-quote-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const p = join(dir, 's.jsonl')
   const assistant = JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5' } })
   const echoed = JSON.stringify({ type: 'tool_result', content: 'Set model to `claude-opus-4-7`' })

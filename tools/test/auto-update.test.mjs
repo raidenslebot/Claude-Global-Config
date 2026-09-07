@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, basename } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'session-start-cgc.js')
 
@@ -29,25 +30,6 @@ const STUB_DOCTOR = "import { existsSync } from 'node:fs'\nconst ok = existsSync
   + "console.log(JSON.stringify(ok ? { healthy: true, counts: { ok: 4 }, results: [] } : { healthy: false, counts: { ok: 3, fail: 1 }, results: [{ level: 'fail', message: 'hooks/post-tool-slop.js not registered' }] }))\n"
 const STUB_TESTS = "import { writeFileSync, readFileSync, existsSync } from 'node:fs'\nconst f = new URL('../testruns.txt', import.meta.url)\n"
   + "const n = existsSync(f) ? Number(readFileSync(f, 'utf8')) + 1 : 1\nwriteFileSync(f, String(n))\nconsole.log('ℹ tests 4\\nℹ pass 3\\nℹ fail 0\\nℹ skipped 1')\n"
-
-/**
- * Remove a test world, and NEVER fail a test for not managing it.
- *
- * A detached updater is the design under test, so it legitimately outlives the test body — and
- * on Windows a directory that is still some process's current directory cannot be deleted. That
- * surfaced twice as `EPERM` in `t.after`, on tests whose every assertion had passed, and it read
- * both times as a failing package: the session line said DEGRADED over a temp folder.
- *
- * Retrying harder was the wrong fix and only moved which test lost the race. Cleaning up a
- * scratch directory is hygiene, not an assertion; if the last attempt still cannot have it, the
- * operating system clears its own temp folder, and the test's verdict must not depend on that.
- */
-function discard(root) {
-  for (let i = 0; i < 40; i++) {
-    try { rmSync(root, { recursive: true, force: true }); return } catch { /* something still holds it */ }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)
-  }
-}
 
 function world(t, { doctor = false, tests = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-session-'))
@@ -469,7 +451,7 @@ test('the per-prompt update refuses rather than destroys, and never blocks the p
 
   // A repository that is not a clone says so once rather than pretending to be current.
   const bare = mkdtempSync(join(tmpdir(), 'cgc-notrepo-'))
-  t.after(() => rmSync(bare, { recursive: true, force: true }))
+  t.after(() => discard(bare))
   writeFileSync(join(bare, 'package.json'), JSON.stringify({ version: '9.9.9' }), 'utf8')
   assert.match(String(fire(bare, { CGC_FETCH_TTL_MS: '0' })), /not a git clone/)
   assert.equal(fire(bare), null, 'and once per fetch window, not once per prompt')
@@ -797,7 +779,7 @@ test('a missing updater is said, not spawned into silence', (t) => {
   const w = world(t, {})
   w.release('1.1.0', 'a release')
   const hookDir = mkdtempSync(join(tmpdir(), 'cgc-nohook-'))
-  t.after(() => rmSync(hookDir, { recursive: true, force: true }))
+  t.after(() => discard(hookDir))
   const lone = join(hookDir, 'user-prompt-cgc-update.js')
   writeFileSync(lone, readFileSync(join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js'), 'utf8'), 'utf8')
   const r = spawnSync(process.execPath, [lone], {

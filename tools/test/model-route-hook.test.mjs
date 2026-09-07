@@ -14,12 +14,13 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'pre-tool-model-route.js')
 
 function run(model, toolInput, t, toolName = 'Agent') {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-route-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const transcript = join(dir, 's.jsonl')
   writeFileSync(transcript, model ? JSON.stringify({ message: { model } }) + '\n' : '')
   const r = spawnSync(process.execPath, [HOOK], {
@@ -125,7 +126,7 @@ test('an unknown session model changes nothing', (t) => {
 
 test('the hook never grants permission — it only adjusts an argument', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-route-perm-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const transcript = join(dir, 's.jsonl')
   writeFileSync(transcript, JSON.stringify({ message: { model: 'claude-opus-4-7' } }) + '\n')
   const r = spawnSync(process.execPath, [HOOK], {

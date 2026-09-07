@@ -100,7 +100,8 @@ test('the sheet carries every frame, its time, and the line to judge the curve a
 // pages that had done the right thing, which is the worst kind of gate. These three cases are
 // the whole contract, so they are checked against the browser rather than against a model.
 import { findPlaywright } from '../print-render.mjs'
-import { mkdtempSync as mkdtemp2, writeFileSync as write2, rmSync as rmSync2 } from 'node:fs'
+import { mkdtempSync as mkdtemp2, writeFileSync as write2 } from 'node:fs'
+import { discard } from './_teardown.mjs'
 import { tmpdir as tmp2 } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
@@ -164,7 +165,7 @@ test('a window shorter than the motion is extended, or said out loud', (t) => {
   // A 3.2s move photographed for the default second reported "settles at 909 ms" — arithmetically
   // right about the wrong second. A wrong number stated as fact is worse than no number.
   const d = mkdtemp2(join(tmp2(), 'motion-slow-'))
-  t.after(() => rmSync2(d, { recursive: true, force: true }))
+  t.after(() => discard(d))
   const f = join(d, 'slow.html')
   write2(f, `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Slow</title><style>
     body{margin:0;background:#f4f1ea;color:#1d2530;font-family:Georgia,serif;padding:40px;font-size:18px}

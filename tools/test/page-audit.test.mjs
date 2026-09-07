@@ -12,13 +12,14 @@ import { spawnSync } from 'node:child_process'
 import { audit } from '../page-audit.mjs'
 import { findPlaywright } from '../print-render.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const BROWSER = Boolean(findPlaywright())
 const skip = BROWSER ? false : 'no browser available (install the Playwright MCP server)'
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'page-audit-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 const rules = (r, level) => r.results.flatMap((v) => v.findings.filter((f) => !level || f.level === level).map((f) => f.rule))

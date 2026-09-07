@@ -9,12 +9,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'post-tool-slop.js')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'hook-slop-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function fire(file, tool = 'Write') {

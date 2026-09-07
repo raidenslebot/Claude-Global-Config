@@ -17,13 +17,14 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-model-policy.js')
 
 /** Run the hook against a transcript whose last message names `model`. */
 function classify(model, t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-model-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const transcript = join(dir, 'session.jsonl')
   writeFileSync(transcript, model === null ? '' : JSON.stringify({ message: { model } }) + '\n')
   const r = spawnSync(process.execPath, [HOOK], {
@@ -67,7 +68,7 @@ for (const model of ['claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'clau
 
 test('an unreadable or unknown transcript produces silence, never a guess', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-model-none-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   for (const payload of [
     { transcript_path: join(dir, 'missing.jsonl') },
     { transcript_path: '' },

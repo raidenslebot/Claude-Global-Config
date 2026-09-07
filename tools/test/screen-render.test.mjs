@@ -12,13 +12,14 @@ import { spawnSync } from 'node:child_process'
 import { main, PRESETS, DESKTOP, MOBILE } from '../screen-render.mjs'
 import { findPlaywright } from '../print-render.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const BROWSER = Boolean(findPlaywright())
 const skip = BROWSER ? false : 'no browser available (install the Playwright MCP server)'
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'screen-render-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 /** Width and height from a PNG's IHDR — no image library needed. */

@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 import { icons, read, lintSet } from '../icon-lint.mjs'
+import { discard } from './_teardown.mjs'
 
 const TOOL = join(REPO, 'tools', 'icon-lint.mjs')
 const SHIPPED = join(REPO, 'skills', 'design-fields', 'examples', 'harbor-swim-club-icons')
@@ -19,7 +20,7 @@ const ok = (extra = '') =>
 
 function set(t, files) {
   const dir = mkdtempSync(join(tmpdir(), 'icons-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body, 'utf8')
   return dir
 }

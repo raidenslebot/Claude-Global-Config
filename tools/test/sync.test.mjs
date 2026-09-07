@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 /** The child env for a HOME-isolated run. */
 function scratchEnv(home, extra = {}) {
@@ -30,7 +31,7 @@ const TOOLS = join(REPO, 'tools')
 /** A scratch directory, torn down after the test whether or not it passed. */
 function scratch(t, prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

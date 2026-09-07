@@ -11,13 +11,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO, IS_WIN } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const MARK = '<!-- user-additions-below -->'
 const OWNED = readdirSync(join(REPO, 'skills')).filter((n) => existsSync(join(REPO, 'skills', n, 'SKILL.md')))
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'install-override-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function install(root, ...args) {

@@ -11,11 +11,12 @@ import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { lintText, lint, hsl, FAMILIES, MAX_SCORE } from '../slop-lint.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const ids_ = (r) => r.findings.map((f) => f.id)
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'slop-lint-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

@@ -25,6 +25,7 @@ import { join } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'user-prompt-cgc-update.js')
 const SESSION_HOOK = join(REPO, 'config', 'hooks', 'session-start-cgc.js')
@@ -37,17 +38,6 @@ function git(cwd, ...args) {
   return r.stdout.trim()
 }
 const head = (repo) => git(repo, 'rev-parse', 'HEAD')
-
-/** Remove a world, and never fail a test for not managing it: a detached updater legitimately
- *  outlives the test body, and on Windows its cwd cannot be deleted while it lives. Cleaning a
- *  scratch directory is hygiene, not an assertion — twice it failed a test whose every
- *  assertion had passed, and the session line reported DEGRADED over a temp folder. */
-function discard(root) {
-  for (let i = 0; i < 40; i++) {
-    try { rmSync(root, { recursive: true, force: true }); return } catch { /* something still holds it */ }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)
-  }
-}
 
 /** A real origin, an author clone and a friend clone. The friend is what the hook is pointed at. */
 function world(t) {
@@ -409,7 +399,7 @@ test('of the prompts that decide an update is due on the same evidence, exactly 
   // So the question is put to the claim itself, with every caller holding the evidence the
   // others held: whoever wins must leave the rest with nothing to win.
   const dir = mkdtempSync(join(tmpdir(), 'cgc-claim-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   // require, not import: the hook is CommonJS, and a query string on a file: URL is not a
   // resolvable specifier for it. The env has to be set before the module reads it.
   process.env.CLAUDE_CONFIG_DIR = dir

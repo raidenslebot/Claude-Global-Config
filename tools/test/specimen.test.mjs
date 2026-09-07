@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { specimenHtml, main } from '../specimen.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const TOOL = join(REPO, 'tools', 'specimen.mjs')
 
@@ -40,7 +41,7 @@ test('without a palette there is no swatch section, and a display line has a def
 
 test('the CLI writes the page beside the requested base and stops before rendering with --no-render', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'specimen-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const out = join(dir, 'proofs', 'pair')
   const code = await main(['--display', 'Fraunces', '--text', 'Archivo', '--palette', 'oklch(0.97 0.012 80), #1a1815', '--out', out, '--no-render'])
   assert.equal(code, 0)

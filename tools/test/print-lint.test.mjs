@@ -12,12 +12,13 @@ import { createRequire } from 'node:module'
 import { lint, colours, MINIMUMS, PRESETS } from '../print-lint.mjs'
 import { PRESETS as RENDER_PRESETS } from '../print-render.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const require_child = () => createRequire(import.meta.url)('node:child_process')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'print-lint-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function file(dir, name, body) { const p = join(dir, name); writeFileSync(p, body, 'utf8'); return p }

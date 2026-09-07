@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { findFontkit, outline, svg, main, woff2Url } from '../outline-text.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const FONTS = [
   'C:/Windows/Fonts/arial.ttf', 'C:/Windows/Fonts/segoeui.ttf',
@@ -23,7 +24,7 @@ const skip = !fk ? 'fontkit not installed' : !FONT ? 'no system font found to ou
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'outline-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

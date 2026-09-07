@@ -12,13 +12,14 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
 import { findPlaywright, parseSize, parseLength, defaultBleed, artSize, distanceProof, PRESETS } from '../print-render.mjs'
+import { discard } from './_teardown.mjs'
 
 const TOOL = join(REPO, 'tools', 'print-render.mjs')
 const BROWSER = Boolean(findPlaywright())
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'print-render-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function render(args, cwd) {

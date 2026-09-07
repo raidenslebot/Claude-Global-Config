@@ -14,13 +14,14 @@ import { tmpdir, platform } from 'node:os'
 import { join, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const HOOK = join(REPO, 'config', 'hooks', 'react-doctor.mjs')
 const WIN = platform() === 'win32'
 
 function world(t) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-rd-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
+  t.after(() => discard(root))
   const bin = join(root, 'bin')
   mkdirSync(bin, { recursive: true })
   const marker = join(root, 'marker.txt')

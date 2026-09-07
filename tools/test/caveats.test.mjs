@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const caveats = readFileSync(join(REPO, 'library', 'CAVEATS.md'), 'utf8')
 const rows = JSON.parse(readFileSync(join(REPO, 'library', 'caveats-versions.json'), 'utf8'))
@@ -98,7 +99,7 @@ test('the index builder names what it could not index, instead of dropping it in
   // skipped it — silently. Grep found nothing, and nothing found reads as nothing there. Eight
   // real files were invisible to the only route anybody is told to use.
   const root = mkdtempSync(join(tmpdir(), 'cgc-index-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
+  t.after(() => discard(root))
   mkdirSync(join(root, '_index'), { recursive: true })
   mkdirSync(join(root, 'a-repo', 'good'), { recursive: true })
   mkdirSync(join(root, 'a-repo', 'headless'), { recursive: true })

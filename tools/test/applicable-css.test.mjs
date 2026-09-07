@@ -17,10 +17,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { applicableCss } from '../paths.mjs'
 import { lint } from '../print-lint.mjs'
+import { discard } from './_teardown.mjs'
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-applicable-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

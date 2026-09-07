@@ -13,12 +13,13 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const TOOL = join(REPO, 'tools', 'doctor.mjs')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-doctor-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const require = createRequire(import.meta.url)
 const route = require('../../config/hooks/pre-tool-model-route.js')
@@ -31,7 +32,7 @@ const CORPUS = join(REPO, 'tools', 'test', 'fixtures', 'model-corpus.json')
 
 function run(model, toolInput, t, toolName = 'Workflow') {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-wfpolicy-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const transcript = join(dir, 's.jsonl')
   writeFileSync(transcript, model ? JSON.stringify({ message: { model } }) + '\n' : '')
   const r = spawnSync(process.execPath, [HOOK], {
@@ -101,7 +102,7 @@ test('non-Workflow tools and an unknown session model produce no output', (t) =>
 
 test('the hook never returns a permission decision', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-wfpolicy-perm-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   const transcript = join(dir, 's.jsonl')
   writeFileSync(transcript, JSON.stringify({ message: { model: 'claude-opus-5' } }) + '\n')
   const r = spawnSync(process.execPath, [HOOK], {

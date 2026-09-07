@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { join, basename } from 'node:path'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 /** Every hook FILE this package ships, from all three source directories install gathers. */
 function shippedHooks() {
@@ -111,7 +112,7 @@ test('the doctor notices a hook that was REMOVED from settings.json, not only on
   // all: the check deleted itself along with the registration, 42/42 quietly became 41/41, and
   // the line still read perfect. That is the silent removal the mandates say is impossible.
   const home = mkdtempSync(join(tmpdir(), 'cgc-hookreg-'))
-  t.after(() => rmSync(home, { recursive: true, force: true }))
+  t.after(() => discard(home))
   const config = join(home, '.claude')
   const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: config }
   const doctor = () => {
@@ -151,7 +152,7 @@ test('the doctor notices an MCP server that was removed from the registrations, 
   // over the network, so the session repair could not afford to run it — a machine where this
   // was installed before Claude Code had ever run never got its servers registered at all.
   const home = mkdtempSync(join(tmpdir(), 'cgc-mcpreg-'))
-  t.after(() => rmSync(home, { recursive: true, force: true }))
+  t.after(() => discard(home))
   const config = join(home, '.claude')
   const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: config }
   const tool = (script, args) => spawnSync(process.execPath, [join(REPO, 'tools', script), ...args],

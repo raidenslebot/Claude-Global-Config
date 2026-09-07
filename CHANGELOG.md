@@ -5,6 +5,27 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.70.3 — 2026-09-06
+
+The same defect, taken seriously the third time. 1.70.1 answered an `EPERM` in a teardown by
+retrying harder; 1.70.2 made two files' teardowns non-fatal; the background self-test then
+reported DEGRADED again from a third. Patching whichever teardown lost the race was never going
+to converge — there were **forty-four of them across thirty-three files**, and every one could
+fail a test whose assertions had all passed.
+
+All forty-four now route through one helper, `tools/test/_teardown.mjs`, which tries for ten
+seconds and then leaves the operating system its own temp folder to clean. The reasoning is in
+the file: removing a scratch directory is hygiene, not an assertion. This suite deliberately
+starts processes that outlive the test body — the updater under test is detached BY DESIGN, and
+the render tests drive a real browser — so on Windows, where a directory cannot be deleted while
+it is any process's current directory, losing that race is the system behaving correctly. A
+package must not report itself broken over a temp folder.
+
+Worth recording because the transform nearly shipped a break: it rewrote one call site in
+`motion-render.test.mjs` that imports `rmSync` under an alias, leaving the file using `discard`
+without importing it. Every test file is parsed after the rewrite for exactly that reason, and
+`--check` caught it before the suite ran.
+
 ## 1.70.2 — 2026-09-06
 
 Two things the last release got wrong about itself, and one thing it never said.

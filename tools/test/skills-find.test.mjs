@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { worstRisk, search, fetchSkill, main, parseId } from '../skills-find.mjs'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 /** A stub registry, listening on loopback. Returns its base URL. */
 async function registry(t, handler) {
@@ -87,7 +88,7 @@ test('a search returns rows; a query too short to send is refused before any req
 
 test('a fetched skill lands in the library, and a path that climbs out is refused', async (t) => {
   const lib = mkdtempSync(join(tmpdir(), 'cgc-skills-'))
-  t.after(() => rmSync(lib, { recursive: true, force: true }))
+  t.after(() => discard(lib))
 
   const base = await registry(t, (req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' })

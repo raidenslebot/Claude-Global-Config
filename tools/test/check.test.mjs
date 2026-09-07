@@ -17,7 +17,7 @@ const TOOL = join(REPO, 'tools', 'check.mjs')
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-check-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function run(args, opts = {}) {
@@ -164,6 +164,7 @@ test('a gate that cannot run is reported, never silently dropped', (t) => {
 // Every case here used to end in a green verdict. These are the decision functions themselves,
 // so the contract holds without needing a child process that misbehaves on cue.
 import { fromJson, unavailable, PAGE_SIZE, MOVES, withoutQuotedCode } from '../check.mjs'
+import { discard } from './_teardown.mjs'
 
 test('a child that says nothing readable becomes a visible row, never silence', () => {
   const build = () => ({ gate: 'x', level: 'ok', line: 'fine', next: '' })

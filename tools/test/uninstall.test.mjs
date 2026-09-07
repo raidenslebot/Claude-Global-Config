@@ -19,6 +19,7 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { REPO, IS_WIN } from '../paths.mjs'
 import { onPath } from '../../argo/src/spawn.js'
+import { discard } from './_teardown.mjs'
 
 const TOOLS = join(REPO, 'tools')
 const WHICH = IS_WIN ? 'where' : 'which'
@@ -39,7 +40,7 @@ const LINK_TARGET_BODY = '# the source repo behind the link\n'
 /** A scratch HOME, torn down after the test whether or not it passed. */
 function scratch(t, prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 

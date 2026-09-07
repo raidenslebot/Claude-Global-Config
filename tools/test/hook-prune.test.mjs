@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const INSTALL = join(REPO, 'tools', 'install.mjs')
 const manifestHooks = () => Object.values(JSON.parse(readFileSync(join(REPO, 'config', 'hooks.json'), 'utf8')).hooks)
@@ -19,7 +20,7 @@ const manifestHooks = () => Object.values(JSON.parse(readFileSync(join(REPO, 'co
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'cgc-prune-'))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 function install(cfg) {

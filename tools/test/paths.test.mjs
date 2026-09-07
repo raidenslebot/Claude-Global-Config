@@ -12,6 +12,7 @@ import { join, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { templatize, realize, unresolved, buildVars, REPO, hostConfigs, pluginServers, readJsonQuietly } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 const TOOLS = join(REPO, 'tools')
 
@@ -226,7 +227,7 @@ test('every scope an MCP server loads from is enumerated, not only ~/.claude.jso
   // session, for the life of every window. Each config file looks correct on its own, which is
   // why nothing caught it until a machine with fifteen windows open ran out of memory.
   const home = mkdtempSync(join(tmpdir(), 'cgc-scopes-'))
-  t.after(() => rmSync(home, { recursive: true, force: true }))
+  t.after(() => discard(home))
   const write = (rel, obj) => {
     const p = join(home, ...rel)
     mkdirSync(dirname(p), { recursive: true })
@@ -284,7 +285,7 @@ test('a plugin is found where it is INSTALLED, not where it is catalogued', (t) 
   // missed seven of eight enabled plugins on a real machine, so the plugin arm of the
   // duplicate check returned nothing at all — a reassuring blank, not a check.
   const home = mkdtempSync(join(tmpdir(), 'cgc-plug-'))
-  t.after(() => rmSync(home, { recursive: true, force: true }))
+  t.after(() => discard(home))
   const w = (rel, obj) => {
     const p = join(home, ...rel)
     mkdirSync(dirname(p), { recursive: true })
@@ -307,7 +308,7 @@ test('a plugin is found where it is INSTALLED, not where it is catalogued', (t) 
   // A single-plugin marketplace whose repository root IS the plugin still resolves, since
   // nothing records an installPath for it.
   const home2 = mkdtempSync(join(tmpdir(), 'cgc-plug2-'))
-  t.after(() => rmSync(home2, { recursive: true, force: true }))
+  t.after(() => discard(home2))
   mkdirSync(join(home2, '.claude', 'plugins', 'marketplaces', 'solo'), { recursive: true })
   writeFileSync(join(home2, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'solo@solo': true } }), 'utf8')
   writeFileSync(join(home2, '.claude', 'plugins', 'marketplaces', 'solo', '.mcp.json'), JSON.stringify({ mcpServers: { thing: { command: 'node' } } }), 'utf8')

@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { REPO } from '../paths.mjs'
+import { discard } from './_teardown.mjs'
 
 /** The child env for a HOME-isolated run. */
 function scratchEnv(home, extra = {}) {
@@ -30,7 +31,7 @@ const TOOLS = join(REPO, 'tools')
 /** A scratch HOME, torn down after the test whether or not it passed. */
 function scratch(t, prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => discard(dir))
   return dir
 }
 
@@ -271,7 +272,7 @@ test('doctor sees the config a fresh install just wrote into the same scratch ho
  *  copying the two modules into <tmp>/tools/. Nothing else about the tool is stubbed. */
 function fixtureTree(t, prefix, files) {
   const root = mkdtempSync(join(tmpdir(), prefix))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
+  t.after(() => discard(root))
   mkdirSync(join(root, 'tools'), { recursive: true })
   for (const name of ['paths.mjs', 'scan-secrets.mjs']) {
     cpSync(join(TOOLS, name), join(root, 'tools', name))
