@@ -218,6 +218,22 @@ const MUTATIONS = [
     tests: DOCTOR_TESTS,
   },
   {
+    name: 'a fan-out no account can serve is refused, not merely capped',
+    expect: 'a cap is not a budget',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: '  if (worst > CEILING) {',
+    to: '  if (false) {',
+    tests: [join(TESTS, 'workflow-gate.test.mjs')],
+  },
+  {
+    name: 'a nested fan-out multiplies rather than adds',
+    expect: 'nesting multiplies and sequence adds',
+    file: join(HOOKS, 'pre-tool-workflow-policy.js'),
+    from: 'for (const child of nested) { if (n !== null && child.width !== null) n *= child.width }',
+    to: 'for (const child of nested) { if (n !== null && child.width !== null) n += child.width }',
+    tests: [join(TESTS, 'workflow-gate.test.mjs')],
+  },
+  {
     name: 'every hook exits 0 on a malformed payload',
     expect: "survives every malformed payload",
     file: join(HOOKS, 'user-prompt-mandates.js'),

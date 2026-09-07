@@ -30,13 +30,28 @@ const STUB_DOCTOR = "import { existsSync } from 'node:fs'\nconst ok = existsSync
 const STUB_TESTS = "import { writeFileSync, readFileSync, existsSync } from 'node:fs'\nconst f = new URL('../testruns.txt', import.meta.url)\n"
   + "const n = existsSync(f) ? Number(readFileSync(f, 'utf8')) + 1 : 1\nwriteFileSync(f, String(n))\nconsole.log('ℹ tests 4\\nℹ pass 3\\nℹ fail 0\\nℹ skipped 1')\n"
 
+/**
+ * Remove a test world, and NEVER fail a test for not managing it.
+ *
+ * A detached updater is the design under test, so it legitimately outlives the test body — and
+ * on Windows a directory that is still some process's current directory cannot be deleted. That
+ * surfaced twice as `EPERM` in `t.after`, on tests whose every assertion had passed, and it read
+ * both times as a failing package: the session line said DEGRADED over a temp folder.
+ *
+ * Retrying harder was the wrong fix and only moved which test lost the race. Cleaning up a
+ * scratch directory is hygiene, not an assertion; if the last attempt still cannot have it, the
+ * operating system clears its own temp folder, and the test's verdict must not depend on that.
+ */
+function discard(root) {
+  for (let i = 0; i < 40; i++) {
+    try { rmSync(root, { recursive: true, force: true }); return } catch { /* something still holds it */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)
+  }
+}
+
 function world(t, { doctor = false, tests = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-session-'))
-  // A DETACHED updater is the design, so it legitimately outlives the test body, and on Windows
-  // a directory that is still some process's cwd cannot be removed. Fifteen seconds of retries,
-  // not five: at five this raised EPERM on a suite that had passed minutes earlier, which reads
-  // as a product failure and is a teardown racing a process that is behaving correctly.
-  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 60, retryDelay: 250 }))
+  t.after(() => discard(root))
   const origin = join(root, 'origin.git')
   git(root, 'init', '--bare', '-b', 'main', origin)
   const author = join(root, 'author')

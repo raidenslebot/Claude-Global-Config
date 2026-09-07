@@ -5,6 +5,33 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.70.2 — 2026-09-06
+
+Two things the last release got wrong about itself, and one thing it never said.
+
+**A cleanup was allowed to fail a test.** 1.70.1 answered an `EPERM` in `t.after` by retrying
+harder, and the next full run lost the same race in a different test — one of the nine that hand
+off to a detached updater. Retrying harder was never the fix. Removing a scratch directory is
+hygiene, not an assertion: the updater under test is detached *by design*, so it legitimately
+outlives the test body, and on Windows a directory that is still some process's current directory
+cannot be deleted. The teardown now tries for ten seconds and then lets the operating system have
+its own temp folder back. A test whose every assertion passed can no longer report DEGRADED over
+a temp directory.
+
+**The gate had four faults and the documentation said three.** 1.70.0 added
+`fanout-exceeds-budget` and updated neither `config/CLAUDE.md` nor the `model-routing` skill —
+the identical stale-claim failure this package keeps rediscovering, one layer up from the code.
+A doc that under-describes a gate is worse than no doc: it tells the reader that the refusal they
+just hit cannot happen. Both now describe all four, with the measurement behind the ceiling.
+
+So that class is now held by a test rather than by attention: `workflow-gate.test.mjs` reads the
+fault codes out of the hook itself and fails when a doc omits one, or when a doc's written count
+("three defects") disagrees with how many the gate actually raises. Verified by reverting the
+mandate to "three" and watching it fail — a guard that has never been seen to fail is not a guard.
+
+The budget estimator gained two mutations as well, and both are killed by the tests written for
+them: removing the ceiling check, and making a nested fan-out add where it must multiply.
+
 ## 1.70.1 — 2026-09-06
 
 A flaky teardown, reported as a failing package. The session line read DEGRADED with one test

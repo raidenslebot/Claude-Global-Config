@@ -158,7 +158,20 @@ findings nobody had checked were reported as confirmed defects. Forgetting cost 
 the correctness, and it exhausted the quota that the rest of the day's work needed.
 
 So the hook now audits the script's text and denies it, naming the fix, for `unrouted-fanout`,
-`unbounded-fanout` or `verdict-fails-open`. Deliberate exceptions are written into the script as
+`unbounded-fanout`, `verdict-fails-open` or `fanout-exceeds-budget`.
+
+That fourth one exists because the first three were not enough, and the hole took under an hour
+to find: the gate demanded a cap and never said what a cap may be, so `.slice(0, 500)` passed it
+and still asked for five hundred agents. The number that bounds a fan-out is not the runtime's
+1,000-agent backstop — that is a runaway guard, and reading it as a budget is exactly how a
+script comes to ask for something no account can answer. On the run above, **69 agents completed
+and spent 8,665,098 tokens between them — about 125,600 each — and that was a session limit
+reached from nothing in thirty minutes.** The estimate multiplies nested fan-outs and adds
+sequential ones, resolving a width through a previous fan-out, so `design-divergence` (five
+directions plus five times three judges) measures twenty and passes. Ceiling 40 by default;
+`CGC_WORKFLOW_AGENT_CEILING` moves it.
+
+Deliberate exceptions are written into the script as
 `// cgc-audit-ack: <code>`, which makes the exception a decision with an author rather than an
 omission nobody can see. `tools/test/workflow-gate.test.mjs` holds the calibration against both
 that run and the workflows this package ships.

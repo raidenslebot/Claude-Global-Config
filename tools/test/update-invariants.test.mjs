@@ -38,10 +38,21 @@ function git(cwd, ...args) {
 }
 const head = (repo) => git(repo, 'rev-parse', 'HEAD')
 
+/** Remove a world, and never fail a test for not managing it: a detached updater legitimately
+ *  outlives the test body, and on Windows its cwd cannot be deleted while it lives. Cleaning a
+ *  scratch directory is hygiene, not an assertion — twice it failed a test whose every
+ *  assertion had passed, and the session line reported DEGRADED over a temp folder. */
+function discard(root) {
+  for (let i = 0; i < 40; i++) {
+    try { rmSync(root, { recursive: true, force: true }); return } catch { /* something still holds it */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250)
+  }
+}
+
 /** A real origin, an author clone and a friend clone. The friend is what the hook is pointed at. */
 function world(t) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-inv-'))
-  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 40, retryDelay: 250 }))
+  t.after(() => discard(root))
   const origin = join(root, 'origin.git')
   git(root, 'init', '--bare', '-b', 'main', origin)
   const author = join(root, 'author')

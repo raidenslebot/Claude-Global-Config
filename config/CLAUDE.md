@@ -312,7 +312,7 @@ hook never returns a permission decision — it adjusts an argument, it does not
 
 **A WORKFLOW IS THE OTHER DISPATCH PATH, and it is gated rather than adjusted.** Workflow agents
 are spawned by the Workflow runtime, never through the Agent tool, so the hook above never sees
-them. A second hook fires on the Workflow call and REFUSES a script with any of three defects,
+them. A second hook fires on the Workflow call and REFUSES a script with any of four defects,
 naming the fix — because these were advisory once and the result was a single run that spent
 8.67M tokens to produce nothing usable:
 
@@ -325,10 +325,21 @@ naming the fix — because these were advisory once and the result was a single 
   being NONE. An agent that dies returns `null`, and `vs.length > 0 && vs.every(...)` is `false`
   on an empty list, so a finding nobody checked comes back affirmative. Agents die exactly when
   the fan-out is largest, which is when this matters most.
+- **`fanout-exceeds-budget`** — a cap is not a budget. The first version of this gate said "cap
+  it" and never said what a cap may be, so `.slice(0, 500)` satisfied it and still asked for five
+  hundred agents. The ceiling is what an account can SERVE, not the runtime's 1,000-agent
+  backstop, which is a runaway guard: on that same run **69 agents were an entire session limit**,
+  reached from nothing in thirty minutes, because each was reading a whole specification. The
+  estimate reads the script's own widths, and nesting multiplies where sequence adds — two phases
+  in a row are 13 + 12, the same two nested are 13 × 12. Default 40;
+  `CGC_WORKFLOW_AGENT_CEILING` moves it.
 
 Cap the fan-out and `log()` what was dropped; decide the empty case pessimistically; route every
-agent. A script that means to break one of these anyway says so in a comment —
-`// cgc-audit-ack: <code>` — so the exception has an author instead of being an oversight.
+agent; and ask for a number of agents the account can actually run. A script that means to break
+one of these anyway says so in a comment — `// cgc-audit-ack: <code>` — so the exception has an
+author instead of being an oversight. **A finder that yields hundreds of items is the thing to
+fix, not the thing to scale:** on that run, every one of the 169 findings that got two working
+verifiers was refuted, so a wider fan-out would only have bought more noise.
 
 A second hook states the applicable rule each prompt so the reasoning is visible. Full detail:
 skill `model-routing`.

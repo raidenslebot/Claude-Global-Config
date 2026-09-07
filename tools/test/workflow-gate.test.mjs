@@ -155,3 +155,25 @@ test('the width of a fan-out over a previous fan-out is that fan-out, not unknow
   ].join('\n')
   assert.deepEqual(codes(src), [], '5 directions + 5 x 3 judges = 20')
 })
+
+test('every fault the gate can raise is documented where a reader would look for it', () => {
+  // The gate shipped a fourth fault and the mandate still said "three defects" — the same stale
+  // claim this package keeps rediscovering, one layer up. A doc that under-describes a gate is
+  // worse than no doc: it tells the reader the refusal they just hit cannot happen.
+  const hook = readFileSync(join(REPO, 'config', 'hooks', 'pre-tool-workflow-policy.js'), 'utf8')
+  const faults = [...new Set([...hook.matchAll(/\badd\('([a-z-]+)'/g)].map((m) => m[1]))].sort()
+  assert.ok(faults.length >= 4, `expected the gate to raise several faults, found ${faults.join(', ')}`)
+
+  for (const doc of ['config/CLAUDE.md', 'skills/model-routing/SKILL.md']) {
+    const text = readFileSync(join(REPO, doc), 'utf8')
+    for (const fault of faults) {
+      assert.ok(text.includes(fault), `${doc} never mentions \`${fault}\`, which the gate can refuse a workflow for`)
+    }
+    // And the count, written as a word, has to match — "three defects" outlived the third fault.
+    const claimed = (text.match(/\b(one|two|three|four|five|six)\s+defects\b/i) || [])[1]
+    if (claimed) {
+      const n = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[claimed.toLowerCase()]
+      assert.equal(n, faults.length, `${doc} says "${claimed} defects" and the gate has ${faults.length}`)
+    }
+  }
+})
