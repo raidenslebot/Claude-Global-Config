@@ -208,9 +208,28 @@ before you trust it.
 **Code structure, without re-reading the tree: the `codebase-memory-mcp` server.** Index a repo
 once, then `search_graph`, `trace_path`, `get_architecture` and `detect_changes` answer in
 milliseconds instead of a hundred thousand tokens of file-by-file exploration. Pure C, no runtime,
-no API key, no telemetry, one shared daemon rather than a process per session. Reach for it before
-reading a large unfamiliar codebase by hand. (Graft does the same job and is deliberately not
+no API key, no telemetry, about 10 MB resident. (Graft does the same job and is deliberately not
 installed; `library/sources.json` records why.)
+
+**It is installed but NOT registered, and that is deliberate.** It idles at about a fifth of a
+core — a busy-poll that its own `ui_enabled=false` and `auto_watch=false` do not quiet, measured
+0.93% of a 24-core machine with both off — and a user-scope server starts once per session, so six
+open windows were holding 1.07 cores between them to serve an index of zero repositories. Register
+it for a project when you are actually going to index one, and it earns its keep immediately:
+
+```bash
+claude mcp add codebase-memory-mcp -- "<the binary resolveServerBin finds>"
+```
+
+**Every user-scope MCP server starts ONCE PER SESSION, and this file used to claim that one of
+them was a single shared daemon.** It is not, and neither is any of the others: a machine with
+six windows open was measured running six copies of each — twenty-eight node processes and 2 GB
+before anything was asked of them, plus six copies of the C server holding about 1% of a 24-core
+box apiece and reading ~296 MB from disk while idle, every one of them binding the same UI port,
+to serve an index of zero repositories. So the cost of registering a server here is its idle
+footprint TIMES the number of windows, and that multiplication is the thing to check before
+adding one — not whether it is useful when used. Anything a server does on a timer, it does that
+many times over.
 
 **Precedence (do not re-litigate):** Motion beats `motion-framer`; the live component libraries
 below beat `animated-component-libraries`; `visual-design-mastery/references/animation-principles.md`

@@ -206,12 +206,17 @@ test('a remote server is reported at every scope it can hide in', (t) => {
   }
 })
 
-test('a standalone server that is not on the machine is a warning naming the install step, never a failure the repair loops on', (t) => {
-  // codebase-memory-mcp is a `bin` the package does not vendor. On every machine but the one
-  // where it had been installed by hand, the doctor failed "NOT registered" with the default
-  // repairable:true; the session-start repair runs mcp-register, which cannot download a
-  // binary; so the doctor failed again, at every start, resume, clear and compact — DEGRADED
-  // plus a full install each time, for ever, everywhere but here.
+test('a standalone server that is absent is never a failure the repair loops on, and a vendored one still is', (t) => {
+  // The original defect: codebase-memory-mcp is a `bin` the package does not vendor, and the
+  // doctor failed "NOT registered" with the default repairable:true. The session-start repair
+  // runs mcp-register, which cannot put a binary on disk, so the doctor failed again at every
+  // start, resume, clear and compact — DEGRADED plus a full install each time, for ever, on
+  // every machine but the author's.
+  //
+  // It is opt-in now, for a different measured reason (one process per session, 1.07 cores
+  // across six windows), so the shape of the protection changed: an opt-in server that is absent
+  // must produce NO failure at all. The half that must not move is the second one — a vendored
+  // server the repair CAN register is still a failure, or the repair has nothing to act on.
   const d = scratch(t)
   writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers: {} }), 'utf8')
   // Nothing on PATH but node's own directory and the system tools; nothing under LOCALAPPDATA.
@@ -220,10 +225,13 @@ test('a standalone server that is not on the machine is a warning naming the ins
     LOCALAPPDATA: join(d, 'AppData', 'Local'),
     PATH: [dirname(process.execPath), sys].join(process.platform === 'win32' ? ';' : ':'),
   })
-  const bin = j.results.find((r) => /"codebase-memory-mcp" is not installed/.test(r.message))
-  assert.ok(bin, 'the missing binary is reported:\n' + j.results.filter((r) => r.level !== 'ok').map((r) => r.level + ' ' + r.message).join('\n'))
-  assert.equal(bin.level, 'warn', 'mcp-register cannot put a binary on disk, so this is not a repairable failure')
-  assert.match(bin.message, /--only=mcp\b/, 'and it names the step that downloads it')
+  const optIn = Object.entries(JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers)
+    .filter(([, s]) => s.registerByDefault === false).map(([n]) => n)
+  for (const name of optIn) {
+    const rows = j.results.filter((r) => r.message.includes(name))
+    assert.ok(rows.every((r) => r.level !== 'fail'),
+      `${name} is opt-in and absent, which is not a failure:\n${rows.map((r) => r.level + ' ' + r.message).join('\n')}`)
+  }
   // A vendored server, by contrast, IS registrable by the repair and stays a failure.
   const vendored = j.results.filter((r) => /is NOT registered/.test(r.message))
   assert.ok(vendored.length >= 1, 'the vendored servers are still failures')
@@ -311,4 +319,50 @@ test('a VENDORED server whose entry is missing also stops the summary claiming e
   const summary = j.results.find((r) => /registered but cannot start/.test(r.message))
   assert.ok(summary, 'and it names them')
   assert.match(summary.message, /are registered but cannot start/, 'plural, because there are two')
+})
+
+test('a server the manifest marks opt-in is neither required nor registered, and is still named', (t) => {
+  // A user-scope MCP server starts once per SESSION, so its idle cost is multiplied by the number
+  // of open windows. Six copies of codebase-memory-mcp were measured holding 4.46% of a 24-core
+  // machine — 1.07 cores — for an index of zero repositories, and killing them returned 0.87
+  // cores. So it is installed and left unregistered. The doctor must not then demand it: a
+  // requirement that contradicts the reason for the flag is how a flag gets reverted.
+  const d = scratch(t)
+  const want = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+  const optIn = Object.entries(want).filter(([, s]) => s.registerByDefault === false).map(([n]) => n)
+  assert.ok(optIn.length >= 1, 'this test is about opt-in servers, and the manifest marks none')
+
+  const mcpServers = {}
+  for (const [name, spec] of Object.entries(want)) {
+    if (spec.registerByDefault === false) continue          // exactly what the installer leaves out
+    if (spec.entry) mcpServers[name] = { command: process.execPath, args: [join(REPO, 'library', 'mcp-servers', 'node_modules', ...spec.entry)], env: {} }
+  }
+  writeFileSync(join(d, '.claude.json'), JSON.stringify({ mcpServers }), 'utf8')
+  const j = runDoctorJson(d, { LOCALAPPDATA: join(d, 'AppData', 'Local') })
+
+  for (const name of optIn) {
+    const rows = j.results.filter((r) => r.message.includes(name))
+    assert.ok(rows.length >= 1, `${name} must still be named, or an installed-but-unstarted server is invisible`)
+    assert.ok(rows.every((r) => r.level !== 'fail'),
+      `${name} is opt-in, so its absence is not a failure:\n${rows.map((r) => r.level + ' ' + r.message).join('\n')}`)
+    assert.ok(j.results.some((r) => r.message.includes(name) && /not started in every session/.test(r.message)),
+      `${name} should be reported as installed but not started`)
+  }
+  // And the count must not silently include the one nobody starts.
+  const summary = j.results.find((r) => /MCP servers this package requires are registered/.test(r.message))
+  assert.ok(summary, 'the summary line is still emitted')
+  assert.ok(!summary.message.includes(String(Object.keys(want).length)),
+    `the summary counts required servers, not every server in the manifest: "${summary.message}"`)
+})
+
+test('the browser server is registered headless, because headed steals focus', () => {
+  // Playwright's MCP is headed by default — its own --help says so — and a headed browser opens a
+  // real window that takes focus from whatever is fullscreen. That was reported as a cursor
+  // appearing over a game. Everything this package asks a browser for renders headless anyway.
+  const want = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
+  assert.ok(Array.isArray(want.playwright.flags) && want.playwright.flags.includes('--headless'),
+    'the manifest must carry --headless for playwright')
+  const install = readFileSync(join(REPO, 'tools', 'install.mjs'), 'utf8')
+  assert.match(install, /args: \[entry, \.\.\.\(flagsFor\[name\] \|\| \[\]\)\]/,
+    'and the installer must actually pass a manifest server its own flags')
 })

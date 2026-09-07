@@ -576,10 +576,23 @@ if (wants('mcp') || wants('mcp-register')) {
     for (const [name, spec] of Object.entries(named)) {
       if (!spec.bin) continue
       const have = resolveServerBin(spec.bin)
-      if (have) { skip(`${name} already installed at ${have}`); continue }
-      const got = await fetchStandaloneServer(name, spec)
-      if (got) ok(`${name} downloaded and checksum-verified → ${got}`)
+      const bin = have || await fetchStandaloneServer(name, spec)
+      if (have) skip(`${name} already installed at ${have}`)
+      else if (bin) ok(`${name} downloaded and checksum-verified → ${bin}`)
       else warn(`${name} is not installed — ${spec.why}. Get it from ${spec.install}, then re-run: node tools/install.mjs --only=mcp-register`)
+      // A server registered at USER scope starts once per session, so anything it does on a
+      // timer it does that many times over. Measured on a machine with six windows open: six
+      // copies of codebase-memory-mcp, each holding about 1% of a 24-core box and reading ~296 MB
+      // from disk while nothing was asked of it, each running an HTTP UI that all six bind to the
+      // same port — to serve an index of zero repositories. `settings` are the switches that turn
+      // that off, applied through the server's own config so the choice survives its updates.
+      if (bin && spec.settings) {
+        for (const [key, value] of Object.entries(spec.settings)) {
+          const r = run(bin, ['config', 'set', key, String(value)], { timeout: 30000 })
+          if (r.status !== 0) warn(`${name}: could not set ${key}=${value} — it may idle more than it needs to`)
+        }
+        ok(`${name} configured: ${Object.entries(spec.settings).map(([k, v]) => `${k}=${v}`).join(', ')}`)
+      }
     }
   }
 
@@ -626,7 +639,12 @@ if (wants('mcp') || wants('mcp-register')) {
       // could only express the first silently excluded every server that ships as a binary.
       const entries = {}
       const binaries = {}
-      for (const [name, spec] of Object.entries(JSON.parse(readFileSync(manifest, 'utf8')).servers)) {
+      const flagsFor = {}
+      const optIn = new Set()
+      const manifestSpecs = JSON.parse(readFileSync(manifest, 'utf8')).servers
+      for (const [name, spec] of Object.entries(manifestSpecs)) {
+        if (Array.isArray(spec.flags)) flagsFor[name] = spec.flags
+        if (spec.registerByDefault === false) optIn.add(name)
         if (spec.entry) entries[name] = join(mcpRoot, 'node_modules', ...spec.entry)
         else if (spec.bin) {
           const found = resolveServerBin(spec.bin)
@@ -638,12 +656,26 @@ if (wants('mcp') || wants('mcp-register')) {
       for (const [name, entry] of Object.entries(entries)) {
         if (!existsSync(entry)) { warn(`${name} entry not found, skipping registration`); continue }
         // Pin the node binary: relying on PATH is how MCP servers silently die.
-        cfg.mcpServers[name] = { command: vars.NODE, args: [entry], env: {} }
+        // `flags` are the server's OWN arguments, and they are not cosmetic: Playwright's MCP is
+        // headed by default, so without --headless a browser tool opens a real window and takes
+        // focus from whatever is fullscreen.
+        cfg.mcpServers[name] = { command: vars.NODE, args: [entry, ...(flagsFor[name] || [])], env: {} }
         registered.add(name)
       }
       for (const [name, bin] of Object.entries(binaries)) {
+        // A user-scope server starts once per SESSION, so its idle cost is multiplied by the
+        // number of open windows. `registerByDefault: false` says that multiplication is not
+        // worth paying by default — and because THIS package put the registration there, it is
+        // this package's to take away again when the answer changes.
+        if (optIn.has(name)) {
+          if (cfg.mcpServers[name]) {
+            delete cfg.mcpServers[name]
+            ok(`${name} unregistered — installed and ready, but no longer started in every session: ${manifestSpecs[name].registerWhy.split('.')[0]}.`)
+          }
+          continue
+        }
         // No args: the binary speaks MCP on stdio when run bare.
-        cfg.mcpServers[name] = { command: bin, args: [], env: {} }
+        cfg.mcpServers[name] = { command: bin, args: [...(flagsFor[name] || [])], env: {} }
         registered.add(name)
       }
       const n = registered.size

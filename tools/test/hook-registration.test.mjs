@@ -171,7 +171,17 @@ test('the doctor notices an MCP server that was removed from the registrations, 
 
   const wanted = JSON.parse(readFileSync(join(REPO, 'library', 'mcp-servers', 'servers.json'), 'utf8')).servers
   const registered = JSON.parse(readFileSync(claudeJson, 'utf8')).mcpServers
-  for (const name of Object.keys(wanted)) assert.ok(registered[name], `${name} was not registered`)
+  for (const [name, spec] of Object.entries(wanted)) {
+    // `registerByDefault: false` is a measured decision, not an oversight: a user-scope server
+    // starts once per SESSION, and six copies of one were holding 1.07 cores of a 24-core machine
+    // for an index of zero repositories. So it must be installed and NOT registered, and a test
+    // that demanded every manifest entry be registered would quietly undo that.
+    if (spec.registerByDefault === false) {
+      assert.ok(!registered[name], `${name} is opt-in and must not be started in every session`)
+      continue
+    }
+    assert.ok(registered[name], `${name} was not registered`)
+  }
 
   const before = doctor()
   const baseline = failsOf(before)

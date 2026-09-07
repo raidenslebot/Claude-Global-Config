@@ -335,7 +335,11 @@ phase('MCP servers')
       try { want = readJson(mcpManifest).servers } catch (e) { fail(`library/mcp-servers/servers.json is not valid JSON: ${e.message}`) }
       if (want && cfg) {
         const have = new Set(servers.map((x) => x.name))
-        const gone = Object.keys(want).filter((n) => !have.has(n))
+        // A server the manifest marks `registerByDefault: false` is installed on purpose and
+        // registered on purpose — per project, by someone about to use it. Requiring it here
+        // would make the doctor demand the very per-session cost the flag exists to avoid.
+        const required = Object.keys(want).filter((n) => want[n].registerByDefault !== false)
+        const gone = required.filter((n) => !have.has(n))
         // Registered but unusable is not "registered": the summary said "all 3 … are registered"
         // directly under a warning that one of their binaries is gone.
         const broken = Object.keys(want).filter((n) => have.has(n) && unusable.has(n))
@@ -357,9 +361,14 @@ phase('MCP servers')
             }
           }
         } else if (broken.length) {
-          const n = Object.keys(want).length
+          const n = required.length
           ok(`${n - broken.length}/${n} MCP servers this package requires are registered and usable — ${broken.join(', ')} ${broken.length === 1 ? 'is' : 'are'} registered but cannot start; see above`)
-        } else ok(`all ${Object.keys(want).length} MCP servers this package requires are registered`)
+        } else ok(`all ${required.length} MCP servers this package requires are registered`)
+        // Named rather than silent: an installed server nobody starts should be a visible choice.
+        const optional = Object.keys(want).filter((n) => want[n].registerByDefault === false)
+        for (const n of optional) {
+          ok(`${n} is installed but not started in every session — register it per project when you want it: ${want[n].why.split(':')[0]}`)
+        }
       }
     }
 

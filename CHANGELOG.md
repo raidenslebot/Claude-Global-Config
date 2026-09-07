@@ -5,6 +5,47 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.71.0 — 2026-09-07
+
+Reported from the machine, not from the code: massive CPU and RAM with Claude merely open, and a
+mouse cursor appearing over a fullscreen game. Both were this package's doing, and neither was
+what I would have guessed.
+
+**The cursor was Playwright.** Its MCP server is registered here, and its own `--help` says
+`headed by default`. Registered without `--headless`, any browser tool opens a real window and
+takes focus from whatever is fullscreen. Every render, audit and frame capture this package
+performs already launches headless, so the flag costs nothing and is now carried by the manifest
+(`flags`) and passed by the installer.
+
+**The CPU was one server, and my first fix for it did nothing.** Sampling per process on an idle
+machine: `codebase-memory-mcp`, six copies, **4.46% of a 24-core box — about 1.07 cores —
+continuously**, while every other MCP server measured 0.00%. It was serving an index of ZERO
+repositories. It also ran an HTTP UI that all six bound to one port, and a filesystem watcher, so
+those were turned off — and a freshly started instance with both disabled still measured **0.93%
+against ~1.00%**. The settings were worth making and they were not the fix; the manifest now says
+so in those words, because "we turned the setting off" reads like a remedy and was not one.
+
+The actual cost is structural: **a user-scope MCP server starts once per SESSION**, so its idle
+footprint is multiplied by the number of open windows. Six windows meant six of these. So it is
+installed, checksum-verified and ready — and no longer registered by default
+(`registerByDefault: false`). Killing the six returned **0.87 cores on the spot**. Register it for
+a project when you are about to index one, which is when it earns its keep.
+
+**And a claim that had been load-bearing was false.** `servers.json` and `CLAUDE.md` both said
+this server was chosen over Graft partly because it is "one shared daemon rather than a process
+per session". It is not, and six processes on one machine is the proof. It remains the right
+choice for its own reasons — pure C, ~10 MB resident, no runtime, no key, no telemetry — but the
+reason given was wrong, and a wrong reason is how a decision gets re-made badly later.
+
+The doctor no longer demands an opt-in server (that would require the very per-session cost the
+flag avoids) and names it instead as installed-but-not-started, so an unstarted server is a
+visible choice rather than a silence. Tests cover all of it, including that the installer passes
+a manifest server its own flags — the one line that stops the browser reappearing.
+
+For the record, RAM: the other MCP servers are 2 GB across 28 processes and 0.00% CPU, and Claude
+itself is 3.7 GB across 17. Those are per-session costs of the same shape, and the mandate now
+states the rule that governs adding one.
+
 ## 1.70.3 — 2026-09-06
 
 The same defect, taken seriously the third time. 1.70.1 answered an `EPERM` in a teardown by
