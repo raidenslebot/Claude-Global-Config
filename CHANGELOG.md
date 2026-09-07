@@ -5,6 +5,26 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.70.1 — 2026-09-06
+
+A flaky teardown, reported as a failing package. The session line read DEGRADED with one test
+failing, on a commit whose suite had been green minutes earlier — and the assertions in that
+test had all passed. What failed was removing the temporary world afterwards: EPERM, because on
+Windows a directory that is still some process’s current directory cannot be deleted, and the
+updater under test is DETACHED by design, so it legitimately outlives the test body.
+
+Two changes, neither of them to the product. The world’s teardown retries for fifteen seconds
+rather than five, which covers every test that hands off to a detached updater — nine others
+carry the same latent race, and patching them one at a time would have left the tenth. And the
+test that failed now waits for the update lock to clear as well as for the install marker: the
+marker appears BEFORE the updater exits, since it still has the doctor and the self-test claim
+to do, so waiting on it alone was waiting for the wrong event.
+
+Worth saying plainly, because the opposite reading was available and would have been wrong: a
+green suite that goes red without a code change is a test defect until proven otherwise, and
+the proof here is that the failure is in `t.after`, after every assertion has passed. The file
+was run three times in a row to confirm it.
+
 ## 1.70.0 — 2026-09-06
 
 **A cap is not a budget.** 1.69.0 refused a fan-out that was as wide as its data, and said "cap

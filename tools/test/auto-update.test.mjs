@@ -32,7 +32,11 @@ const STUB_TESTS = "import { writeFileSync, readFileSync, existsSync } from 'nod
 
 function world(t, { doctor = false, tests = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'cgc-session-'))
-  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }))
+  // A DETACHED updater is the design, so it legitimately outlives the test body, and on Windows
+  // a directory that is still some process's cwd cannot be removed. Fifteen seconds of retries,
+  // not five: at five this raised EPERM on a suite that had passed minutes earlier, which reads
+  // as a product failure and is a teardown racing a process that is behaving correctly.
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 60, retryDelay: 250 }))
   const origin = join(root, 'origin.git')
   git(root, 'init', '--bare', '-b', 'main', origin)
   const author = join(root, 'author')
@@ -840,8 +844,12 @@ test('git that cannot answer about local changes is not read as a clean tree', (
   assert.match(src, /if \(aheadR\.status !== 0 \|\| dirtyR\.status !== 0\)/, 'both probes are guarded, not just the one a test can break')
   assert.doesNotMatch(src, /const ahead = out\(/, 'ahead is read from stdout, not through the null-on-failure reader')
   assert.doesNotMatch(src, /const dirty = out\(/, 'and so is dirty')
-  // The updater's cwd is the clone; let it finish before the world is removed.
+  // The updater's cwd is the clone; let it finish before the world is removed. The install
+  // marker appears BEFORE the updater exits — it still has verify() and the self-test claim to
+  // do — and on Windows a directory that is any process's cwd cannot be deleted, so waiting on
+  // the marker alone left the teardown racing a live process. The lock is released last.
   waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the detached update')
+  waitFor(() => !existsSync(join(state, 'update.lock')), 20000, 'the updater to release the lock and exit')
 })
 
 test('the per-session record is swept, not accumulated for ever', (t) => {
