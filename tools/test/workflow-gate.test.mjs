@@ -50,21 +50,21 @@ test('a spread is not a bound, and the declaration is read to its own end', () =
   // `[...x]` looks like a literal and is however long the data was. Reading the declaration by
   // keyword-terminator ran past a one-line statement into the next; capping the read at 400
   // characters missed a multi-line one entirely. Both were wrong in opposite directions.
-  assert.deepEqual(codes('const u = [...seen.values()]\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
+  assert.deepEqual(codes('const P = args.__modelPolicy\nconst u = [...seen.values()]\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
     ['unbounded-fanout'])
-  assert.deepEqual(codes('const u = [0, 1]\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
+  assert.deepEqual(codes('const P = args.__modelPolicy\nconst u = [0, 1]\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
     [], 'a literal with nothing spread into it is bounded')
-  assert.deepEqual(codes('const u = all.slice(0, 40)\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
+  assert.deepEqual(codes('const P = args.__modelPolicy\nconst u = all.slice(0, 40)\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
     [], 'a slice is a bound')
   // A multi-line ternary whose cap is on the third line.
-  assert.deepEqual(codes('const OPS = (input.ops && input.ops.length)\n  ? ALL.filter((o) => true)\n  : ALL.slice(0, 5)\nawait parallel(OPS.map(o => () => agent("x", { model: "haiku" })))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
+  assert.deepEqual(codes('const P = args.__modelPolicy\nconst OPS = (input.ops && input.ops.length)\n  ? ALL.filter((o) => true)\n  : ALL.slice(0, 5)\nawait parallel(OPS.map(o => () => agent("x", { model: "haiku" })))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'),
     [], 'the bound is on the continuation line, and the statement does not end at the first newline')
 })
 
 test('an empty vote list must not collapse to the affirmative — but a pessimistic default is right', () => {
-  const open = 'const A = [1, 2]\nawait parallel(A.map(x => () => agent("x", { model: "opus" })))\nconst vs = v.filter(Boolean)\nconst refuted = vs.length > 0 && vs.every(q => q.refuted)'
+  const open = 'const P = args.__modelPolicy\nconst A = [1, 2]\nawait parallel(A.map(x => () => agent("x", { model: "opus" })))\nconst vs = v.filter(Boolean)\nconst refuted = vs.length > 0 && vs.every(q => q.refuted)'
   assert.deepEqual(codes(open), ['verdict-fails-open'])
-  const closed = 'const A = [1, 2]\nawait parallel(A.map(x => () => agent("x", { model: "opus" })))\nconst vs = v.filter(Boolean)\nconst worst = vs.length ? Math.max(...vs) : 10'
+  const closed = 'const P = args.__modelPolicy\nconst A = [1, 2]\nawait parallel(A.map(x => () => agent("x", { model: "opus" })))\nconst vs = v.filter(Boolean)\nconst worst = vs.length ? Math.max(...vs) : 10'
   assert.deepEqual(codes(closed), [], 'a ternary that answers the empty case with the worst score has decided it')
 })
 
@@ -75,7 +75,7 @@ test('a pinned session is not asked to name a model, because it cannot', () => {
 })
 
 test('prose is not code: a prompt may contain agent( and pipeline( without becoming either', () => {
-  const src = 'const A = [1, 2]\nawait parallel(A.map(x => () => agent(`discuss agent( and pipeline(xs, f) at length`, { model: "haiku" })))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'
+  const src = 'const P = args.__modelPolicy\nconst A = [1, 2]\nawait parallel(A.map(x => () => agent(`discuss agent( and pipeline(xs, f) at length`, { model: "haiku" })))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'
   assert.deepEqual(codes(src), [])
   // But an interpolation is code again, and a call inside one is a call.
   assert.match(stripLiterals('const q = `text ${agent(1)} more`').trim(), /\$\{agent\(1\)\}/)
@@ -85,7 +85,7 @@ test('prose is not code: a prompt may contain agent( and pipeline( without becom
 })
 
 test('a deliberate exception is recorded, not silently allowed', () => {
-  const src = 'const u = [...seen.values()]\n// cgc-audit-ack: unbounded-fanout\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'
+  const src = 'const P = args.__modelPolicy\nconst u = [...seen.values()]\n// cgc-audit-ack: unbounded-fanout\nawait pipeline(u, f => agent("x", { model: "opus" }))\nconst v = z.filter(Boolean)\nif (v.length === 0) return 1'
   assert.deepEqual(codes(src), [], 'the acknowledgement is in the script, so the decision has an author')
   assert.deepEqual(codes(src.replace('unbounded-fanout', 'something-else')), ['unbounded-fanout'],
     'and it only excuses the fault it names')
@@ -106,7 +106,7 @@ test('a cap is not a budget: the script must ask for a number an account can ser
   // ceiling comes from, 69 agents completed, spent 8,665,098 tokens between them, and that was a
   // session limit reached from nothing in thirty minutes; the other 931 existed only to fail.
   const capped = [
-    'const R = [1, 2, 3]',
+    'const P = args.__modelPolicy',    'const R = [1, 2, 3]',
     'const unique = all.slice(0, 300)',
     'await parallel(R.map(x => () => agent("a", { model: "haiku" })))',
     'await pipeline(unique, f => parallel([0, 1].map(v => () => agent("v", { model: "opus" }))))',
@@ -123,7 +123,7 @@ test('nesting multiplies and sequence adds — the difference decides whether a 
   // Two phases one after the other are 13 + 24; the same two nested are 13 x 24. Reading them
   // the same way either refuses honest workflows or waves through the one that broke.
   const sequential = [
-    'const A = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]',
+    'const P = args.__modelPolicy',    'const A = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]',
     'const B = ranked.slice(0, 12)',
     'await parallel(A.map(x => () => agent("a", { model: "haiku" })))',
     'await parallel(B.map(x => () => agent("b", { model: "opus" })))',
@@ -133,7 +133,7 @@ test('nesting multiplies and sequence adds — the difference decides whether a 
   assert.deepEqual(codes(sequential), [], '13 + 12 = 25 is two phases, not a product')
 
   const nested = [
-    'const B = ranked.slice(0, 12)',
+    'const P = args.__modelPolicy',    'const B = ranked.slice(0, 12)',
     'await pipeline(B, f => parallel(Array.from({ length: 8 }, () => () => agent("v", { model: "opus" }))))',
     'const vs = z.filter(Boolean)',
     'if (vs.length === 0) return 1',
@@ -145,7 +145,7 @@ test('the width of a fan-out over a previous fan-out is that fan-out, not unknow
   // design-divergence judges the DIRECTIONS it just produced. Losing that link reports the
   // shipped workflow as unbounded, which is how a gate gets switched off.
   const src = [
-    'const OPS = ALL.slice(0, 5)',
+    'const P = args.__modelPolicy',    'const OPS = ALL.slice(0, 5)',
     'const JUDGES = input.judgesPerDirection || 3',
     'const directions = await parallel(OPS.map(o => () => agent("make one", { model: "sonnet" })))',
     'const judged = await parallel(directions.filter(Boolean).map(d => () =>',
@@ -176,4 +176,43 @@ test('every fault the gate can raise is documented where a reader would look for
       assert.equal(n, faults.length, `${doc} says "${claimed} defects" and the gate has ${faults.length}`)
     }
   }
+})
+
+test('models typed in by hand are not routing, and on a pinned session they are a correctness failure', () => {
+  // `unrouted-fanout` asks only whether a model is NAMED, and a literal satisfies it. Measured on
+  // a real seven-agent run whose models were written into the script by hand: the classifier,
+  // never consulted, disagreed with every one of the five it could read — two sonnet that should
+  // have been haiku, and three sonnet that should have INHERITED. Hand-picking is not reliably
+  // the cheaper mistake; it is a different answer reached without the rule.
+  const hand = [
+    'const R = [1, 2, 3]',
+    "await parallel(R.map(x => () => agent('read the file and report', { model: 'sonnet' })))",
+    'const vs = z.filter(Boolean)',
+    'if (vs.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(hand), ['hand-picked-models'])
+
+  // AND on a pinned session, where inheritance is the only mechanism that reproduces the exact
+  // version. Every other model fault is scoped to a routable session; this one must not be.
+  assert.deepEqual(codes(hand, { routable: false }), ['hand-picked-models'],
+    'a literal overrides the inheritance a pinned session depends on')
+
+  // Deriving them is the fix, and it is accepted.
+  const derived = hand.replace("{ model: 'sonnet' }", '{ ...M(args.__modelPolicy, "read the file") }')
+  assert.deepEqual(codes(derived), [], 'a script that reads the policy is routing')
+})
+
+test('a prompt that discusses models is not a model assignment', () => {
+  // The literal has to be found in code and read from source: matching the source directly would
+  // flag any prompt that mentions a model by name, and matching the stripped text alone would
+  // lose the value. Stripping blanks a literal character for character, so offsets line up.
+  const talks = [
+    'const A = [1, 2]',
+    'await parallel(A.map(x => () => agent(`when does model: "sonnet" beat model: "haiku"?`, { model: undefined })))',
+    'const v = z.filter(Boolean)',
+    'if (v.length === 0) return 1',
+  ].join('\n')
+  assert.deepEqual(codes(talks), [], 'the words are inside a prompt, not an assignment')
+  assert.match(stripLiterals("agent(p, { model: 'sonnet' })"), /model: '\s+'/,
+    'stripping keeps the quotes and the length, which is what makes the offset trick work')
 })

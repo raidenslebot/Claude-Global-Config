@@ -5,6 +5,51 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.72.0 — 2026-09-07
+
+A workflow was shown with seven agents on Fable and Sonnet and the question asked was whether
+those tiny read tasks needed either, or would have been fine on Haiku. The answer turned out to
+be about a hole in the gate rather than about the tiers.
+
+**Those models were typed into the script by hand, and the classifier was never consulted.**
+`unrouted-fanout` asks whether a model is NAMED; a literal satisfies it. Running the real prompts
+through `decide()` afterwards, it disagreed with **every one of the five it could read**:
+
+| agent | written by hand | the classifier |
+|---|---|---|
+| `mod-data` | `sonnet` | `haiku` |
+| `weapon-data` | `sonnet` | `haiku` |
+| `overlay-runtime` | `sonnet` | inherit |
+| `account-mod-shape` | `sonnet` | inherit |
+| `game-ui-dna` | `sonnet` | inherit |
+
+So the instinct was right on the first two and the opposite of right on the last three: hand-
+picking is not reliably the cheaper mistake, it is simply a different answer reached without the
+rule. (Reading those prompts is worth it before judging them — `selection-signal` ends "rank them
+… propose the best fallback" and `mod-data` ends "state what is MISSING — that list is the
+deliverable". Those carry decisions, which is why the classifier lifts three of them rather than
+dropping them.)
+
+**On a pinned session the same hole is a correctness failure.** When the session runs a version
+the coarse aliases cannot express, inheritance is the only mechanism that reproduces it, and the
+mandate calls that absolute — but a literal `model: 'sonnet'` overrides it, and the routing check
+was gated on `routable`, so on a pinned session it did not run at all. The new
+**`hand-picked-models`** fault therefore fires on both kinds of session, the only model fault
+that does.
+
+Finding it needed care worth recording. The literal has to be located in the STRIPPED source —
+where a `model:` inside a prompt has been blanked away and cannot be mistaken for an assignment —
+and then read from the ORIGINAL at the same offsets, because stripping blanks a literal character
+for character and preserves length. Matching the source directly would flag any prompt that
+discusses models by name; matching the stripped text alone would find the assignment and lose its
+value. A fixture that merely discusses `model: "sonnet"` inside a prompt is checked and passes.
+
+Six existing fixtures hardcoded models and now tripped the new fault — correctly — so each grew a
+line that reads the policy, keeping every test isolated to the fault it targets. The two routing
+tests keep their raw fixtures on purpose. And the doc-binding test added in 1.70.2 did its job on
+its first real outing: it failed the moment a fifth fault existed with the mandate still saying
+four.
+
 ## 1.71.0 — 2026-09-07
 
 Reported from the machine, not from the code: massive CPU and RAM with Claude merely open, and a

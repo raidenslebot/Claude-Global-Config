@@ -158,7 +158,19 @@ findings nobody had checked were reported as confirmed defects. Forgetting cost 
 the correctness, and it exhausted the quota that the rest of the day's work needed.
 
 So the hook now audits the script's text and denies it, naming the fix, for `unrouted-fanout`,
-`unbounded-fanout`, `verdict-fails-open` or `fanout-exceeds-budget`.
+`hand-picked-models`, `unbounded-fanout`, `verdict-fails-open` or `fanout-exceeds-budget`.
+
+**`hand-picked-models` is the one to read twice, because it looks like compliance.** A model
+NAMED is not a model ROUTED, and the first version of the routing check could not tell them
+apart: it asked only whether `model:` appeared. Measured on a seven-agent run whose models were
+typed into the script by hand, the classifier — never consulted — disagreed with every one of the
+five it could read: two `sonnet` that should have been `haiku`, and three `sonnet` that should
+have **inherited**. So hand-picking is not even reliably the cheaper mistake. And on a session
+pinned to a version the coarse aliases cannot name, a literal `model: 'sonnet'` overrides the
+inheritance that is the only mechanism reproducing that version — which is why this fault fires
+on a pinned session, where every other model fault is deliberately silent. `routeModel` returns
+`undefined` for every agent when the policy says pinned, so a script that asks cannot make that
+mistake and one that hardcodes cannot avoid it.
 
 That fourth one exists because the first three were not enough, and the hole took under an hour
 to find: the gate demanded a cap and never said what a cap may be, so `.slice(0, 500)` passed it

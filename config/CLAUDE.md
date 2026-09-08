@@ -331,12 +331,20 @@ hook never returns a permission decision — it adjusts an argument, it does not
 
 **A WORKFLOW IS THE OTHER DISPATCH PATH, and it is gated rather than adjusted.** Workflow agents
 are spawned by the Workflow runtime, never through the Agent tool, so the hook above never sees
-them. A second hook fires on the Workflow call and REFUSES a script with any of four defects,
+them. A second hook fires on the Workflow call and REFUSES a script with any of five defects,
 naming the fix — because these were advisory once and the result was a single run that spent
 8.67M tokens to produce nothing usable:
 
 - **`unrouted-fanout`** — not one `agent()` names a model or reads the injected `__modelPolicy`,
   so the whole fleet inherits the session model. That is what "the model never changes" is.
+- **`hand-picked-models`** — a model NAMED is not a model ROUTED, and the first version of the
+  check above could not tell them apart. Measured on a seven-agent run whose models were typed
+  into the script: the classifier, never consulted, disagreed with every one of the five it could
+  read — two `sonnet` that should have been `haiku`, and three `sonnet` that should have
+  **inherited**. Hand-picking is not reliably the cheaper mistake; it is a different answer
+  reached without the rule. And on a **pinned** session it is a correctness failure, not a cost
+  one — a literal overrides the inheritance that is the only mechanism reproducing that version —
+  so this is the one model fault that fires on a pinned session too.
 - **`unbounded-fanout`** — a `parallel()`/`pipeline()` as wide as the data. The runtime stops at
   1,000 agents and a pipeline stage that throws drops its item to `null`, so this does not fail
   loudly: it silently reports on whatever fitted.

@@ -418,6 +418,41 @@ function auditWorkflow(script, { routable }) {
     }
   }
 
+  // ── models typed in by hand, with the policy in args and unread ────────────────────────────
+  //
+  // `unrouted-fanout` above asks only whether a model is NAMED, and a literal satisfies it. That
+  // is not the same as being ROUTED, and the difference was measured on a real run: seven agents
+  // whose models were written into the script by hand, where the classifier — never consulted —
+  // disagreed with every one of the five it could read. Two were sonnet that should have been
+  // haiku; three were sonnet that should have INHERITED, so hand-picking was not even reliably
+  // the cheaper mistake. It is simply a different answer, arrived at without the rule.
+  //
+  // AND ON A PINNED SESSION IT IS A CORRECTNESS FAILURE, which is why this fault is not gated on
+  // `routable` the way the one above is. When the session runs a version the coarse aliases
+  // cannot express, inheritance is the ONLY mechanism that reproduces it, and the mandate calls
+  // that absolute. A literal `model: 'sonnet'` overrides it — the fleet silently runs something
+  // the session did not choose. `routeModel` returns undefined for every agent when the policy
+  // says pinned, so a script that asks the policy cannot make that mistake; one that hardcodes
+  // cannot avoid it.
+  if (/\bagent\s*\(/.test(code)) {
+    // Found in the STRIPPED code and read from the SOURCE. Stripping blanks a literal's contents
+    // character for character, so `model: 'sonnet'` becomes `model: '      '` — which means the
+    // stripped text still shows WHERE a model was assigned in code, while a `model:` that merely
+    // appears inside a prompt has been blanked away entirely and cannot be mistaken for one.
+    // Offsets survive because the blanking preserves length, so the real value is the same span
+    // of the original. Matching the source directly would have flagged any prompt that discusses
+    // models; matching the stripped text alone would have lost the value.
+    const literals = [...code.matchAll(/\bmodel\s*:\s*(['"`])\s*\1/g)]
+      .map((m) => (src.slice(m.index, m.index + m[0].length).match(/(haiku|sonnet|opus|fable)/) || [])[1])
+      .filter(Boolean)
+    if (literals.length && !/__modelPolicy/.test(code)) {
+      const seen = [...new Set(literals)].join(', ')
+      add('hand-picked-models',
+        `${literals.length} agent(s) name a model literally (${seen}) and nothing in this script reads the __modelPolicy this hook puts in args`,
+        'derive them instead: read args.__modelPolicy and route each prompt through the routeModel helper (workflows/design-divergence.js is the reference copy). A literal is not routing — it is one person\'s guess frozen into the script, and on a session pinned to a version the aliases cannot name it overrides the inheritance that is the only way to reproduce that version.')
+    }
+  }
+
   return faults
 }
 
