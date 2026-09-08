@@ -5,6 +5,39 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.73.0 — 2026-09-07
+
+**A session that starts talking again now checks the repository for itself.**
+
+The per-prompt check was already unthrottled in the sense that mattered for one window, but its
+fetch window is machine-wide — deliberately, because a burst of prompts across six windows should
+cost one fetch rather than six. That sharing had a consequence nobody asked for: a window you came
+back to after an hour skipped its own check, because some other window had prompted forty seconds
+earlier, and answered from a ref that other session had fetched. Usually current. Not the same as
+having looked.
+
+So the window is now shared for a conversation IN PROGRESS and never for one resuming. Each
+session records when it last prompted; a session that has not prompted inside the window fetches
+for itself, every time, and pays exactly one fetch to do it. `once()` reads the same flag, so a
+standing condition — a detached checkout, an unreachable remote — is also restated to a session
+that has just come back to it, instead of staying silent because a different window was told a
+minute ago. A prompt that carries no session id cannot be told apart from a burst, so it falls
+back to the shared window exactly as before.
+
+Two mistakes of mine on the way there, both caught by measuring rather than reasoning. The first:
+`PROMPTED` was a `const` evaluated at module load, while `SESSION` is read from stdin when the
+hook RUNS — so it captured a null session, the record was never written, and every prompt forced
+a fetch for the wrong reason. The empty `prompted/` directory was the tell. Moving the whole
+window block after `readSession()` fixed it. The second: my own test asserted that a conversation
+in progress does not re-fetch, while the test helper sets `CGC_FETCH_TTL_MS=0` and disables the
+very window under test — the premise was false, not the code.
+
+**And the suite caught a real flake in something else.** Three react-doctor gate tests failed
+mid-release with `another scan holds the slot`: they used the REAL machine-wide scan lock, so they
+raced genuine scans triggered by ordinary editing — and their teardown deleted that lock, which
+could cut a live scan's slot out from under it. The lock path now takes an env override that
+nothing sets in normal use, and the tests own a private one. Three consecutive runs, clean.
+
 ## 1.72.0 — 2026-09-07
 
 A workflow was shown with seven agents on Fable and Sonnet and the question asked was whether

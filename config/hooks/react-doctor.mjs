@@ -102,7 +102,11 @@ const usesFramework = (from) => {
  *  sixteen times the information, it is the same answer sixteen times and a machine that stops.
  *  A scan that cannot get the slot is SKIPPED, never queued — the next write starts another one
  *  anyway, so queueing only guarantees the pile-up arrives later. */
-const SCAN_LOCK = join(tmpdir(), 'cgc-react-doctor.lock')
+// One scan at a time PER MACHINE, so the path is shared by design — and that made the tests
+// for this gate race real scans: a suite run while any editor was writing lost the slot and
+// reported "react must scan" as a failure, and its teardown deleted a live scan's lock. The
+// env override lets a test own a private slot; nothing sets it in normal use.
+const SCAN_LOCK = process.env.CGC_REACT_DOCTOR_LOCK || join(tmpdir(), 'cgc-react-doctor.lock')
 const SCAN_LOCK_STALE_MS = 90000
 const takeScanSlot = () => {
   try {

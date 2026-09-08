@@ -43,7 +43,7 @@ function fire(w, file, extraEnv = {}) {
   const r = spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: file } }),
     encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, CGC_HOOK_DEBUG: '1', PATH: `${w.bin}${WIN ? ';' : ':'}${process.env.PATH}`, ...extraEnv },
+    env: { ...process.env, CGC_HOOK_DEBUG: '1', CGC_REACT_DOCTOR_LOCK: join(w.root, 'scan.lock'), PATH: `${w.bin}${WIN ? ';' : ':'}${process.env.PATH}`, ...extraEnv },
   })
   assert.equal(r.status, 0, `the hook must never fail the agent loop: ${r.stderr}`)
   const why = (r.stderr.match(/react-doctor: (.*)/) || [, ''])[1].trim()
@@ -100,7 +100,9 @@ test('one scan at a time: a live slot means skip, a dead slot is taken over', (t
   const w = world(t)
   w.write(['proj', 'package.json'], JSON.stringify({ dependencies: { react: '18' } }))
   const f = w.write(['proj', 'src', 'App.jsx'], 'x')
-  const lock = join(tmpdir(), 'cgc-react-doctor.lock')
+  // A PRIVATE slot: the real one is machine-wide, so using it here raced genuine scans and
+  // deleted their lock on teardown.
+  const lock = join(w.root, 'scan.lock')
   t.after(() => { try { rmSync(lock, { force: true }) } catch {} })
   // Held by a live scan: skip, and say so.
   const fd = openSync(lock, 'w'); writeSync(fd, '999999'); closeSync(fd)

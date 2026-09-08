@@ -1204,3 +1204,58 @@ test('an install that failed while the doctor saw nothing wrong is NOT recorded 
   assert.equal(rec.repairedAfterInstallFailure, undefined, 'and nothing claims a repair that never ran')
   assert.match(ctx, /install step failed/, 'the session is told, rather than reassured')
 })
+
+test('a session that resumes talking checks for itself, even when another window just did', (t) => {
+  // The fetch window is machine-wide on purpose: a burst across six windows should cost one
+  // fetch. But that sharing meant a window you came back to after an hour skipped its own check
+  // because some other window had prompted forty seconds ago, and answered from a ref somebody
+  // else fetched. Current, usually — and not the same as having looked.
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+
+  // Session A is mid-conversation: it prompts, which stamps the shared window AND its own record.
+  // The helper disables the window by default (TTL 0); these two tests are ABOUT the window,
+  // so they set a real one.
+  const TTL = { CGC_FETCH_TTL_MS: '60000' }
+  assert.equal(promptAs(w, 'a', TTL), null, 'A is current and silent')
+  assert.ok(existsSync(join(state, 'prompted', 'a')), "A's own record is written")
+  const shared = statSync(join(state, 'last-remote-check')).mtimeMs
+
+  // A release lands, and the shared window is still fresh — A prompted a moment ago.
+  w.release('1.1.0', 'a release')
+  assert.ok(Date.now() - shared < 60000, 'precondition: the shared window has not expired')
+
+  // A, still talking, rides the shared window: no second fetch inside it.
+  promptAs(w, 'a', TTL)
+  assert.equal(statSync(join(state, 'last-remote-check')).mtimeMs, shared,
+    'a conversation in progress does not re-fetch on every prompt')
+
+  // B has never spoken. It must look for itself rather than trust A's fetch — and so it sees the
+  // release that landed after A last looked.
+  const said = String(promptAs(w, 'b'))
+  assert.match(said, /1 commit\(s\) behind origin\/main \(v1\.1\.0 available\)/, said)
+  assert.ok(statSync(join(state, 'last-remote-check')).mtimeMs > shared, 'B fetched for itself')
+  waitFor(() => head(w.friend) === head(w.author) && existsSync(join(w.friend, 'installed.txt')), 20000, 'the update B started')
+  waitFor(() => !existsSync(join(state, 'update.lock')), 20000, 'the updater to finish')
+})
+
+test('a session returning after a pause re-checks; one in mid-conversation does not', (t) => {
+  const w = world(t, {})
+  const state = join(w.config, '.cgc')
+  mkdirSync(state, { recursive: true })
+  const TTL2 = { CGC_FETCH_TTL_MS: '60000' }
+  promptAs(w, 's', TTL2)
+  const first = statSync(join(state, 'last-remote-check')).mtimeMs
+
+  // Two prompts a few seconds apart: the window is shared, so no second fetch.
+  promptAs(w, 's', TTL2)
+  assert.equal(statSync(join(state, 'last-remote-check')).mtimeMs, first, 'still talking, still one fetch')
+
+  // Now the session goes quiet for longer than the window and comes back.
+  const old = new Date(Date.now() - 5 * 60 * 1000)
+  utimesSync(join(state, 'prompted', 's'), old, old)
+  promptAs(w, 's', TTL2)
+  assert.ok(statSync(join(state, 'last-remote-check')).mtimeMs > first,
+    'coming back after a pause is a live check, whatever the shared window says')
+})

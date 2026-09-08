@@ -54,6 +54,19 @@ function readSession() {
   } catch { /* no payload, or not JSON: no per-session memory, nothing else changes */ }
 }
 const STAMP = path.join(STATE, 'last-remote-check')
+// When THIS session last sent a prompt. The fetch window above is machine-wide by design — a
+// burst of prompts across six windows should cost one fetch, not six — but that sharing has a
+// consequence nobody asked for: a window you come back to after an hour skips its own check
+// because some other window happened to prompt forty seconds ago. It then answers from a ref
+// somebody else fetched, which is usually current and is not the same as having looked.
+//
+// So the window is shared for a CONVERSATION IN PROGRESS and never for one resuming. A session
+// that has not prompted inside the window looks for itself, every time, and pays one fetch to
+// do it.
+// A FUNCTION, not a const: SESSION is read from stdin when the hook RUNS, and every const in
+// this block is evaluated at load — so the first version of this line captured a null SESSION
+// and the record was never written. The empty prompted/ directory was the tell.
+const promptedPath = () => (SESSION ? path.join(STATE, 'prompted', SESSION) : null)
 // The session-start hook, which does the update when this hook finds one. A sibling in both
 // places this file lives: config/hooks in the repo, <config>/hooks once installed.
 const UPDATER = path.join(__dirname, 'session-start-cgc.js')
@@ -197,15 +210,6 @@ function version() {
   try { return JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8')).version || '?' } catch { return '?' }
 }
 
-// The fetch window. Only the NETWORK is rate-limited by it — the ref comparison runs on every
-// prompt — and so is every report of a condition that does not change between prompts. Those
-// exited before the window was ever opened, so "not a git clone", "detached" and "offline" were
-// said on every single message for the rest of the session.
-let fresh = false
-try { fresh = Date.now() - fs.statSync(STAMP).mtimeMs < FETCH_TTL_MS } catch { fresh = false }
-const stamp = () => { try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(STAMP, String(Date.now())) } catch { /* stamp is an optimisation */ } }
-/** Say a standing condition once per fetch window; inside the window, say nothing. */
-const once = (text) => { if (fresh) process.exit(0); stamp(); emit(text) };
 
 
 // Exported so the claim can be exercised directly: its contract is a property about concurrent
@@ -214,6 +218,42 @@ module.exports = { claimAttempt, BG_STAMP, STATE }
 if (require.main !== module) return
 
 readSession();  // the payload is this hook's, and only when it is running as one
+
+// The fetch window. Only the NETWORK is rate-limited by it — the ref comparison runs on every
+// prompt — and so is every report of a condition that does not change between prompts. Those
+// exited before the window was ever opened, so "not a git clone", "detached" and "offline" were
+// said on every single message for the rest of the session.
+let fresh = false
+try { fresh = Date.now() - fs.statSync(STAMP).mtimeMs < FETCH_TTL_MS } catch { fresh = false }
+// Back after a pause — or talking for the first time in this session — overrides the shared
+// window. `once()` reads the same flag, so a standing condition (a detached checkout, an
+// unreachable remote) is also restated to a session that has just returned to it, rather than
+// staying silent because a different window was told about it a minute ago.
+const PROMPTED = promptedPath()
+// No session id means no way to tell a resumption from a burst, so the shared window governs,
+// exactly as it did before. Forcing a check there would also make every standing condition
+// repeat on every prompt, which is the noise `once()` exists to prevent.
+const resumed = PROMPTED ? Date.now() - mtime(PROMPTED) > FETCH_TTL_MS : false
+if (resumed) fresh = false
+if (PROMPTED) {
+  try {
+    fs.mkdirSync(path.dirname(PROMPTED), { recursive: true })
+    const first = mtime(PROMPTED) === 0
+    fs.writeFileSync(PROMPTED, String(Date.now()))
+    // One file per session, swept on a session's first prompt like the seen/ record beside it.
+    if (first) {
+      const dir = path.dirname(PROMPTED)
+      const names = fs.readdirSync(dir)
+      if (names.length > 100) {
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+        for (const n of names) { try { const p = path.join(dir, n); if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { force: true }) } catch { /* next */ } }
+      }
+    }
+  } catch { /* a convenience: without it the session simply checks every prompt */ }
+}
+const stamp = () => { try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(STAMP, String(Date.now())) } catch { /* stamp is an optimisation */ } }
+/** Say a standing condition once per fetch window; inside the window, say nothing. */
+const once = (text) => { if (fresh) process.exit(0); stamp(); emit(text) };
 
 (async () => {
 try {
