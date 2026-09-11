@@ -1,5 +1,9 @@
 # The loop — Harbour Swim Club tide board
 
+> Gated at `0ab26f5` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Every pass is recorded, including the ones where the gate was right and the piece was wrong.
 Four of the six passes below found a real defect that reading the source would never have
 shown — three of them in the tools themselves — which is the argument for the whole pipeline.

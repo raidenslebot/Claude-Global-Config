@@ -75,8 +75,14 @@ function runInstall(fixes = []) {
   // from the host application's config; it only ever touches names this package registers, and
   // it writes a backup first. Without it the app restoring its defaults meant a permanent
   // DEGRADED line and an instruction to type by hand after every rewrite.
+  // `codex` is in the list because the doctor can FAIL on a stale Codex block, and a failure the
+  // repair cannot reach is the one thing that makes a machine DEGRADED for ever: every session
+  // start would run a full install, re-run the doctor, still fail, and print the same line — the
+  // exact loop `repairable` exists to prevent (see the comment on it below). It is a file write
+  // plus two `codex mcp` calls, and it no-ops in a tenth of a second where Codex is absent, which
+  // is most machines. It also means a release that edits config/AGENTS.md actually lands.
   const extra = fixes.includes('dedupe') ? ['--dedupe'] : []
-  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register', ...extra],
+  const r = spawnSync(NODE, [tool('install.mjs'), '--only=config,hooks,skills,deps,mcp-register,codex,library', ...extra],
     { cwd: REPO, encoding: 'utf8', timeout: 120000, windowsHide: true, // Set either way: a spread cannot UNSET a value inherited from this process's own
     // environment, and paths.mjs treats only '1' as held.
     env: { ...process.env, CGC_UPDATE_LOCK_HELD: LOCK_HELD ? '1' : '0' } })
@@ -445,4 +451,8 @@ function main() {
   }) + '\n')
 }
 
-try { main() } catch { /* never block a session start */ }
+// A hook is a COMMAND, not a module. main() reads stdin, so running it at load time
+// means importing this file — from a test, or from a sibling hook that wants one of its
+// helpers — blocks for ever on a pipe that never closes. The guard is what makes the
+// exports below usable.
+if (require.main === module) try { main() } catch { /* never block a session start */ }

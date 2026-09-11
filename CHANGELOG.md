@@ -5,6 +5,94 @@ The version is `package.json`'s and is tagged `vX.Y.Z` on `main`. Every install 
 is what a machine gained between two starts. Bump the version and add the entry in the same
 commit — a test holds them together.
 
+## 1.74.0 — 2026-09-10
+
+**Codex is a second harness with hooks in it, and this package spent a release saying it had none.**
+
+The claim came from reading `codex --help` once, not finding a hook surface, and writing down the
+absence. `codex --help` documents `--dangerously-bypass-hook-trust`. The CLI carries the same
+twelve events Claude Code has — SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop and
+seven more — a `command` handler type, and the same `hookSpecificOutput` / `additionalContext` /
+`updatedInput` wire shape. An absence is a claim like any other and needs the evidence a presence
+needs; the retraction is written into every file that carried the sentence, including the one
+Codex itself reads.
+
+So CGC now **registers ten hooks with Codex and trusts them**, and the version check is a
+mechanism on that harness rather than an instruction. What it took:
+
+- `$CODEX_HOME/hooks.json`, in Claude Code's own `settings.json` shape.
+- **An untrusted hook is SILENTLY SKIPPED.** No prompt, no error, no log line: it loads, reports
+  `enabled: true`, and does nothing. Writing the file is not installing the hook. Trust is a
+  per-handler entry in `$CODEX_HOME/config.toml`, keyed `<sourcePath>:<snake_case_event>:<group>:
+  <handler>` and carrying a content hash Codex computes — so the installer writes the hooks, reads
+  the key and hash back over `codex app-server`'s `hooks/list`, writes the trust, and then asks
+  Codex again. The verdict comes from Codex, never from our own file. Edit a command and the hash
+  changes and trust reverts by itself, silently, which is why the doctor FAILS on anything
+  untrusted instead of counting entries.
+- **There is no shell, and quotes are honoured on arguments but not on the program token.** So
+  `"C:\Program Files\nodejs\node.exe" hook.js` fails, quoted or not. A path with a space in it is
+  unusable as the program; the installer picks a bare name on PATH instead and says why.
+- **A duplicate trust key makes `hooks/list` return ZERO hooks from every layer**, with the reason
+  only in `errors[]` — so a reader that takes an empty list at face value cannot tell "no hooks
+  configured" from "every hook just died". That is the shape an append-based installer produces on
+  its second run. This one refuses to write a duplicate, and treats a non-empty `errors[]` as
+  unknown rather than as none.
+
+**Ten more hooks are left out on purpose, and that is the more interesting half.** This package's
+`PreToolUse` and `PostToolUse` hooks match Claude Code's tool names — `Write`, `Edit`,
+`MultiEdit` — and Codex's tools are `exec`, `spawn_agent`, `send_message`, `wait`,
+`list_agents` (counted from this machine's own rollouts: exec 108, send_message 13, spawn_agent
+3). Installed there they would load, trust, match nothing, and report healthy for ever. A gate
+that silently does not run is worse than an absent one. Every skip carries its reason, in the
+report and in the installed mandate, and the design gates are named as manual on that harness.
+
+Four defects in the Codex surface, found by reviewing it rather than by reasoning about it: the
+one command the installed mandate told the agent to run was a **PowerShell parse error** (a
+`<<<` heredoc, and Codex runs PowerShell here — 109 recorded invocations, zero bash); a stray
+`CGC:END` made the merge **append another block on every run**, 54 bytes to 26 KB in three; the
+markers **quoted inside a fenced code block** had everything between them replaced, so the merge
+now masks fences first; and a doctor failure the automatic repair could not reach would have left
+a machine **DEGRADED for ever**, which is now held by a test that binds every `--only` phase the
+doctor names to the phases the session hook actually runs.
+
+**`cgc behaviour` — the five ways working code still fails the person using it.**
+
+Every gate here until now measured an artefact: is this page generic, does this palette repeat,
+did this animation actually move. They share an assumption — that the thing under test is the
+thing the person receives. These five fire when it is false:
+
+- **delivered** — a value computed that nobody receives: a field one side produces and nothing
+  consumes, or consumes and nothing produces.
+- **seams** — two modules that each pass their own tests, with no test that stands the pair up.
+- **decision** — a screen's surface count against the count its own design document states.
+- **claims** — a comment guaranteeing what the code under it stopped doing (measured from git), or
+  a document asserting "lint clean" that nothing re-runs.
+- **proxies** — verification that stops at a stand-in: a test asserting nothing, asserting only
+  that something exists, asserting what the source SAYS rather than what it does, or comparing a
+  value with itself.
+
+The tautology half runs automatically, in a `PostToolUse` hook, the second a test is written.
+
+**Each check was then held against the instance that named its class, and three of five failed.**
+That test is `tools/test/behaviour-classes.test.mjs`, and it is the one worth keeping: a detector
+tuned against fixtures its own author chose always passes. `stripLiterals` was blanking `${…}`
+interpolations, so `${summary.storageHealth}` — the header case the `delivered` class is *named
+after* — was invisible to the check written for it. `seams` and `decision` were silent on theirs
+too. All five now catch their own founding instance.
+
+Run against CGC itself the gate found real defects, since fixed: six tautologies in `argo/test`
+(`assert.equal(hash32('argo'), hash32('argo'))` and five more, each a determinism test written so
+that a function returning a constant would also pass), a test asserting a comparison in
+`paths.mjs` as TEXT rather than taking the lock and looking, and ten undated "lint clean" claims
+in shipped example reviews — now anchored to the revision each was written at. Two false
+positives the gate produced against its own repository are fixed as well: a shorthand producer
+scanner that registered only every OTHER property of `{ a, b, c, d }`, and a stale-comment
+heuristic that counted two commits on the same day as an explanation outliving its code.
+
+A latent landmine went with them: five hooks called `main()` at module load, where `main()`
+reads stdin — so importing one, which their own `module.exports` invites, blocked for ever on a
+pipe that never closes. All five are now guarded by `require.main === module`.
+
 ## 1.73.0 — 2026-09-07
 
 **A session that starts talking again now checks the repository for itself.**

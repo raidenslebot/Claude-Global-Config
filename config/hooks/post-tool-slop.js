@@ -98,4 +98,8 @@ function main() {
   }) + '\n')
 }
 
-try { main() } catch { /* a reporting hook never blocks a write */ }
+// A hook is a COMMAND, not a module. main() reads stdin, so running it at load time
+// means importing this file — from a test, or from a sibling hook that wants one of its
+// helpers — blocks for ever on a pipe that never closes. The guard is what makes the
+// exports below usable.
+if (require.main === module) try { main() } catch { /* a reporting hook never blocks a write */ }

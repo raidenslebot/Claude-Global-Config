@@ -5,7 +5,7 @@
 //   node tools/install.mjs --dry-run       show every action, change nothing
 //   node tools/install.mjs --skip-library  skip cloning the Tier-3 skill library (~200MB)
 //   node tools/install.mjs --skip-npm      skip global npm packages
-//   node tools/install.mjs --only=config   run one phase: config|skills|hooks|deps|npm|mcp|library|argo
+//   node tools/install.mjs --only=config   run one phase: config|skills|hooks|deps|npm|mcp|library|argo|codex
 //   node tools/install.mjs --only=mcp --dedupe   remove a duplicate MCP registration from the
 //                                          host application's config (backs it up first)
 //   node tools/install.mjs --help          this text, and nothing else
@@ -790,6 +790,19 @@ if (wants('library') && !SKIP.has('library')) {
     ok(`tier-2 skills linked (${n} new, ${t2.length} total)`)
   }
 } else if (wants('library')) skip('Tier-3 library (--skip-library)')
+
+// ── 9. Codex, the second harness ────────────────────────────────────────────
+// Not a second copy of the same install: only the events whose payload means the same thing on
+// both harnesses get a hook there, so some of what is a mechanism in Claude
+// Code is an instruction in ~/.codex/AGENTS.md there, and tools/codex.mjs owns that whole
+// surface — including registering MCP servers through `codex mcp add` rather than writing TOML.
+// It reports `skip` when Codex is absent, which is most machines and must never read as broken.
+if (wants('codex')) {
+  phase('Codex')
+  const r = run(vars.NODE, [join(REPO, 'tools', 'codex.mjs'), ...(DRY ? ['--dry-run'] : [])], { stdio: 'inherit' })
+  if (r.status === 0) ok('Codex surface applied (or skipped, if Codex is not on this machine)')
+  else fail(`tools/codex.mjs exited ${r.status} — run it directly to see why: node tools/codex.mjs`)
+}
 
 // ── Summary ─────────────────────────────────────────────────────────────────
 const counts = results.reduce((a, [k]) => ({ ...a, [k]: (a[k] || 0) + 1 }), {})

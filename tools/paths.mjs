@@ -5,7 +5,7 @@
 // target machine. This is what makes the repo work on a setup that is not this one.
 
 import { homedir, platform, availableParallelism } from 'node:os'
-import { existsSync, readFileSync, statSync, mkdirSync, openSync, writeSync, closeSync, unlinkSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, mkdirSync, openSync, writeSync, closeSync, unlinkSync, readdirSync } from 'node:fs'
 import { join, resolve, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
@@ -513,4 +513,63 @@ export function resolveServerBin(name) {
     try { if (statSync(p).isFile()) return p } catch { /* next */ }
   }
   return null
+}
+
+// ── Codex ────────────────────────────────────────────────────────────────────
+//
+// The second harness this package has to serve, and it is not Claude Code with different
+// filenames. What this package installs there decides most of the design: hooks on the three
+// events whose payload means the same thing on both harnesses, and none on the others. Codex has — `codex --help` documents
+// `--dangerously-bypass-hook-trust`, and the CLI carries SessionStart, UserPromptSubmit,
+// PreToolUse, PostToolUse, Stop and seven more, a `command` handler type, and the same
+// hookSpecificOutput / additionalContext / updatedInput wire shape Claude Code uses. So until this
+// package registers them, the mandate that Claude Code enforces with a hook is carried in Codex by
+// an instruction the agent follows, and the version check is a command it is told to run. That is
+// weaker, it is a GAP here rather than a limit of the harness, and it is stated plainly.
+//
+// This paragraph used to assert that Codex had no hook surface at all, on the strength of one
+// reading of `codex --help` that did not find one. An absence is a claim like any other and needs
+// the same evidence a presence does.
+//
+// What it DOES have is better than editing config by hand: `codex mcp add|list|remove`, with
+// `--json` on the list. Codex owns its own TOML and this package never writes it.
+
+/** Codex's home: CODEX_HOME when set, else ~/.codex. Its AGENTS.md and config.toml live here. */
+export function codexHome() {
+  return process.env.CODEX_HOME || join(HOME, '.codex')
+}
+
+/**
+ * The Codex CLI, or null.
+ *
+ * The binary lives under a VERSION-HASHED directory — this machine had two of them, an old and a
+ * current — so a fixed path goes stale on the next update and the newest one is the answer.
+ * `CODEX_CLI_PATH` is what Codex itself exports to its own child processes, so it is believed
+ * first when present.
+ */
+export function resolveCodexCli() {
+  const direct = process.env.CODEX_CLI_PATH
+  if (direct) { try { if (statSync(direct).isFile()) return direct } catch { /* stale: keep looking */ } }
+  const exe = IS_WIN ? 'codex.exe' : 'codex'
+  for (const dir of (process.env.PATH || '').split(IS_WIN ? ';' : ':').filter(Boolean)) {
+    try { const p = join(dir, exe); if (statSync(p).isFile()) return p } catch { /* next */ }
+  }
+  const roots = IS_WIN
+    ? [join(process.env.LOCALAPPDATA || join(HOME, 'AppData', 'Local'), 'OpenAI', 'Codex', 'bin')]
+    : [join(HOME, '.local', 'share', 'codex', 'bin'), join(HOME, '.codex', 'bin')]
+  let best = null
+  for (const root of roots) {
+    let names = []
+    // ENOENT only: a bare catch here once hid a missing readdirSync import and this function
+    // simply answered null on a machine where Codex was installed.
+    try { names = readdirSync(root) } catch (e) { if (e instanceof ReferenceError) throw e; continue }
+    for (const name of names) {
+      const p = join(root, name, exe)
+      try {
+        const st = statSync(p)
+        if (st.isFile() && (!best || st.mtimeMs > best.at)) best = { path: p, at: st.mtimeMs }
+      } catch { /* next */ }
+    }
+  }
+  return best ? best.path : null
 }

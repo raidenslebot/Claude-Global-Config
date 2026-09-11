@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `902511d` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render email.html --preset email --full`; gated with
 `cgc lint .` (clean) and `cgc audit email.html --viewport 640x1200`. The HTML is
 8.9 KB, well under Gmail's 102 KB clip. Nothing here proves Outlook — only a send-test does, and

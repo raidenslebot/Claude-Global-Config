@@ -401,7 +401,8 @@ test('the fix plan is ordered, deduplicated, and skips anything not open', () =>
 
 test('diagnose is deterministic and names every check it ran', () => {
   const obs = healthy({ graph: goodGraph({ coverage: 0.4, missedRefs: 12 }) })
-  assert.deepEqual(diagnose(obs), diagnose(obs))
+  const first = diagnose(obs)
+  assert.deepEqual(diagnose(obs), first, 'same observation, same diagnosis')
   assert.deepEqual(CHECK_ORDER, ['graph', 'topology', 'drift', 'baseline', 'diverge'])
   assert.equal(diagnose(obs).counts.checks, CHECK_ORDER.length)
 })

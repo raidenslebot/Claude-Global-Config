@@ -383,4 +383,8 @@ function main() {
 
 // The exit code is always 0: nothing above throws out of the hook, and no blocking
 // decision is ever emitted.
-try { main() } catch { /* a hook that throws is worse than no hook */ }
+// A hook is a COMMAND, not a module. main() reads stdin, so running it at load time
+// means importing this file — from a test, or from a sibling hook that wants one of its
+// helpers — blocks for ever on a pipe that never closes. The guard is what makes the
+// exports below usable.
+if (require.main === module) try { main() } catch { /* a hook that throws is worse than no hook */ }

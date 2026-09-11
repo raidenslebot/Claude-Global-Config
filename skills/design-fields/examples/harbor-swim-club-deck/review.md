@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `424870b` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render slide-NN.html --preset slide` (1920 × 1080 exactly, one
 PNG per slide); gated with `cgc lint .` (clean) and `cgc audit slide-NN.html
 --viewport 1920x1080` on every slide that carries more than a number (no failures, no warnings).

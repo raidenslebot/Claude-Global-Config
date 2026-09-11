@@ -34,6 +34,7 @@ export const COMMANDS = {
   audit: ['page-audit.mjs', 'the rendered page, measured'],
   techniques: ['techniques.mjs', 'what a piece reaches for, and the capabilities it never tried'],
   distinct: ['distinct.mjs', 'does this look like the last piece? the axes it repeats, against your other work'],
+  behaviour: ['behaviour.mjs', 'the five ways working code still fails the person using it'],
   motion: ['motion-render.mjs', 'step an animation under a virtual clock and photograph every frame'],
   render: ['screen-render.mjs', 'screenshots at real widths, or an exact canvas'],
   print: ['print-render.mjs', 'paper and fabric: PDF, PNG proof, garment mockup'],

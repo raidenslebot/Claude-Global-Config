@@ -22,6 +22,72 @@ every agent, subagent and workflow, graph engineering — is enforced by hooks t
 present at every start. None is advisory; none can be silently removed; a skill or plugin that
 shadows one of this package's is replaced or disabled at install, and said so.
 
+## Codex is the second harness, and there the mandates are instructions
+
+CGC now installs into OpenAI Codex as well: `cgc install --only=codex`
+writes this package's mandates into `~/.codex/AGENTS.md`, below whatever the user already had
+there and between `CGC:BEGIN`/`CGC:END` markers, and registers the same local MCP servers through
+Codex's own `codex mcp add`. Everything the section above says about enforcement is true of Claude
+Code and **most** of it is now true of Codex as well. Codex has the same twelve-event hook
+surface, and CGC registers ten handlers there — `SessionStart`, `UserPromptSubmit` and `Stop` —
+each one trusted, so the version check and the mandate injection are mechanisms on that harness
+too. What does NOT carry over is the tool-level enforcement: this package's `PreToolUse` and
+`PostToolUse` hooks match `Write`/`Edit`/`MultiEdit` and Codex's tools are `exec`/`spawn_agent`,
+so they are deliberately left out rather than installed to match nothing. On Codex, then, the
+design gates are run by hand (`cgc check <file>`), the version line
+included: nothing runs `session-start-cgc.js` first, so the agent is told to run it itself. When
+you speak about that surface or edit `config/AGENTS.md`, say it that way. Do not describe it as
+enforced; a claim of enforcement that does not exist is the defect this repository keeps finding
+in its own documentation.
+
+The tooling is not weaker there. `cgc` and every gate under it are plain Node programs, so
+`cgc check`, the renders, the audits, the motion capture and the print proofs behave identically
+on both harnesses, and the skill library is the same directory on disk. A machine with no Codex
+is skipped rather than failed — the doctor's Codex phase reports ok, nothing to configure.
+
+## MANDATORY — the five ways working code still fails the person using it
+
+Every other gate in this package measures an ARTEFACT: is this page generic, does this palette
+repeat, did this animation actually move. They all assume the thing under test is the thing the
+person receives. These five are the ones that fire when that assumption is false — when every
+module is correct and the answer still does not arrive. Run them on any tree you have changed
+substantially, and ALWAYS before reporting a piece of work complete:
+
+```bash
+cgc behaviour <dir>              # all five;  --only=<check>;  --strict for an exit code
+```
+
+- **delivered** — a value computed that nobody receives. A field one side produces and nothing
+  consumes, or consumes and nothing produces. A plan published to a window that was never shown;
+  a header reading a storage-health field the background mirror never supplies. Nothing is broken
+  and nothing arrives.
+- **seams** — every module behaves correctly and the whole flow fails. The store knows who owns
+  the inventory; the rename handler writes it under the wrong owner anyway. Unit tests cannot see
+  this by construction, because the defect lives *between* the units. The check names the pairs
+  that are each tested alone and never stood up together.
+- **decision** — the UI exposes the machinery instead of delivering the decision. It counts the
+  screen's surfaces against the count the design document itself states — fifteen panels across
+  six groups where the document said four surfaces and one instruction. A settings page or a data
+  table is *supposed* to be dense, so a bare census is a ratio, not a verdict; the mismatch with
+  the stated intent is the finding that speaks with confidence.
+- **claims** — an explanation stronger than its evidence. A comment describing a guarantee the
+  code stopped providing several commits ago (measured from git, comment against the code under
+  it); a handoff asserting "lint clean" or "all tests pass" that nothing re-runs. Prose outlives
+  facts, and a stale explanation is trusted exactly as much as a true one.
+- **proxies** — verification that stops before the actual failure point. A successful calculation,
+  a matching source string, a settled screenshot and an installed overlay are four different
+  things, and none of them is "the person saw the right answer in time". It finds tests that
+  assert nothing, assert only that something exists, assert a snapshot, assert what the source
+  SAYS rather than what it does — and the one that must never be missed, an assertion comparing a
+  value with itself. This package shipped two of those and they were guarding its worst regression.
+
+**The tautology half runs automatically**: a `PostToolUse` hook reports a test that cannot fail
+in the second it is written. The other four need the whole tree and are the command above.
+
+**Each check names what it deliberately does NOT detect, in its own `note`. Read it.** Silence
+from a check that cannot see a shape looks exactly like silence from a clean tree, and treating
+the first as the second is itself an instance of the fourth class.
+
 ## MANDATORY Autonomy — decide, build, show; never ask first
 
 Work fully autonomously. Never stop to ask a clarifying question before creative or

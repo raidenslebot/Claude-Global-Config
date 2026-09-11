@@ -228,7 +228,9 @@ test('matchText settles the text checks and abstains on the rest', () => {
  * ------------------------------------------------------------------ */
 
 test('hash32 and unitFrom are stable and bounded', () => {
-  assert.equal(hash32('argo'), hash32('argo'))
+  // Determinism AND the value: a hash that agrees with itself could still be `() => 0`.
+  assert.equal(hash32('argo'), 2433389656)
+  assert.equal(hash32('argo'), hash32('argo'.slice(0)))
   assert.notEqual(hash32('argo'), hash32('argonaut'))
   for (const key of ['a', 'b', 'task-17', '']) {
     const u = unitFrom(1337, key, 'difficulty')
@@ -404,7 +406,12 @@ function simulatedComparison({ seed = 1337, workers = 3, count = 20 } = {}) {
 }
 
 test('buildComparison is reproducible run to run', () => {
-  assert.deepEqual(simulatedComparison(), simulatedComparison())
+  const first = simulatedComparison()
+  assert.deepEqual(simulatedComparison(), first, 'same seed, same comparison')
+  // Reproducible is not the same as right: {} is perfectly reproducible.
+  assert.equal(first.solo.passed, 12)
+  assert.equal(first.crew.passed, 11)
+  assert.equal(first.verdict.level, 'crew-subtracts')
 })
 
 test('buildComparison agrees with its own parts', () => {

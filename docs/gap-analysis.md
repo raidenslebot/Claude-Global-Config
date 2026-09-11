@@ -60,8 +60,7 @@ mechanisms that would have caught the platform-conditional bugs are manual.
 - `.github/workflows/ci.yml:14` — `runs-on: ubuntu-latest`. One job, no `strategy.matrix`.
 - `.github/workflows/ci.yml:64` — the only `npm test` in the file is inside
   `working-directory: argo`. It runs argo's suite.
-- `package.json` — `"test": "node tools/run-tests.mjs"`. Measured just now: **53 tests,
-  0 failures, 5.1s**. CI never invokes it.
+- `package.json` — `"test": "node tools/run-tests.mjs"`. **53 tests, 0 failures, 5.1s** at `85a1409` (2026-09-02). CI never invokes it.
 - `.githooks/pre-commit` — `exec node .../tools/scan-secrets.mjs`. Secrets only; no tests.
 - `ci.yml` — `doctor.mjs` runs with `|| true`; `sync.mjs --check` runs with
   `continue-on-error: true`. Neither can fail the build by design, with reasons given.

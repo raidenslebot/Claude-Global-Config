@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `7e05fd7` (2026-09-03) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc print timetable.html --trim 297x420mm --bleed 3.175mm --png 150`, gated with
 `cgc check .`, `cgc print-lint --size a3`, `cgc audit --viewport 1123x1587` and `cgc distinct`.
 Six passes. Every one of them started by looking at the proof, and four of the six defects were

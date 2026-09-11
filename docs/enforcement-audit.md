@@ -362,7 +362,7 @@ without a second runner. The evidence below is the record of the original findin
 **Evidence.** `.github/workflows/ci.yml:14` — `runs-on: ubuntu-latest`, one job. `grep -n "runs-on\|matrix"`
 over `.github/` returns exactly that one line and no `matrix` at all. The only `npm test` in the
 file is at `:64`, inside `working-directory: argo` (`:48`). `package.json:11` declares
-`"test": "node tools/run-tests.mjs"` — measured just now at **94 tests, 0 failures**, invoked by
+`"test": "node tools/run-tests.mjs"` — **94 tests, 0 failures** at `5234412` (2026-09-03), invoked by
 nothing automatic. `doctor.mjs` runs with `|| true` (`:34`); `sync.mjs --check` runs with
 `continue-on-error: true` (`:45`). Both have stated reasons and both are correct as written — a
 hosted runner has no real install to inspect.

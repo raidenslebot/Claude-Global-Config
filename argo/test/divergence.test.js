@@ -432,7 +432,8 @@ test('buildPrompt puts the repo path and the question in, and nothing per-agent'
 
 test('syntheticAnswer is stable across runs and still makes agents differ', () => {
   const probe = { id: 'top-hub', graphAnswer: 'src/graph/build.js', alternatives: ['src/cli.js', 'src/graph/scan.js'] }
-  assert.equal(syntheticAnswer('a', probe, 0), syntheticAnswer('a', probe, 0))
+  assert.equal(syntheticAnswer('a', probe, 0), 'The answer is src/cli.js.')
+  assert.equal(syntheticAnswer('a', probe, 0), syntheticAnswer('a', { ...probe }, 0))
 
   const answers = ['a', 'b', 'c', 'd', 'e'].map((n) => syntheticAnswer(n, probe, 0))
   assert.ok(new Set(answers).size > 1, 'a dry run that never disagrees teaches nothing')
@@ -443,7 +444,8 @@ test('syntheticAnswer degrades gracefully with no graph answer', () => {
 })
 
 test('hash32 is stable and unsigned', () => {
-  assert.equal(hash32('abc'), hash32('abc'))
+  assert.equal(hash32('abc'), 440920331)
+  assert.equal(hash32('abc'), hash32('abc'.slice(0)))
   assert.notEqual(hash32('abc'), hash32('abd'))
   assert.ok(hash32('abc') >= 0)
 })
@@ -754,7 +756,10 @@ test('verdict marks a single-agent run insufficient rather than perfect', () => 
 
 test('buildReport is deterministic for identical samples', () => {
   const samples = { a: [['x'], ['1']], b: [['y'], ['2']] }
-  assert.deepEqual(reportWith(samples), reportWith(samples))
+  const first = reportWith(samples)
+  assert.deepEqual(reportWith(samples), first, 'identical samples, identical report')
+  // Deterministic says nothing about the content. Name what the report must contain.
+  assert.deepEqual(first.agents.map((a) => a.name), ['a', 'b'])
 })
 
 test('renderText prints the matrix, the gate and the fleet-mean warning', () => {

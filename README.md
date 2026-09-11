@@ -2,7 +2,10 @@
 
 A complete, portable Claude Code setup: design taste, animation craft, graph-engineering for
 multi-agent work, security tooling, and the hooks that enforce all of it. Clone it onto a machine
-that has nothing and run one command.
+that has nothing and run one command. Claude Code is the primary harness; the same mandates, the
+same `cgc` gates and the same library install into OpenAI Codex as well, with one difference that
+is stated rather than papered over — ten hooks run there, ten are deliberately left out. See
+[Codex — the second harness](#codex--the-second-harness).
 
 **No external accounts. No API keys.** Everything here runs on your Claude subscription and your
 local filesystem. Integrations that required signing into a third-party service were removed and
@@ -46,7 +49,7 @@ node tools/doctor.mjs
 ```
 
 Useful flags: `--skip-library` (skip the ~200 MB skill-library clone), `--skip-npm`,
-`--only=config|skills|hooks|deps|npm|mcp|library|argo` (several, comma-separated).
+`--only=config|skills|hooks|deps|npm|mcp|library|argo|codex` (several, comma-separated).
 
 From then on the install looks after itself. Every session start runs one hook that follows
 `main` (fast-forward when behind, re-applying config, hooks and skills), runs the doctor and
@@ -69,10 +72,12 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | Phase | What |
 |---|---|
 | **Config** | `CLAUDE.md` and the three mandate files, with every machine path substituted for this machine |
-| **Hooks** | 19 hooks merged into `settings.json`, each pinned to an absolute Node path — including the session-start check that updates, verifies and repairs the install, and a per-prompt check that verifies the install matches `main` on every interaction and fast-forwards when it does not |
+| **Hooks** | 20 hooks merged into `settings.json`, each pinned to an absolute Node path — including the session-start check that updates, verifies and repairs the install, and a per-prompt check that verifies the install matches `main` on every interaction and fast-forwards when it does not |
 | **Workflows** | `design-divergence` and `probe-model-policy`, installed as named workflows |
 | **Skills** | `visual-design-mastery`; the authored skills `creative-divergence`, `design-fields`, `print-design`, `apparel-design`, `model-routing`, `cross-platform`, `string-boundaries`, `standard-of-work`, `design-tokens`, `project-memory`; the argo skill set; and 13 Tier-2 animation/3D and technical-writing skills. A skill already present under one of these names is moved to `~/.claude/.cgc-replaced/` and replaced; a plugin known to shadow them (`open-design`) is disabled |
 | **Print pipeline** | `tools/print-render.mjs` (HTML/SVG at physical size → PDF + PNG, or a garment mockup, via the local Chromium) and `tools/print-lint.mjs` (the press-readiness gate) |
+| **Codex** | `tools/codex.mjs` — the second harness: the mandate block merged into `~/.codex/AGENTS.md` below whatever was already there, the same keyless MCP servers registered through `codex mcp add`, and `tools/codex-hooks.mjs`, which writes `$CODEX_HOME/hooks.json` and then TRUSTS each handler by reading its key and content hash back over `codex app-server`'s `hooks/list` — because an untrusted Codex hook is silently skipped, so registering one is not installing it. A machine without Codex is skipped, never failed |
+| **Behaviour** | `tools/behaviour.mjs` — the five ways working code still fails the person using it, each a class rather than an instance: a value **delivered** to nobody (a field one side produces and nothing consumes, or consumes and nothing produces); a **seam** between two modules that each pass their own tests and that no test stands up together; a screen that shows machinery instead of the **decision** (its surface count against the count its own design document states); a **claim** stronger than its evidence (a comment describing a guarantee the code stopped providing, a handoff asserting "lint clean" that nothing re-runs); and verification that stops at a **proxy** — a tautology, an existence check, a matching source string — short of the failure point. `cgc behaviour <dir>`, `--only=<check>`, `--strict` for an exit code. One of the five is also a hook, `post-tool-behaviour.js`, which reports a test that cannot fail in the second it is written |
 | **Sameness** | `tools/distinct.mjs` — does this look like the last piece? A design's signature (ground and accent hue, type pairing, layout grammar, motion) against the rest of your work, naming the axes it repeats. The one gate here that is not a list, because a list converges |
 | **Screen pipeline** | `tools/screen-render.mjs` (a page at desktop and phone widths, or any social/slide/email/icon canvas at exact pixels; names web fonts that failed), `tools/slop-lint.mjs` (the fingerprint of AI-made design, also run by a hook on every screen file written), `tools/page-audit.mjs` (the rendered page measured: contrast, fallbacks, measure, widows, sideways scroll, tap targets, focus, reduced motion, the palette by area) `tools/motion-render.mjs` (the animation stepped under a virtual clock and photographed frame by frame, with the real easing curve measured from the pixels) and `tools/specimen.mjs` (a pairing and a palette set for real, with contrast, before they are chosen); `tools/cgc.mjs` (the dispatcher that puts every one of these on PATH as `cgc <command>`, so a gate named in a skill runs in any project), `tools/check.mjs` (the whole loop in one command: it reads the file and runs every gate that applies to it), `tools/techniques.mjs` (the medium detected and the piece measured against that medium’s own vocabulary, with the expressive dimension it never entered named as a question), `tools/icon-lint.mjs` (an icon SET judged as a set: its grid, its stroke weight, its caps and joins, and the stroke at the size it is really used), `tools/outline-text.mjs` (any text as one SVG path with the font's own kerning — the outlined wordmark every shop asks for), `tools/merge-mandates.mjs` (folds the four static mandate sources in `config/mandates/` into one per-prompt hook, so they cost one node process instead of four; a test asserts the generated hook matches its sources), `tools/skills-find.mjs` (searches the skills.sh registry over plain HTTPS — no account, no npm package, no telemetry ping — shows each hit's third-party audit verdict, and fetches one into the indexed library rather than into session context) |
 | **argo** | linked globally as a CLI, plus its 3 agents and 9 slash commands |
@@ -80,6 +85,67 @@ local commits are named and left alone. See [Keeping it current](#keeping-it-cur
 | **MCP** | `playwright` and `context7`, installed locally and pinned, and `codebase-memory-mcp` (a code graph: index a repo once, then trace callers and architecture in milliseconds — pure C, one shared daemon, no key, no telemetry) — all keyless — **and the browser itself**, because `playwright-core` ships none and without one no render, audit, motion capture or print proof can run |
 | **Dependencies** | the repo's one runtime dependency, `fontkit` (the font parser behind `outline-text`), installed into the repo's own `node_modules` from its lockfile, only when absent |
 | **Library** | 15 repos cloned and indexed — 12 skill repos plus three corpora that are not skills: `build-your-own-x` (359 from-scratch tutorials, CC0), `agency-agents` (273 subagent definitions, read for structure, never installed) and `OpenMontage` (the video field, AGPL); 3 rejected on the record. `cgc skills <query>` searches the skills.sh registry for one that is not here yet — plain HTTPS, no account, no telemetry ping — and `--get` fetches it into the library, never into `~/.claude/skills` |
+| **Codex** | `config/AGENTS.md` with this machine's paths substituted, merged into `~/.codex/AGENTS.md` below whatever is already there and between markers, plus the same local MCP servers registered through `codex mcp add`. Skipped on a machine with no Codex |
+
+---
+
+## Codex — the second harness
+
+CGC installs into OpenAI Codex too. The mandates, the gates and the library are the same ones;
+one fact decides the design. **Codex has hooks — the same twelve events, a `command` handler
+type, and the same `hookSpecificOutput`/`additionalContext` wire shape — and CGC registers ten of
+them, trusted.** They cover `SessionStart`, `UserPromptSubmit` and `Stop`, which is enough to make
+the version check a mechanism on that harness rather than an instruction. The other ten are left
+out on purpose: this package's tool hooks match `Write`/`Edit`/`MultiEdit` and Codex's tools are
+`exec`/`spawn_agent`/`send_message`, so they would install, trust, and never fire — and a hook
+that matches nothing is worse than an absent one because everything reports healthy.
+
+**The thing to know about Codex hooks: an untrusted one is SILENTLY SKIPPED.** No prompt, no
+error, no log line. Writing `hooks.json` is not installing a hook — trust is a per-handler entry
+in `$CODEX_HOME/config.toml` keyed by source path and event, carrying a content hash that Codex
+computes, so `cgc install --only=codex` writes the hooks, reads the key and hash back over
+`codex app-server`'s `hooks/list`, writes the trust, and then asks Codex again. The doctor FAILS
+on anything untrusted, because "registered" and "runs" are different words. One more trap worth
+recording: a duplicate key in that file makes `hooks/list` return zero hooks from every layer with
+the reason only in `errors[]`, so the installer refuses to write one.
+
+(This paragraph used to say Codex had no hooks, from one look at `codex --help`; `codex --help`
+documents `--dangerously-bypass-hook-trust`, and `notify` is a separate turn-*ended* notification
+the desktop app
+already owns. So everything the Claude Code side enforces mechanically is, in Codex, **an
+instruction the agent follows**, the version check included: there it is a command the installed
+text tells the agent to run before its first reply, not a hook that has already run. That is
+genuinely weaker, and `config/AGENTS.md` says so in its own first paragraph. The alternative was
+to claim an enforcement that does not exist, which is the failure this repository keeps finding
+in its own documentation.
+
+Two things are not weaker. `cgc` is a set of plain Node programs, so every gate, render, audit and
+print proof behaves identically on both harnesses. And Codex ships `codex mcp add|list|remove`
+with `--json`, so registration goes through its own CLI and **this package never writes a line of
+TOML** — the same reason the Claude Code side calls `claude mcp` rather than editing
+`.claude.json` by hand. If `codex mcp list --json` does not answer, the registrations are left
+alone and that is reported, not guessed at.
+
+```bash
+node tools/install.mjs --only=codex    # install or refresh
+node tools/codex.mjs --check          # the same work as a JSON report; what the doctor reads
+node tools/codex.mjs --dry-run        # what would change, writing nothing
+```
+
+The block lands in `~/.codex/AGENTS.md` (`CODEX_HOME` is honoured), **below** the user's own text
+and between `<!-- CGC:BEGIN … -->` and `<!-- CGC:END -->`. A refresh replaces only what is between
+the markers, so nothing outside them is ever lost, and the first append copies the original to
+`AGENTS.md.cgc-backup` first. That is the opposite shape from `CLAUDE.md`, where this package's
+content comes first and the user writes below a marker — because there the package created the
+file, and here it did not: on the machine this was built on, `AGENTS.md` was already three
+kilobytes of preferences written before this package existed.
+
+A machine with no Codex is **skipped, and never reported as broken**: the CLI is looked for at
+`CODEX_CLI_PATH`, then on `PATH`, then in the newest of the version-hashed install directories
+(this machine had two, an old one and the current one), and when there is nothing to find the
+doctor's Codex phase reports ok — nothing to configure. A package that called a missing second
+harness a failure would be permanently DEGRADED for almost everyone, and the session-start hook
+would try to repair it for ever.
 
 ---
 
@@ -440,6 +506,7 @@ it. An unresolved token after install is a bug — `doctor.mjs` reports it.
 ```
 config/       mandates + hooks, templatized       tools/paths.mjs        path vocabulary
   hooks.json  hook registrations to merge         tools/install.mjs      repo -> machine
+  AGENTS.md   the Codex mandates, templatized      tools/codex.mjs        repo -> Codex
 skills/       skills this repo authors            tools/sync.mjs         machine -> repo
 workflows/    named workflows                     tools/doctor.mjs       verify
 argo/         graph-engineering toolkit           tools/uninstall.mjs    clean removal

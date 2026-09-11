@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `902511d` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render contact-sheet.html --mobile`; gated with
 `slop-lint` (clean) and `cgc audit contact-sheet.html --mobile` (no failures, no
 warnings at 1440 and 390). Each icon file is written from the sprite by `split.mjs`, so the

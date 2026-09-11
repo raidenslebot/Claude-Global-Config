@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `0ab26f5` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render post-N.html --preset ig-post` (1080 × 1350 exactly);
 gated with `cgc lint .` and `cgc audit post-1.html --viewport 1080x1350`.
 

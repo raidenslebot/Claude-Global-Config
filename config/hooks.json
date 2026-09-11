@@ -99,6 +99,12 @@
             "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-motion.js\"",
             "timeout": 10,
             "statusMessage": "Checking motion that has not been watched"
+          },
+          {
+            "type": "command",
+            "command": "\"{{NODE}}\" \"{{CONFIG_ROOT:url}}/hooks/post-tool-behaviour.js\"",
+            "timeout": 10,
+            "statusMessage": "Checking a test can actually fail"
           }
         ]
       },

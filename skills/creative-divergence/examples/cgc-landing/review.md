@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `d72afb2` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render index.html --mobile` at 1440 × 900 and 390 × 844
 after every change; gated with `cgc lint index.html` (clean, 0 of 23, from the
 first pass — which proves only that it is not the template). The loop ran until a pass could

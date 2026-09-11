@@ -1,5 +1,9 @@
 # Review — the passes
 
+> Gated at `650678d` (2026-09-02) — every gate verdict below was recorded at that
+> revision, not re-measured since. Re-run `cgc check .` in this directory to settle it
+> against the current build.
+
 Rendered with `cgc render brand-sheet.html --full` and the icon master with
 `--preset app-icon`; gated with `slop-lint` (clean) and `cgc audit
 brand-sheet.html --mobile`; the tee's mark, which now carries the outlined wordmark, re-gated

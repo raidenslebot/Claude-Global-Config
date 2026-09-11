@@ -10,6 +10,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, readFileSync
 import { tmpdir } from 'node:os'
 import { join, basename } from 'node:path'
 import { spawnSync, spawn } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import { REPO } from '../paths.mjs'
 import { discard } from './_teardown.mjs'
 
@@ -99,7 +100,7 @@ test('behind main: fast-forwards, re-applies config/hooks/skills, reports the ve
   assert.ok(existsSync(marker), 'install.mjs must run after the pull')
   // mcp-register joined the list: registering the servers is a JSON write, while `mcp` would
   // fetch packages over the network and could never run at every session start.
-  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps,mcp-register')
+  assert.equal(readFileSync(marker, 'utf8'), '--only=config,hooks,skills,deps,mcp-register,codex,library')
 })
 
 test('a local edit to a file the update does not touch no longer blocks it', (t) => {
@@ -1173,11 +1174,39 @@ test('the background stamp is not cleared while an updater still holds the lock'
   assert.equal(existsSync(join(state, 'update-blocked-state')), false)
 })
 
-test('the installer treats only "1" as the lock being held', () => {
+test('the installer treats only "1" as the lock being held', (t) => {
   // The hook sets '1' or '0'; nothing pinned the READER, so changing it to !== '0' would make a
   // bare `node tools/install.mjs` — where the variable is unset — skip locking entirely.
-  const src = readFileSync(join(REPO, 'tools', 'paths.mjs'), 'utf8')
-  assert.match(src, /process\.env\.CGC_UPDATE_LOCK_HELD === '1'/, 'held is an explicit "1", never "anything but 0"')
+  //
+  // This used to be asserted by matching the comparison in paths.mjs as TEXT, which is the
+  // failure `cgc behaviour --only=proxies` is named after: the source saying `=== '1'` is not
+  // the same fact as the lock being taken. So take the lock and look.
+  const root = mkdtempSync(join(tmpdir(), 'cgc-lockread-'))
+  t.after(() => discard(root))
+  const lock = join(root, '.cgc', 'update.lock')
+
+  // The lock lives under CONFIG_ROOT, which CLAUDE_CONFIG_DIR moves — so this never touches the
+  // real one on the machine running the suite.
+  const takeLock = (value) => {
+    rmSync(lock, { force: true })
+    const env = { ...process.env, CLAUDE_CONFIG_DIR: root }
+    if (value === undefined) delete env.CGC_UPDATE_LOCK_HELD
+    else env.CGC_UPDATE_LOCK_HELD = value
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e',
+      `import { acquireUpdateLock, UPDATE_LOCK } from ${JSON.stringify(pathToFileURL(join(REPO, 'tools', 'paths.mjs')).href)}\n`
+      + 'import { existsSync } from "node:fs"\n'
+      + 'acquireUpdateLock()\n'
+      + 'console.log(JSON.stringify({ took: existsSync(UPDATE_LOCK), at: UPDATE_LOCK }))\n',
+    ], { encoding: 'utf8', env, timeout: 60000 })
+    assert.equal(r.status, 0, r.stderr)
+    return JSON.parse(r.stdout).took
+  }
+
+  assert.equal(takeLock('1'), false, "'1' means the parent already holds it — no second lock")
+  assert.equal(takeLock('0'), true, "'0' means take it")
+  assert.equal(takeLock(undefined), true, 'unset means take it — a bare install must still lock')
+  assert.equal(takeLock('true'), true, 'anything that is not exactly "1" still takes the lock')
+  assert.equal(takeLock(''), true, 'empty is not "1"')
 })
 
 test('an install that failed while the doctor saw nothing wrong is NOT recorded as applied', (t) => {
@@ -1258,4 +1287,33 @@ test('a session returning after a pause re-checks; one in mid-conversation does 
   promptAs(w, 's', TTL2)
   assert.ok(statSync(join(state, 'last-remote-check')).mtimeMs > first,
     'coming back after a pause is a live check, whatever the shared window says')
+})
+
+test('every install phase the doctor can FAIL on is reachable by the automatic repair', () => {
+  // The loop this prevents: the doctor fails on something marked repairable, the session hook
+  // re-installs with a fixed --only list that cannot touch it, the doctor fails again, and the
+  // machine reports DEGRADED for ever — running a full install at every single session start.
+  // It happened the moment a Codex phase was added to the doctor and not to the hook's list.
+  const doctorSrc = readFileSync(join(REPO, 'tools', 'doctor.mjs'), 'utf8')
+  const hookSrc = readFileSync(join(REPO, 'config', 'hooks', 'session-start-cgc.js'), 'utf8')
+
+  const listed = /--only=([a-z-,]+)/.exec(hookSrc)
+  assert.ok(listed, 'the session hook must run the installer with an --only list')
+  const repairs = new Set(listed[1].split(','))
+
+  // Every phase a FAIL message tells the user to run. A failure that names its own remedy and
+  // whose remedy the repair never runs is the definition of unrepairable-but-marked-repairable.
+  const needed = new Set()
+  for (const m of doctorSrc.matchAll(/fail\(([\s\S]{0,400}?)\)\n/g)) {
+    if (/repairable:\s*false/.test(m[1])) continue
+    // A failure carrying a `fix:` hint declares its own MACHINE remedy, which the hook passes
+    // as an extra flag; the phase named in its human-facing sentence is advice, not wiring.
+    if (/\bfix:\s*'/.test(m[1])) continue
+    for (const p of m[1].matchAll(/install\.mjs --only=([a-z-]+)/g)) needed.add(p[1])
+  }
+  assert.ok(needed.size > 0, 'no doctor failure names an --only phase; this test would assert nothing')
+
+  const unreachable = [...needed].filter((p) => !repairs.has(p))
+  assert.deepEqual(unreachable, [],
+    `the doctor tells the user to run --only=${unreachable.join(',')} but the session hook's repair never does`)
 })

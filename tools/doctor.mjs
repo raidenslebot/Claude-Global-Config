@@ -10,7 +10,7 @@
 import { readFileSync, existsSync, readdirSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly, hostManagedPlugins, resolveServerBin } from './paths.mjs'
+import { REPO, HOME, IS_WIN, CONFIG_ROOT, CLAUDE_JSON, unresolved, askedForHelp, hostConfigs, pluginServers, readJsonQuietly, hostManagedPlugins, resolveServerBin, resolveCodexCli } from './paths.mjs'
 import { buildVars } from './paths.mjs'
 
 const { LIBRARY_ROOT } = buildVars()
@@ -408,9 +408,15 @@ phase('Design tools')
     const probe = LAUNCH(join(pw.from, 'playwright-core'))
     if (probe.status === 0) ok(`browser launches for render, audit and motion (playwright-core from ${pw.from})`)
     else {
+      // NOT repairable by the session hook. The remedy downloads a Chromium — a 900-second step
+      // in the install — so re-running it at every session start would be a slow install every
+      // time AND a DEGRADED line every time, since it cannot succeed offline. The message names
+      // the one command that fixes it and then stands, which is the honest shape for a failure
+      // the automatic repair genuinely cannot clear.
       fail('playwright-core is installed but NO BROWSER LAUNCHES. Every render, audit, motion capture '
         + 'and print proof fails without one — the package ships no browser of its own. '
-        + `Fix: node tools/install.mjs --only=mcp${probe.stderr ? ` (${String(probe.stderr).split('\n')[0].slice(0, 90)})` : ''}`)
+        + `Fix: node tools/install.mjs --only=mcp${probe.stderr ? ` (${String(probe.stderr).split('\n')[0].slice(0, 90)})` : ''}`,
+      { repairable: false })
     }
   }
   else warn('no browser — print-render, screen-render, page-audit and specimen cannot run; node tools/install.mjs --only=mcp installs the Playwright MCP that brings it')
@@ -538,6 +544,51 @@ phase('argo CLI')
     const r = spawnSync(`"${bin}"`, ['--help'], { encoding: 'utf8', shell: true, timeout: 30000 })
     r.status === 0 ? ok(`argo --help exits 0 (${bin})`)
       : fail(`argo --help exited ${r.status} — ${String(r.stderr || r.stdout || '').split('\n')[0]}`)
+  }
+}
+
+// ── Codex, the second harness ───────────────────────────────────────────────
+// Absence is NOT a fault. Most machines have no Codex, and a package that reported that as a
+// failure would leave nearly everyone permanently DEGRADED — the same mistake as a warning that
+// fires on every run. What IS a fault is a Codex that is installed and out of date with this
+// package, because there is no hook over there to notice: the mandate block is refreshed by an
+// install, and nothing else will do it.
+phase('Codex')
+{
+  const cli = resolveCodexCli()
+  if (!cli) ok('Codex is not installed on this machine — nothing to configure')
+  else {
+    const r = spawnSync(process.execPath, [join(REPO, 'tools', 'codex.mjs'), '--check'], { encoding: 'utf8', timeout: 120000 })
+    let rep = null
+    try { rep = JSON.parse(String(r.stdout || '')) } catch { /* reported as a failure below */ }
+    if (!rep || typeof rep !== 'object') {
+      fail(`codex.mjs --check did not answer with JSON (exit ${r.status}) — ${String(r.stderr || r.stdout || '').trim().split('\n')[0] || 'no output'}`)
+    } else {
+      for (const note of rep.notes || []) warn(`Codex: ${note}`)
+      const how = rep.agents && rep.agents.how
+      if (how === 'unchanged') ok(`Codex mandates current (${rep.agents.path})`)
+      else if (!how) fail('Codex AGENTS.md could not be read or merged — run: node tools/install.mjs --only=codex')
+      else fail(`Codex AGENTS.md is out of date (would be ${how}) — run: node tools/install.mjs --only=codex`)
+      const stale = Object.entries(rep.servers || {}).filter(([, s]) => s !== 'current')
+      if (!stale.length) ok(`Codex MCP registrations current (${Object.keys(rep.servers || {}).length})`)
+      else fail(`Codex MCP registration ${stale.map(([n, s]) => `${n} (${s})`).join(', ')} — run: node tools/install.mjs --only=codex`)
+
+      // The hooks, and the only question worth asking about them: does Codex agree they are
+      // TRUSTED. An untrusted hook is loaded, reported enabled, and silently skipped — no prompt,
+      // no error, no log line — so "registered" is not a synonym for "runs", and a check that
+      // counted the file's entries would pass on a machine enforcing nothing.
+      const h = rep.hooks
+      if (!h) fail('Codex hook state was not reported — run: node tools/install.mjs --only=codex')
+      else if (h.configError) {
+        fail(`Codex cannot read its hook config, so NO hook runs on that harness: ${String(h.configError).slice(0, 120)} — run: node tools/install.mjs --only=codex`)
+      } else if (h.installed && h.trusted === h.installed && !h.untrusted.length) {
+        ok(`Codex hooks trusted (${h.trusted}/${h.installed}; ${h.skipped.length} left out on purpose)`)
+      } else if (h.untrusted.length) {
+        fail(`${h.untrusted.length} Codex hook(s) are registered but NOT trusted (${h.untrusted.join(', ')}), and an untrusted hook is silently skipped — run: node tools/install.mjs --only=codex`)
+      } else {
+        fail(`Codex hooks not registered (${h.trusted}/${h.installed} trusted) — run: node tools/install.mjs --only=codex`)
+      }
+    }
   }
 }
 
